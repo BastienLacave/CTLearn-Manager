@@ -192,6 +192,24 @@ class CTLearnModelManager():
         else:
             print(f"Model has not yet been trained.")
             
+    def info(self):
+        print(f"Model nickname: {self.model_nickname}")
+        print(f"Model name: {self.model_name}")
+        print(f"Model directory: {self.model_dir}")
+        print(f"Reco: {self.reco}")
+        print(f"Telescope names: {self.telescope_names}")
+        print(f"Telescope indices: {self.telescopes_indices}")
+        print(f"Training gamma dirs: {self.training_gamma_dirs}")
+        print(f"Training proton dirs: {self.training_proton_dirs}")
+        print(f"Training gamma zenith distances: {self.training_gamma_zenith_distances}")
+        print(f"Training gamma azimuths: {self.training_gamma_azimuths}")
+        print(f"Training proton zenith distances: {self.training_proton_zenith_distances}")
+        print(f"Training proton azimuths: {self.training_proton_azimuths}")
+        print(f"Notes: {self.notes}")
+        print(f"ZD range: {self.zd_range}")
+        print(f"Az range: {self.az_range}")
+        print(f"Stereo: {self.stereo}")
+            
             
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
     models_table = QTable.read(MODEL_INDEX_FILE)
