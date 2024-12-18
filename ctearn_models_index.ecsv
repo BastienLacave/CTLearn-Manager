@@ -1,0 +1,28 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: model_index, datatype: int64}
+# - {name: model_nickname, datatype: string}
+# - {name: model_name, datatype: string}
+# - {name: model_dir, datatype: string}
+# - {name: reco, datatype: string}
+# - {name: telescope_names, datatype: string, subtype: json}
+# - {name: telescopes_indices, datatype: string, subtype: json}
+# - {name: training_gamma_dirs, datatype: string, subtype: json}
+# - {name: training_proton_dirs, datatype: string, subtype: json}
+# - {name: training_gamma_zenith_distances, datatype: string, subtype: json}
+# - {name: training_gamma_azimuths, datatype: string, subtype: json}
+# - {name: training_proton_zenith_distances, datatype: string, subtype: json}
+# - {name: training_proton_azimuths, datatype: string, subtype: json}
+# - {name: notes, datatype: string}
+# - {name: zd_range, datatype: string, subtype: json}
+# - {name: az_range, datatype: string, subtype: json}
+# - {name: testing_gamma_dirs, datatype: string, subtype: json}
+# - {name: testing_proton_dirs, datatype: string, subtype: json}
+# - {name: testing_gamma_zenith_distances, datatype: string, subtype: json}
+# - {name: testing_gamma_azimuths, datatype: string, subtype: json}
+# - {name: testing_proton_zenith_distances, datatype: string, subtype: json}
+# - {name: testing_proton_azimuths, datatype: string, subtype: json}
+# schema: astropy-2.0
+model_index model_nickname model_name model_dir reco telescope_names telescopes_indices training_gamma_dirs training_proton_dirs training_gamma_zenith_distances training_gamma_azimuths training_proton_zenith_distances training_proton_azimuths notes zd_range az_range testing_gamma_dirs testing_proton_dirs testing_gamma_zenith_distances testing_gamma_azimuths testing_proton_zenith_distances testing_proton_azimuths
+0 direction_20deg energy_TEL1_2_ZD20_Az0 /home/blacave/CTLearn/Data/CTLearn_Models_SST1M//direction_20deg energy "[""SST1M_1"",""SST1M_2""]" [1,2] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton/20deg/merged/""]" [20] [0] [20] [0] "Stereo model for 20deg zenith distance" [20,20] [0,0] [] [] [] [] [] []
