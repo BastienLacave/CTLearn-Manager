@@ -12,35 +12,27 @@ __all__ = [
 
 class CTLearnModelManager():
 
-    def __init__(self, model_nickname,
-    notes,
-    model_dir,
-    reco,
-    telescope_names,
-    telescopes_indices,
-    training_gamma_dirs,
-    training_proton_dirs,
-    training_gamma_zenith_distances,
-    training_gamma_azimuths,
-    training_proton_zenith_distances,
-    training_proton_azimuths):
-        
-        self.model_nickname = model_nickname
-        self.notes = notes
-        self.model_dir = f"{model_dir}/{model_nickname}"
-        self.reco = reco
-        self.telescope_names = telescope_names
-        self.telescopes_indices = telescopes_indices
-        self.training_gamma_dirs = training_gamma_dirs
-        self.training_proton_dirs = training_proton_dirs
-        self.training_gamma_zenith_distances = training_gamma_zenith_distances
-        self.training_gamma_azimuths = training_gamma_azimuths
-        self.training_proton_zenith_distances = training_proton_zenith_distances
-        self.training_proton_azimuths = training_proton_azimuths
+    def __init__(self, model_parameters, MODEL_INDEX_FILE):
+        self.model_index_file = MODEL_INDEX_FILE
+        self.model_nickname = model_parameters['model_nickname']
+        self.notes = model_parameters['notes']
+        self.model_dir = f"{model_parameters['model_dir']}/{model_parameters['model_nickname']}"
+        self.reco = model_parameters['reco']
+        self.telescope_names = model_parameters['telescope_names']
+        self.telescopes_indices = model_parameters['telescopes_indices']
+        self.training_gamma_dirs = model_parameters['training_gamma_dirs']
+        self.training_proton_dirs = model_parameters['training_proton_dirs']
+        self.training_gamma_zenith_distances = model_parameters['training_gamma_zenith_distances']
+        self.training_gamma_azimuths = model_parameters['training_gamma_azimuths']
+        self.training_proton_zenith_distances = model_parameters['training_proton_zenith_distances']
+        self.training_proton_azimuths = model_parameters['training_proton_azimuths']
+        self.channels = model_parameters['channels']
+        self.max_training_epochs = model_parameters['max_training_epochs']
         self.columns = ['model_index', 
            'model_nickname', 'model_name', 
            'model_dir',
            'reco', 
+           'channels',
            'telescope_names', 'telescopes_indices', 
            'training_gamma_dirs', 'training_proton_dirs', 
            'training_gamma_zenith_distances', 'training_gamma_azimuths', 
@@ -49,7 +41,8 @@ class CTLearnModelManager():
            'zd_range', 'az_range',
            'testing_gamma_dirs', 'testing_proton_dirs',
            'testing_gamma_zenith_distances', 'testing_gamma_azimuths',
-           'testing_proton_zenith_distances', 'testing_proton_azimuths',]
+           'testing_proton_zenith_distances', 'testing_proton_azimuths',
+           'max_training_epochs']
         self.stereo = True if len(self.telescopes_indices) > 1 else False
         if self.reco == 'type' and (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
             raise ValueError("For reco type, training_proton_dirs and training_gamma_dirs are required")
@@ -72,9 +65,9 @@ class CTLearnModelManager():
         print(f"🧠 Model name: {self.model_name}")
         
         
-    def save_to_index(self, MODEL_INDEX_FILE):
+    def save_to_index(self):
         try:
-            models_table = QTable.read(MODEL_INDEX_FILE)
+            models_table = QTable.read(self.model_index_file)
             model_index = models_table['model_index'][-1] + 1
         except:
             models_table = QTable(names=self.columns,  
@@ -82,6 +75,7 @@ class CTLearnModelManager():
                                 dtype=[int,
                                         str, str, 
                                         str, str,
+                                        list,
                                         list, list, 
                                         list, list, 
                                         list, list, 
@@ -90,8 +84,10 @@ class CTLearnModelManager():
                                         list, list,
                                         list, list,
                                         list, list,
-                                        list, list])
-            print(f"Model index did not exist, will create {MODEL_INDEX_FILE}")
+                                        list, list,
+                                        int
+                                        ])
+            print(f"Model index did not exist, will create {self.model_index_file}")
             model_index = 0
         # if not Path(self.model_dir).exists():
         #     Path(self.model_dir).mkdir()
@@ -100,7 +96,9 @@ class CTLearnModelManager():
             models_table.add_row([model_index, 
                                 self.model_nickname, self.model_name, 
                                 self.model_dir,
-                                self.reco, self.telescope_names, self.telescopes_indices, 
+                                self.reco, 
+                                self.channels,
+                                self.telescope_names, self.telescopes_indices, 
                                 self.training_gamma_dirs, self.training_proton_dirs, 
                                 self.training_gamma_zenith_distances, self.training_gamma_azimuths, 
                                 self.training_proton_zenith_distances, self.training_proton_azimuths, 
@@ -108,14 +106,27 @@ class CTLearnModelManager():
                                 self.zd_range, self.az_range, 
                                 [], [], 
                                 [], [], 
-                                [], []])
-            models_table.write(MODEL_INDEX_FILE, format='ascii.ecsv', serialize_method='data_mask', overwrite=True)
+                                [], [],
+                                self.max_training_epochs
+                                ])
+            models_table.write(self.model_index_file, format='ascii.ecsv', serialize_method='data_mask', overwrite=True)
             print(f"✅ Model nickname {self.model_nickname} added to table")
         else:
             print(f"❌ Model nickname {self.model_nickname} already in table")
         
         
-    def launch_training(self, n_epochs=15):
+    def launch_training(self, n_epochs=None):
+        n_epoch_training = self.get_n_epoch_trained()
+        if n_epochs > self.max_training_epochs:
+            print(f"⚠️ Number of epochs increased from {self.max_training_epochs} to {n_epochs}")
+            self.update_model_manager_parameters_in_index({'max_training_epochs': n_epochs})
+            self.max_training_epochs = n_epochs
+        if n_epoch_training >= self.max_training_epochs:
+            print(f"🛑 Model already trained for {n_epoch_training} epochs. Will not train further.")
+            self.plot_loss()
+            return
+        n_epochs = self.max_training_epochs - n_epoch_training
+        print(f"🚀 Launching training for {n_epochs} epochs")
         import glob
         import os
         models_dir = np.sort(glob.glob(f"{self.model_dir}*"))
@@ -126,7 +137,7 @@ class CTLearnModelManager():
             model_version = int(models_dir[-1].split("_v")[-1])
             if size > 1e6:
                 model_version += 1
-                print(f"➡️ Model already exists: will continue training and create \n📁 {self.model_nickname}_v{model_version}")
+                print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                 save_best_validation_only = True
                 model_dir = f"{self.model_dir}_v{model_version}/"
                 model_to_load = f"{self.model_dir}_v{model_version - 1}/ctlearn_model.cpk/"
@@ -137,14 +148,14 @@ class CTLearnModelManager():
                 if model_version > 0:
                     model_to_load = f"{self.model_dir}_v{model_version - 1}/ctlearn_model.cpk/"
                     load_model = True
-                    print(f"➡️ Model already exists: will continue training and create \n📁 {self.model_nickname}_v{model_version}")
+                    print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                     save_best_validation_only = True
                 else:
-                    print(f"🆕 Model does not exist: will create \n📁 {self.model_nickname}_v{model_version}")
+                    print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
                     save_best_validation_only = False
         else:
             model_version = 0
-            print(f"🆕 Model does not exist: will create \n📁 {self.model_nickname}_v{model_version}")
+            print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
             model_dir = f"{self.model_dir}_v{model_version}/"
             os.system(f"mkdir -p {model_dir}")
             save_best_validation_only = False
@@ -158,6 +169,9 @@ class CTLearnModelManager():
         # if reco == 'type':
         #     for ze, az in zip(zes_protons, azs_protons):
         #         background_patterns += f'--pattern-background "proton_theta_{ze:.3f}_az_{az:.3f}_runs*.dl1.h5" '
+        channels_string = ""
+        for channel in self.channels:
+            channels_string += f"--DLImageReader.channels={channel} "
 
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = 'true' if self.stereo else 'false'
@@ -168,8 +182,7 @@ class CTLearnModelManager():
             {background_string}{background_patterns}\
             --reco {self.reco} \
             --output {model_dir} \
-            --DLImageReader.channels=cleaned_image \
-            --DLImageReader.channels=cleaned_relative_peak_time \
+            {channels_string}\
             --TrainCTLearnModel.n_epochs={n_epochs} \
             --verbose \
             --TrainCTLearnModel.save_best_validation_only=True\
@@ -181,24 +194,39 @@ class CTLearnModelManager():
         print(cmd)
         # !{cmd}
         os.system(cmd)
+        
+        
+    def get_n_epoch_trained(self):
+        import glob
+        import pandas as pd
+        training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
+        n_epochs = 0
+        for training_log in training_logs:
+            df = pd.read_csv(training_log)
+            n_epochs += len(df)
+        return n_epochs
 
     
     def plot_loss(self):
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
-        training_log = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))[-1]
-        if Path(training_log).exists():
+        training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
+        losses_train = []
+        losses_val = []
+        for training_log in training_logs:
             df = pd.read_csv(training_log)
-            plt.plot(df['epoch'], df['loss'], label=f"Training")
-            plt.plot(df['epoch'], df['val_loss'], label=f"Testing", ls='--')
-            plt.title(f"{self.reco} training")
-            plt.xlabel('Epoch')
-            plt.ylabel('Loss')
-            plt.legend()
-            plt.show()
-        else:
-            print(f"Model has not yet been trained.")
+            losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
+            losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
+        epochs = np.arange(1, len(losses_train)+1)
+        plt.plot(epochs, losses_train, label=f"Training")
+        plt.plot(epochs, losses_val, label=f"Testing", ls='--')
+        plt.title(f"{self.reco} training")
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.show()
+    
             
     def info(self):
         print(f"Model nickname: {self.model_nickname}")
@@ -217,6 +245,17 @@ class CTLearnModelManager():
         print(f"ZD range: {self.zd_range}")
         print(f"Az range: {self.az_range}")
         print(f"Stereo: {self.stereo}")
+        
+    def update_model_manager_parameters_in_index(self, parameters: dict):
+        models_table = QTable.read(self.model_index_file)
+        model_index = np.where(models_table['model_nickname'] == self.model_nickname)[0][0]
+        print(f"💾 Model index update:")
+        for key, value in parameters.items():
+            models_table[key][model_index] = value
+            self.__dict__[key] = value
+            print(f"\t➡️ {key} updated to {value}")
+        models_table.write(self.model_index_file, format='ascii.ecsv', serialize_method='data_mask', overwrite=True)
+        # print(f"✅ Model parameters updated in index")
             
 class CTLearnTriModelManager():
     
