@@ -1,2 +1,3 @@
 prune src/template/_dev_version
 prune .github
+include src/ctlearn_manager/resources/*

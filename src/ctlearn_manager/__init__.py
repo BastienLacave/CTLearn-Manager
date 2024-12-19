@@ -1,4 +1,4 @@
-"""Example module of the python package template."""
+"""CTLearn Model Manager"""
 from .version import __version__
 from astropy.table import QTable
 import numpy as np
@@ -11,12 +11,52 @@ __all__ = [
 
 
 class CTLearnModelManager():
+    """
+    A class to manage CTLearn models, including initialization, saving to index, launching training, and plotting loss.
+    Attributes:
+        model_index_file (str): Path to the model index file.
+        model_nickname (str): Nickname of the model.
+        notes (str): Notes about the model.
+        model_dir (str): Directory where the model is stored.
+        reco (str): Type of reconstruction.
+        telescope_names (list): Names of the telescopes.
+        telescopes_indices (list): Indices of the telescopes.
+        training_gamma_dirs (list): Directories of training gamma data.
+        training_proton_dirs (list): Directories of training proton data.
+        training_gamma_zenith_distances (list): Zenith distances of training gamma data.
+        training_gamma_azimuths (list): Azimuths of training gamma data.
+        training_proton_zenith_distances (list): Zenith distances of training proton data.
+        training_proton_azimuths (list): Azimuths of training proton data.
+        channels (list): Channels used in the model.
+        max_training_epochs (int): Maximum number of training epochs.
+        columns (list): Columns of the model index table.
+        stereo (bool): Whether the model is stereo or not.
+        zd_range (list): Zenith distance range.
+        az_range (list): Azimuth range.
+        model_name (str): Name of the model.
+    Methods:
+        __init__(model_parameters, MODEL_INDEX_FILE):
+            Initializes the CTLearnModelManager with the given parameters.
+        save_to_index():
+            Saves the model parameters to the index file.
+        launch_training(n_epochs=None):
+            Launches the training process for the model.
+        get_n_epoch_trained():
+            Returns the number of epochs the model has been trained for.
+        plot_loss():
+            Plots the training and validation loss over epochs.
+        info():
+            Prints information about the model.
+        update_model_manager_parameters_in_index(parameters):
+            Updates the model parameters in the index file.
+    """
+    
 
     def __init__(self, model_parameters, MODEL_INDEX_FILE):
         self.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters['model_nickname']
         self.notes = model_parameters['notes']
-        self.model_dir = f"{model_parameters['model_dir']}/{model_parameters['model_nickname']}"
+        self.model_dir = model_parameters['model_dir'] #f"{model_parameters['model_dir']}/{model_parameters['model_nickname']}"
         self.reco = model_parameters['reco']
         self.telescope_names = model_parameters['telescope_names']
         self.telescopes_indices = model_parameters['telescopes_indices']
@@ -66,6 +106,22 @@ class CTLearnModelManager():
         
         
     def save_to_index(self):
+        """
+        Save the current model information to the index file.
+        This method attempts to read an existing model index file and append the current model's
+        information to it. If the index file does not exist, it creates a new one with the necessary
+        columns and data types. The model information is only added if the model nickname is not
+        already present in the index.
+        Raises:
+            Exception: If there is an error reading or writing the model index file.
+        Notes:
+            - The model index file is expected to be in the 'ascii.ecsv' format.
+            - The method ensures that the model nickname is unique in the index.
+            - The model information includes various attributes such as model nickname, name, directory,
+              reconstruction type, channels, telescope names and indices, training directories, zenith
+              distances, azimuths, notes, and maximum training epochs.
+        """
+        
         try:
             models_table = QTable.read(self.model_index_file)
             model_index = models_table['model_index'][-1] + 1
@@ -116,6 +172,27 @@ class CTLearnModelManager():
         
         
     def launch_training(self, n_epochs=None):
+        """
+        Launches the training process for the model.
+        Parameters:
+        n_epochs (int, optional): The number of epochs to train the model. If not specified, the training will continue 
+                                  until the maximum number of training epochs is reached.
+        Returns:
+        None
+        This method performs the following steps:
+        1. Checks the number of epochs the model has already been trained for.
+        2. If the specified number of epochs exceeds the maximum allowed, updates the maximum training epochs.
+        3. If the model has already been trained for the maximum number of epochs, it stops further training.
+        4. Determines the number of epochs to train in this session.
+        5. Checks if a model already exists and determines whether to continue training the existing model or create a new one.
+        6. Constructs the command to launch the training process with the appropriate parameters.
+        7. Executes the training command.
+        Note:
+        - The method assumes that the model directory and nickname are already set.
+        - The method uses the `ctlearn-train-model` command to launch the training process.
+        - The method prints the constructed command and executes it using `os.system`.
+        """
+        
         n_epoch_training = self.get_n_epoch_trained()
         if n_epochs > self.max_training_epochs:
             print(f"⚠️ Number of epochs increased from {self.max_training_epochs} to {n_epochs}")
@@ -129,7 +206,7 @@ class CTLearnModelManager():
         print(f"🚀 Launching training for {n_epochs} epochs")
         import glob
         import os
-        models_dir = np.sort(glob.glob(f"{self.model_dir}*"))
+        models_dir = np.sort(glob.glob(f"{self.model_dir}/{self.model_nickname}*"))
         load_model = False
         if len(models_dir) > 0 :
             last_model_dir = Path(models_dir[-1])
@@ -139,14 +216,14 @@ class CTLearnModelManager():
                 model_version += 1
                 print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                 save_best_validation_only = True
-                model_dir = f"{self.model_dir}_v{model_version}/"
-                model_to_load = f"{self.model_dir}_v{model_version - 1}/ctlearn_model.cpk/"
+                model_dir = f"{self.model_dir}/{self.model_nickname}_v{model_version}/"
+                model_to_load = f"{self.model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk/"
                 load_model = True
                 os.system(f"mkdir -p {model_dir}")
             else :
-                model_dir = f"{self.model_dir}_v{model_version}/"
+                model_dir = f"{self.model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{self.model_dir}_v{model_version - 1}/ctlearn_model.cpk/"
+                    model_to_load = f"{self.model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk/"
                     load_model = True
                     print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                     save_best_validation_only = True
@@ -156,7 +233,7 @@ class CTLearnModelManager():
         else:
             model_version = 0
             print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
-            model_dir = f"{self.model_dir}_v{model_version}/"
+            model_dir = f"{self.model_dir}/{self.model_nickname}_v{model_version}/"
             os.system(f"mkdir -p {model_dir}")
             save_best_validation_only = False
 
@@ -197,6 +274,14 @@ class CTLearnModelManager():
         
         
     def get_n_epoch_trained(self):
+        """
+        Calculate the total number of epochs trained across all training logs.
+        This method searches for all training log files in the model directory,
+        reads each log file, and sums the number of epochs recorded in each log.
+        Returns:
+            int: The total number of epochs trained.
+        """
+        
         import glob
         import pandas as pd
         training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
@@ -208,6 +293,22 @@ class CTLearnModelManager():
 
     
     def plot_loss(self):
+        """
+        Plots the training and validation loss over epochs.
+        This method reads training logs from CSV files located in the model directory,
+        concatenates the loss values, and plots them using matplotlib. The plot includes
+        both training and validation loss curves.
+        Dependencies:
+            - matplotlib.pyplot
+            - pandas
+            - glob
+            - numpy
+        Raises:
+            FileNotFoundError: If no training log files are found in the specified directory.
+        Example:
+            self.plot_loss()
+        """
+        
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
@@ -248,6 +349,17 @@ class CTLearnModelManager():
         print(f"Stereo: {self.stereo}")
         
     def update_model_manager_parameters_in_index(self, parameters: dict):
+        """
+        Updates the model manager parameters in the index file.
+        This method reads the model index file, finds the entry corresponding to the
+        current model nickname, and updates the specified parameters in the index.
+        The updated parameters are also reflected in the instance's attributes.
+        Args:
+            parameters (dict): A dictionary containing the parameters to update and their new values.
+        Raises:
+            IndexError: If the model nickname is not found in the model index file.
+        """
+        
         models_table = QTable.read(self.model_index_file)
         model_index = np.where(models_table['model_nickname'] == self.model_nickname)[0][0]
         print(f"💾 Model index update:")
@@ -259,6 +371,25 @@ class CTLearnModelManager():
         # print(f"✅ Model parameters updated in index")
             
 class CTLearnTriModelManager():
+    """
+    A manager class for handling three CTLearn models: direction, energy, and type.
+    Attributes:
+        direction_model (CTLearnModelManager): The direction model manager.
+        energy_model (CTLearnModelManager): The energy model manager.
+        type_model (CTLearnModelManager): The type model manager.
+    Methods:
+        __init__(direction_model, energy_model, type_model):
+            Initializes the CTLearnTriModelManager with the given models.
+        launch_testing():
+            Placeholder method for launching testing.
+        produce_irfs():
+            Placeholder method for producing IRFs.
+        plot_irfs():
+            Uses gammapy to plot the IRFs. (Not yet implemented)
+        plot_loss():
+            Plots the training and validation loss for each model using matplotlib.
+    """
+    
     
     def __init__(self, direction_model: CTLearnModelManager, energy_model: CTLearnModelManager, type_model: CTLearnModelManager):
         if direction_model.reco == 'direction':
@@ -317,6 +448,7 @@ def set_mpl_style():
     import matplotlib.font_manager as font_manager
     from matplotlib import rcParams
     from . import resources
+
     # font_path = "./resources/Outfit-Medium.ttf"
     import importlib.resources as pkg_resources
 
@@ -324,8 +456,8 @@ def set_mpl_style():
         font_manager.fontManager.addfont(font_path)
     font_manager.fontManager.addfont(font_path)
     prop = font_manager.FontProperties(fname=font_path)
-    rcParams['font.sans-serifs'] = prop.get_name()
+    rcParams['font.sans-serif'] = prop.get_name()
     rcParams['font.family'] = prop.get_name()
-    with pkg_resources.path(resources, 'ctlearnStyle.mplstyle') as style_path:
+    with pkg_resources.path(resources, 'CTLearnStyle.mplstyle') as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
