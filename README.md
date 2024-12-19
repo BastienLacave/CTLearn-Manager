@@ -2,7 +2,7 @@
 
 A compagnon package to CTLearn that enables to manage models to train, test, monitor and benchmark them.
 
-The whole CTLearn Managers revolves around the ctlearn_model_index.ecsv, that containsall your models with the relevant information for training, predicting, and benchmarking, allowing you to easily jump between models and compare them.
+The whole CTLearn Managers revolves around the `ctlearn_model_index.ecsv`, that contains all your models with the relevant information for training, predicting, and benchmarking, allowing you to easily jump between models and compare them.
 
 ## 🧠 Setup a model manager
 
@@ -54,6 +54,6 @@ TBD
 
 ## ↔️ CTLearn model comparison
 
-Compare as many CTMearn models as you want with perf plots, DL2 level analysis and more.
+Compare as many CTLearn models as you want with perf plots, DL2 level analysis and more.
 
 ## 🔥 Compare CTLearn and Random Forest
