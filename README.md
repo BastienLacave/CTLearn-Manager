@@ -25,6 +25,30 @@ To setup `CTLeanrModelManager`, you need to specify the following fields:
 
 Call `CTLeanrModelManager.save_to_index()` to save the model to the index file.
 
+```
+# Where all the models are stored
+MODEL_INDEX_FILE = "/home/blacave/CTLearn/Software/CTLearn-Manager/ctearn_models_index.ecsv"
+# General parameters
+model_parameters = {
+    'model_nickname' : "a_name_for_your_model",
+    'model_dir' : "where/to/stor/the/models/",
+    'notes' : "Stereo model for 20deg zenith distance",
+    'reco' : 'type', #["energy", "direction", "type"]
+    'channels' : ['cleaned_image', 'cleaned_relative_peak_time'], # Order matters
+    'telescope_names' : ['SST1M_1', 'SST1M_2'],
+    'telescopes_indices' : [1, 2],
+    'training_gamma_dirs' : ["/DL1/SST1M/MC/Gamma_diffuse/training/"],
+    'training_proton_dirs' : ["/DL1/SST1M/MC/Proton_diffuse/training/"],
+    'training_gamma_zenith_distances' : [20],
+    'training_gamma_azimuths' : [0],
+    'training_proton_zenith_distances' : [20],
+    'training_proton_azimuths' : [0],
+    'max_training_epochs' : 15, 
+}
+new_model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE)
+new_model.save_to_index()
+```
+
 ## 🚀 Launch training
 
 Simply call `CTLeanrModelManager.launch_training(n_epochs=15)`.
