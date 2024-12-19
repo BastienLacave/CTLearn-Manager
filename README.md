@@ -2,11 +2,9 @@
 
 A compagnon package to CTLearn that enables to manage models to train, test, monitor and benchmark them.
 
-## Usage
+The whole CTLearn Managers revolves around the ctlearn_model_index.ecsv, that containsall your models with the relevant information for training, predicting, and benchmarking, allowing you to easily jump between models and compare them.
 
-The whole CTLearn Managers revolvesaround the ctlearn_model_index.ecsv, that containsall your models with the relevantinformation for training, predicting, and benchmarking, allowing you to easily jump between models and compare them.
-
-### 🧠 Setup a model manager
+## 🧠 Setup a model manager
 
 To setup `CTLeanrModelManager`, you need to specify the following fields:
 - `model_nickname` : "a_name_for_your_model"
@@ -27,13 +25,13 @@ To setup `CTLeanrModelManager`, you need to specify the following fields:
 
 Call `CTLeanrModelManager.save_to_index()` to save the model to the index file.
 
-### 🚀 Launch training
+## 🚀 Launch training
 
 Simply call `CTLeanrModelManager.launch_training(n_epochs=15)`.
-Thenumberof epochs can be increased from the `max_training_epochs`, in which case the model will train for more epochs.
-In case of resuming training, a newer version of the model will be created andtrainingwill continue for the remaining amount of epochs.
+The number of epochs can be increased from the `max_training_epochs`, in which case the model will train for more epochs.
+In case of resuming training, a newer version of the model will be created and training will continue for the remaining amount of epochs.
 
-### 📉 Training monitoring
+## 📉 Training monitoring
 
 You can plot the training and validation losses by doing:
 
@@ -43,3 +41,9 @@ MODEL_INDEX_FILE = "path/to/index/ctearn_models_index.ecsv"
 model = load_model_from_index("model_nickname", MODEL_INDEX_FILE)
 model.plot_loss()
 ```
+
+## 🧪 Model testing
+
+Model testing requires 3 models, onefor each reconstruction task `energy`, `direction` and `type`.
+CTLearn Manager implements the `CTLeanrTriModelManager` that isbuilt by combining the 3 models you want for each task.
+Along with thesemodels, you provide the testing files for gammasand protons.
