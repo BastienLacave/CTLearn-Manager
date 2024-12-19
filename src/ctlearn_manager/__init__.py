@@ -194,6 +194,7 @@ class CTLearnModelManager():
         """
         
         n_epoch_training = self.get_n_epoch_trained()
+        print(f"📊 Model trained for {n_epoch_training} epochs")
         if n_epochs > self.max_training_epochs:
             print(f"⚠️ Number of epochs increased from {self.max_training_epochs} to {n_epochs}")
             self.update_model_manager_parameters_in_index({'max_training_epochs': n_epochs})
@@ -284,7 +285,7 @@ class CTLearnModelManager():
         
         import glob
         import pandas as pd
-        training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
+        training_logs = np.sort(glob.glob(f"{self.model_dir}/{self.model_nickname}_v*/training_log.csv"))
         n_epochs = 0
         for training_log in training_logs:
             df = pd.read_csv(training_log)
@@ -313,7 +314,7 @@ class CTLearnModelManager():
         import pandas as pd
         import glob
         set_mpl_style()
-        training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
+        training_logs = np.sort(glob.glob(f"{self.model_dir}/{self.model_nickname}_v*/training_log.csv"))
         losses_train = []
         losses_val = []
         for training_log in training_logs:
@@ -322,7 +323,7 @@ class CTLearnModelManager():
             losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
         epochs = np.arange(1, len(losses_train)+1)
         plt.plot(epochs, losses_train, label=f"Training")
-        plt.plot(epochs, losses_val, label=f"Testing", ls='--')
+        plt.plot(epochs, losses_val, label=f"Validation", ls='--')
         plt.title(f"{self.reco} training")
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -416,24 +417,24 @@ class CTLearnTriModelManager():
         pass
     
     def plot_loss(self):
+        set_mpl_style()
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
-        direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_dir}_v*/training_log.csv"))[-1]
-        energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_dir}_v*/training_log.csv"))[-1]
-        type_training_log = np.sort(glob.glob(f"{self.type_model.model_dir}_v*/training_log.csv"))[-1]
-        fig, axs = plt.subplots(3, 1, figsize=(10, 15))
-        for i, training_log in enumerate([direction_training_log, energy_training_log, type_training_log]):
-            if Path(training_log).exists():
-                df = pd.read_csv(training_log)
-                axs[i].plot(df['epoch'], df['loss'], label=f"Training")
-                axs[i].plot(df['epoch'], df['val_loss'], label=f"Testing", ls='--')
-                axs[i].set_title(f"{self.direction_model.reco} training")
-                axs[i].set_xlabel('Epoch')
-                axs[i].set_ylabel('Loss')
-                axs[i].legend()
-            else:
-                print(f"Model has not yet been trained.")
+        direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*/training_log.csv"))[-1]
+        energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*/training_log.csv"))[-1]
+        type_training_log = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*/training_log.csv"))[-1]
+        fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+        for ax, training_log, model in zip(axs, [direction_training_log, energy_training_log, type_training_log], [self.direction_model, self.energy_model, self.type_model]):
+            df = pd.read_csv(training_log)
+            ax.plot(df['epoch'], df['loss'], label=f"Training")
+            ax.plot(df['epoch'], df['val_loss'], label=f"Validation", ls='--')
+            ax.set_title(f"{model.reco} training")
+            ax.set_xlabel('Epoch')
+            ax.set_ylabel('Loss')
+            ax.legend()
+        plt.tight_layout()
+        plt.show()
 
       
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
