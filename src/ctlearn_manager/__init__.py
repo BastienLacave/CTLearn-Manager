@@ -211,6 +211,7 @@ class CTLearnModelManager():
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
+        set_mpl_style()
         training_logs = np.sort(glob.glob(f"{self.model_dir}_v*/training_log.csv"))
         losses_train = []
         losses_val = []
@@ -307,16 +308,24 @@ class CTLearnTriModelManager():
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
     models_table = QTable.read(MODEL_INDEX_FILE)
     model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
-    model = CTLearnModelManager(model_nickname=models_table['model_nickname'][model_index],
-                                notes=models_table['notes'][model_index],
-                                model_dir=models_table['model_dir'][model_index],
-                                reco=models_table['reco'][model_index],
-                                telescope_names=models_table['telescope_names'][model_index],
-                                telescopes_indices=models_table['telescopes_indices'][model_index],
-                                training_gamma_dirs=models_table['training_gamma_dirs'][model_index],
-                                training_proton_dirs=models_table['training_proton_dirs'][model_index],
-                                training_gamma_zenith_distances=models_table['training_gamma_zenith_distances'][model_index],
-                                training_gamma_azimuths=models_table['training_gamma_azimuths'][model_index],
-                                training_proton_zenith_distances=models_table['training_proton_zenith_distances'][model_index],
-                                training_proton_azimuths=models_table['training_proton_azimuths'][model_index])
+    model_parameters = {key: models_table[key][model_index] for key in models_table.colnames}
+    model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE)
     return model
+
+def set_mpl_style():
+    import matplotlib.pyplot as plt
+    import matplotlib.font_manager as font_manager
+    from matplotlib import rcParams
+    from . import resources
+    # font_path = "./resources/Outfit-Medium.ttf"
+    import importlib.resources as pkg_resources
+
+    with pkg_resources.path(resources, 'Outfit-Medium.ttf') as font_path:
+        font_manager.fontManager.addfont(font_path)
+    font_manager.fontManager.addfont(font_path)
+    prop = font_manager.FontProperties(fname=font_path)
+    rcParams['font.sans-serifs'] = prop.get_name()
+    rcParams['font.family'] = prop.get_name()
+    with pkg_resources.path(resources, 'ctlearnStyle.mplstyle') as style_path:
+        plt.style.use(style_path)
+    # plt.style.use('./resources/ctlearnStyle.mplstyle')
