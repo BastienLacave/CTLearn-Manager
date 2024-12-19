@@ -23,3 +23,23 @@ To setup `CTLeanrModelManager`, you need to specify the following fields:
 - `training_proton_zenith_distances` : [20]
 - `training_proton_azimuths` : [0]
 - `max_training_epochs` : 15 ➡️ Can be changed later, avoids launching training unwantedly.
+- `MODEL_INDEX_FILE` = "path/to/index/ctearn_models_index.ecsv"
+
+Call `CTLeanrModelManager.save_to_index()` to save the model to the index file.
+
+### 🚀 Launch training
+
+Simply call `CTLeanrModelManager.launch_training(n_epochs=15)`.
+Thenumberof epochs can be increased from the `max_training_epochs`, in which case the model will train for more epochs.
+In case of resuming training, a newer version of the model will be created andtrainingwill continue for the remaining amount of epochs.
+
+### 📉 Training monitoring
+
+You can plot the training and validation losses by doing:
+
+```
+from ctlearn_manager import load_model_from_index
+MODEL_INDEX_FILE = "path/to/index/ctearn_models_index.ecsv"
+model = load_model_from_index("model_nickname", MODEL_INDEX_FILE)
+model.plot_loss()
+```

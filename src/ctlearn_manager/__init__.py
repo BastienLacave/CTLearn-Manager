@@ -171,7 +171,7 @@ class CTLearnModelManager():
             print(f"❌ Model nickname {self.model_nickname} already in table")
         
         
-    def launch_training(self, n_epochs=None):
+    def launch_training(self, n_epochs):
         """
         Launches the training process for the model.
         Parameters:
