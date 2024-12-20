@@ -87,6 +87,7 @@ Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energ
 
 `CTLeanrTriModelManager.launch_testing()`
 
+
 `CTLeanrTriModelManager.plot_loss()`
 
 `CTLeanrTriModelManager.plot_sky()`
