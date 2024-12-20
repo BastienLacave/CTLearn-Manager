@@ -70,7 +70,7 @@ model.plot_loss()
 
 Model testing requires 3 models, onefor each reconstruction task `energy`, `direction` and `type`.
 CTLearn Manager implements the `CTLeanrTriModelManager` that isbuilt by combining the 3 models you want for each task.
-Along with these models, you provide the testing files for gammas and protons.
+Along with these models, you provide the testing files for gammas and protons.\\
 `CTLeanrTriModelManager.set_testing_files()`
 `CTLeanrTriModelManager.launch_testing()`
 
