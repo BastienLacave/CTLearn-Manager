@@ -73,6 +73,7 @@ CTLearn Manager implements the `CTLeanrTriModelManager` that isbuilt by combinin
 Along with these models, you provide the testing files for gammas and protons.
 
 `CTLeanrTriModelManager.set_testing_files()`
+
 `CTLeanrTriModelManager.launch_testing()`
 
 ## 🔭 Produce IRFs
