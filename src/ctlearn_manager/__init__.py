@@ -84,6 +84,12 @@ class CTLearnModelManager():
            'testing_proton_zenith_distances', 'testing_proton_azimuths',
            'max_training_epochs']
         self.stereo = True if len(self.telescopes_indices) > 1 else False
+        self.testing_gamma_dirs = []
+        self.testing_proton_dirs = []
+        self.testing_gamma_zenith_distances = []
+        self.testing_gamma_azimuths = []
+        self.testing_proton_zenith_distances = []
+        self.testing_proton_azimuths = []
         if self.reco == 'type' and (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
             raise ValueError("For reco type, training_proton_dirs and training_gamma_dirs are required")
         # if self.reco == 'type' & (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
@@ -406,7 +412,84 @@ class CTLearnTriModelManager():
         else:
             raise ValueError('type_model must be a type model')
         
-    def launch_testing(self):
+        if not (self.direction_model.channels == self.energy_model.channels == self.type_model.channels):
+            raise ValueError('All models must have the same channels')
+        else:
+            self.channels = self.direction_model.channels
+        
+        if not (self.direction_model.stereo == self.energy_model.stereo == self.type_model.stereo):
+            raise ValueError('All models must have the same stereo value')
+        else:
+            self.stereo = self.direction_model.stereo
+            
+    def set_testing_files(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = []):
+        if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths)):
+            raise ValueError("All testing gamma lists must be the same length")
+        if not (len(testing_proton_dirs) == len(testing_proton_zenith_distances) == len(testing_proton_azimuths)):
+            raise ValueError("All testing proton lists must be the same length")
+        for model in [self.direction_model, self.energy_model, self.type_model]:
+            parameters_to_update = {}
+            if len(testing_gamma_dirs) > 0:
+                parameters_to_update['testing_gamma_dirs'] = testing_gamma_dirs
+            if len(testing_proton_dirs) > 0:
+                parameters_to_update['testing_proton_dirs'] = testing_proton_dirs
+            if len(testing_gamma_zenith_distances) > 0:
+                parameters_to_update['testing_gamma_zenith_distances'] = testing_gamma_zenith_distances
+            if len(testing_gamma_azimuths) > 0:
+                parameters_to_update['testing_gamma_azimuths'] = testing_gamma_azimuths
+            if len(testing_proton_zenith_distances) > 0:
+                parameters_to_update['testing_proton_zenith_distances'] = testing_proton_zenith_distances
+            if len(testing_proton_azimuths) > 0:
+                parameters_to_update['testing_proton_azimuths'] = testing_proton_azimuths
+            model.update_model_manager_parameters_in_index(parameters_to_update)
+              
+        
+    def launch_testing(self, zenith, azimuth, output_dirs: list, sbatch_scripts_dir, launch_particle_type='both', cluster=None, account=None):
+        import os
+        # Check that the testing files are the same for each model
+        gamma_dir = []
+        proton_dir = []
+        if launch_particle_type not in ['gamma', 'proton', 'both']:
+            raise ValueError("launch_particle_type must be 'gamma', 'proton', or 'both'")
+        if launch_particle_type in ['gamma', 'both']:
+            if not (self.direction_model.testing_gamma_dirs == self.energy_model.testing_gamma_dirs == self.type_model.testing_gamma_dirs):
+                raise ValueError("All models must have the same testing gamma directories, use set_testing_files to set them")
+            if not self.direction_model.testing_gamma_dirs or not self.energy_model.testing_gamma_dirs or not self.type_model.testing_gamma_dirs:
+                raise ValueError("Testing gamma directories cannot be empty")
+            gamma_dirs = self.direction_model.testing_gamma_dirs
+            gamma_zeniths = self.direction_model.testing_gamma_zenith_distances
+            gamma_azimuths = self.direction_model.testing_gamma_azimuths
+            matching_dirs = [gamma_dirs[i] for i in range(len(gamma_dirs)) if gamma_zeniths[i] == zenith and gamma_azimuths[i] == azimuth]
+            if not matching_dirs:
+                raise ValueError(f"No matching gamma directory found for zenith {zenith} and azimuth {azimuth}")
+            gamma_dir = matching_dirs[0]
+        if launch_particle_type in ['proton', 'both']:
+            if not (self.direction_model.testing_proton_dirs == self.energy_model.testing_proton_dirs == self.type_model.testing_proton_dirs):
+                raise ValueError("All models must have the same testing proton directories, use set_testing_files to set them")
+            if not self.direction_model.testing_proton_dirs or not self.energy_model.testing_proton_dirs or not self.type_model.testing_proton_dirs:
+                raise ValueError("Testing proton directories cannot be empty")
+            proton_dirs = self.direction_model.testing_proton_dirs
+            proton_zeniths = self.direction_model.testing_proton_zenith_distances
+            proton_azimuths = self.direction_model.testing_proton_azimuths
+            matching_dirs = [proton_dirs[i] for i in range(len(proton_dirs)) if proton_zeniths[i] == zenith and proton_azimuths[i] == azimuth]
+            if not matching_dirs:
+                raise ValueError(f"No matching proton directory found for zenith {zenith} and azimuth {azimuth}")
+            proton_dir = matching_dirs[0] 
+            
+        if len(output_dirs) == 1:
+            output_dir = output_dirs[0]
+            testing_files = np.concatenate([np.sort(glob.glob(f"{gamma_dir}/*.dl1.h5")), np.sort(glob.glob(f"{proton_dir}/*.dl1.h5"))])
+            output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
+        elif len(output_dirs) == 2:
+            gamma_output_dir = output_dirs[0]
+            proton_output_dir = output_dirs[1]
+            gamma_files = np.sort(glob.glob(f"{gamma_dir}/*.dl1.h5"))
+            proton_files = np.sort(glob.glob(f"{proton_dir}/*.dl1.h5"))
+            gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
+            proton_output_files = [f"{proton_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
+            output_files = np.concatenate([gamma_output_files, proton_output_files])
+        else:
+            raise ValueError("output_dirs must have length 1 or 2, to store all in the same directory, or gammas in the first and protons in the second")
         import glob
         channels_string = ""
         for channel in self.channels:
@@ -414,14 +497,45 @@ class CTLearnTriModelManager():
         type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
-        cmd =  f"ctlearn-predict-mono --input_url {input_file} \
-            --type_model='{type_model_dir}/ctlearn_model.cpk' \
-            --energy_model='{energy_model_dir}/ctlearn_model.cpk' \
-            --direction_model='{direction_model_dir}/ctlearn_model.cpk' \
-            --no-dl1-images --no-true-images \
-            --output {output_file} --overwrite -v \
-            {channels_string}
-        pass
+        
+        for input_file, output_file in zip(testing_files, output_files):
+            if self.stereo:
+                cmd = "" #TODO implement stereo testing
+            else:
+                cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+            
+            if cluster == 'cscs':
+                sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir)
+                os.system(f"sbatch {sbatch_file}")
+            
+    def write_cscs_sbatch_script(job_name, cmd, sbatch_scripts_dir, account='cta04', env_name='ctlearn-cluster'):
+        sh_script = f'''#!/bin/bash -l
+#
+#SBATCH --job-name={job_name}
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1
+#SBATCH --constraint=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64000mb
+#SBATCH --output=MC_{job_name}.%j.out
+#SBATCH --error=MC_{job_name}.%j.err
+#SBATCH --account={account}
+
+source ~/.bashrc
+conda activate {env_name}
+echo $CONDA_DEFAULT_ENV
+echo $SLURM_ARRAY_TASK_ID
+
+srun {cmd}
+'''
+        #--type_model="{type_model_dir}/ctlearn_model.cpk"
+        #--energy_model="{energy_model_dir}/ctlearn_model.cpk"
+        sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
+        with open(sbatch_file, "w") as f:
+            f.write(sh_script)
+
+        print(f"💾 Testing script saved in {sbatch_file}")
+        return sbatch_file
     
     def produce_irfs(self):
         pass
