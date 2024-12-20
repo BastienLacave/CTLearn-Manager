@@ -66,9 +66,9 @@ model = load_model_from_index("model_nickname", MODEL_INDEX_FILE)
 model.plot_loss()
 ```
 
-## 🧪 Model testing
+## 🧪 Model testing and MC predictions
 
-Model testing requires 3 models, onefor each reconstruction task `energy`, `direction` and `type`.
+Model testing requires 3 models, one for each reconstruction task `energy`, `direction` and `type`.
 CTLearn Manager implements the `CTLeanrTriModelManager` that isbuilt by combining the 3 models you want for each task.
 Along with these models, you provide the testing files for gammas and protons.
 
@@ -79,6 +79,17 @@ Along with these models, you provide the testing files for gammas and protons.
 ## 🔭 Produce IRFs
 
 TBD
+
+## 🧾 Predict real data
+
+You can predict any data using `CTLearnTriModelManager.predict_data()` or `CTLearnTriModelManager.predict_lstchain_data()` depending on the type you want to process.
+
+### 📡 TriModelCollection
+`TriModelCollection` is a collection of `CTLearnTriModelManager`, that could for example be a set of models along a certain declination line.
+
+`TriModelCollection.predict_data()` and `TriModelCollection.predict_lstchain_data()` will choose the closest model to the pointing of the provided file among the collection you provided.
+
+`TriModelCollection.preview()`
 
 ## ↔️ CTLearn model comparison
 
