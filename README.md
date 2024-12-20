@@ -65,6 +65,7 @@ MODEL_INDEX_FILE = "path/to/index/ctearn_models_index.ecsv"
 model = load_model_from_index("model_nickname", MODEL_INDEX_FILE)
 model.plot_loss()
 ```
+`CTLeanrModelManager.plot_sky()`
 
 ## 🧪 Model testing and MC predictions
 
@@ -72,9 +73,23 @@ Model testing requires 3 models, one for each reconstruction task `energy`, `dir
 CTLearn Manager implements the `CTLeanrTriModelManager` that isbuilt by combining the 3 models you want for each task.
 Along with these models, you provide the testing files for gammas and protons.
 
+```
+from ctlearn_manager import load_model_from_index, CTLearnTriModelManager
+MODEL_INDEX_FILE = "path/to/index/ctearn_models_index.ecsv"
+energy_model = load_model_from_index("energy_stereo_20deg", MODEL_INDEX_FILE)
+direction_model = load_model_from_index("direction_stereo_20deg", MODEL_INDEX_FILE)
+type_model = load_model_from_index("type_stereo_20deg", MODEL_INDEX_FILE)
+Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
+```
+
+### Launch testing
 `CTLeanrTriModelManager.set_testing_files()`
 
 `CTLeanrTriModelManager.launch_testing()`
+
+`CTLeanrTriModelManager.plot_loss()`
+
+`CTLeanrTriModelManager.plot_sky()`
 
 ## 🔭 Produce IRFs
 
