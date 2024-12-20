@@ -416,6 +416,11 @@ class CTLearnTriModelManager():
             raise ValueError('All models must have the same channels')
         else:
             self.channels = self.direction_model.channels
+            
+        if not (self.direction_model.zd_range == self.energy_model.zd_range == self.type_model.zd_range):
+            raise ValueError('All models must have the same zenith distance range')
+        if not (self.direction_model.az_range == self.energy_model.az_range == self.type_model.az_range):
+            raise ValueError('All models must have the same azimuth range')
         
         if not (self.direction_model.stereo == self.energy_model.stereo == self.type_model.stereo):
             raise ValueError('All models must have the same stereo value')
@@ -537,7 +542,10 @@ srun {cmd}
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
     
-    def predict_LST_data(self, input_file, output_file):
+    def predict_lstchain_data(self, input_file, output_file):
+        pass
+    
+    def predict_data(self, input_file, output_file):
         pass
     
     def produce_irfs(self):
@@ -567,7 +575,40 @@ srun {cmd}
         plt.tight_layout()
         plt.show()
 
-      
+
+class TriModelCollection():
+    
+    def __init__(self, tri_models: list[CTLearnTriModelManager]):
+        self.tri_models = tri_models
+        
+    def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
+        closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
+        closest_tri_model.predict_lstchain_data(input_file, output_file)
+        
+    def predict_data(self, input_file, output_file, pointing_table):
+        closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
+        closest_tri_model.predict_data(input_file, output_file)
+        
+    def find_closest_model_to(self, input_file, pointing_table):
+        from ctapipe.io import read_table
+        print(f"This method will choose the closest model to the average pointing zenith and azimuth of the input file and predict the output file.")
+        pointing = read_table(input_file, path=pointing_table)
+        avg_data_az = np.mean(pointing['az_tel']*180/np.pi)
+        avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
+        print(f"📡 Average pointing of run {input_file} : ({avg_data_ze:3f}, {avg_data_az:3f})")
+        avg_model_azs = []
+        avg_model_zes = []
+        for tri_model in self.tri_models:
+            avg_model_azs.append(np.mean((tri_model.direction_model.az_range)))
+            avg_model_zes.append(np.mean((tri_model.direction_model.zd_range)))
+        print(f"🔍 Closest model avg node : ({avg_model_zes[np.argmin(np.abs(avg_model_zes - avg_data_ze))]:3f}, {avg_model_azs[np.argmin(np.abs(avg_model_azs - avg_data_az))]:3f})")
+        closest_model_index = np.argmin(angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs))
+        closest_model = self.tri_models[closest_model_index]
+        return closest_model
+    
+    
+    
+    
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
     models_table = QTable.read(MODEL_INDEX_FILE)
     model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
@@ -593,3 +634,11 @@ def set_mpl_style():
     with pkg_resources.path(resources, 'CTLearnStyle.mplstyle') as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
+    
+def angular_distance(ze1, az1, ze2, az2):
+    ze1, az1, ze2, az2 = map(np.radians, [ze1, az1, ze2, az2])
+    delta_az = az2 - az1
+    delta_ze = ze2 - ze1
+    a = np.sin(delta_ze / 2)**2 + np.cos(ze1) * np.cos(ze2) * np.sin(delta_az / 2)**2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    return c
