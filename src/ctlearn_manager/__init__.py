@@ -537,6 +537,9 @@ srun {cmd}
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
     
+    def predict_LST_data(self, input_file, output_file):
+        pass
+    
     def produce_irfs(self):
         pass
     
