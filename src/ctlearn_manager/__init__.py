@@ -407,6 +407,20 @@ class CTLearnTriModelManager():
             raise ValueError('type_model must be a type model')
         
     def launch_testing(self):
+        import glob
+        channels_string = ""
+        for channel in self.channels:
+            channels_string += f"--DLImageReader.channels={channel} "
+        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
+        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
+        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
+        cmd =  f"ctlearn-predict-mono --input_url {input_file} \
+            --type_model='{type_model_dir}/ctlearn_model.cpk' \
+            --energy_model='{energy_model_dir}/ctlearn_model.cpk' \
+            --direction_model='{direction_model_dir}/ctlearn_model.cpk' \
+            --no-dl1-images --no-true-images \
+            --output {output_file} --overwrite -v \
+            {channels_string}
         pass
     
     def produce_irfs(self):
