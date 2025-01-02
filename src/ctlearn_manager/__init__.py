@@ -82,14 +82,42 @@ class CTLearnModelManager():
            'testing_gamma_dirs', 'testing_proton_dirs',
            'testing_gamma_zenith_distances', 'testing_gamma_azimuths',
            'testing_proton_zenith_distances', 'testing_proton_azimuths',
-           'max_training_epochs']
+           'max_training_epochs',
+           'testing_DL2_gamma_files', 'testing_DL2_proton_files'
+           ]
         self.stereo = True if len(self.telescopes_indices) > 1 else False
-        self.testing_gamma_dirs = []
-        self.testing_proton_dirs = []
-        self.testing_gamma_zenith_distances = []
-        self.testing_gamma_azimuths = []
-        self.testing_proton_zenith_distances = []
-        self.testing_proton_azimuths = []
+        if 'testing_gamma_dirs' in model_parameters:
+            self.testing_gamma_dirs = model_parameters['testing_gamma_dirs']
+        else:
+            self.testing_gamma_dirs = []
+        if 'testing_proton_dirs' in model_parameters:
+            self.testing_proton_dirs = model_parameters['testing_proton_dirs']
+        else:
+            self.testing_proton_dirs = []
+        if 'testing_gamma_zenith_distances' in model_parameters:
+            self.testing_gamma_zenith_distances = model_parameters['testing_gamma_zenith_distances']
+        else:
+            self.testing_gamma_zenith_distances = []
+        if 'testing_gamma_azimuths' in model_parameters:
+            self.testing_gamma_azimuths = model_parameters['testing_gamma_azimuths']
+        else:
+            self.testing_gamma_azimuths = []
+        if 'testing_proton_zenith_distances' in model_parameters:
+            self.testing_proton_zenith_distances = model_parameters['testing_proton_zenith_distances']
+        else:
+            self.testing_proton_zenith_distances = []
+        if 'testing_proton_azimuths' in model_parameters:
+            self.testing_proton_azimuths = model_parameters['testing_proton_azimuths']
+        else:
+            self.testing_proton_azimuths = []
+        if 'testing_DL2_gamma_files' in model_parameters:
+            self.testing_DL2_gamma_files = model_parameters['testing_DL2_gamma_files']
+        else:
+            self.testing_DL2_gamma_files = []
+        if 'testing_DL2_proton_files' in model_parameters:
+            self.testing_DL2_proton_files = model_parameters['testing_DL2_proton_files']
+        else:
+            self.testing_DL2_proton_files = []
         if self.reco == 'type' and (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
             raise ValueError("For reco type, training_proton_dirs and training_gamma_dirs are required")
         # if self.reco == 'type' & (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
@@ -147,7 +175,8 @@ class CTLearnModelManager():
                                         list, list,
                                         list, list,
                                         list, list,
-                                        int
+                                        int,
+                                        list, list
                                         ])
             print(f"Model index did not exist, will create {self.model_index_file}")
             model_index = 0
@@ -169,7 +198,8 @@ class CTLearnModelManager():
                                 [], [], 
                                 [], [], 
                                 [], [],
-                                self.max_training_epochs
+                                self.max_training_epochs,
+                                [], []
                                 ])
             models_table.write(self.model_index_file, format='ascii.ecsv', serialize_method='data_mask', overwrite=True)
             print(f"✅ Model nickname {self.model_nickname} added to table")
@@ -421,6 +451,7 @@ class CTLearnTriModelManager():
     """
     
     
+    
     def __init__(self, direction_model: CTLearnModelManager, energy_model: CTLearnModelManager, type_model: CTLearnModelManager):
         if direction_model.reco == 'direction':
             self.direction_model = direction_model
@@ -455,6 +486,7 @@ class CTLearnTriModelManager():
             raise ValueError("All testing gamma lists must be the same length")
         if not (len(testing_proton_dirs) == len(testing_proton_zenith_distances) == len(testing_proton_azimuths)):
             raise ValueError("All testing proton lists must be the same length")
+                
         for model in [self.direction_model, self.energy_model, self.type_model]:
             parameters_to_update = {}
             if len(testing_gamma_dirs) > 0:
@@ -507,8 +539,17 @@ class CTLearnTriModelManager():
             
         if len(output_dirs) == 1:
             output_dir = output_dirs[0]
-            testing_files = np.concatenate([np.sort(glob.glob(f"{gamma_dir}/{pattern}")), np.sort(glob.glob(f"{proton_dir}/{pattern}"))])
+            gamma_files = np.sort(glob.glob(f"{gamma_dir}/{pattern}"))
+            proton_files = np.sort(glob.glob(f"{proton_dir}/{pattern}"))
+            testing_files = np.concatenate([gamma_files, proton_files])
+            gamma_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
+            proton_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
             output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
+            for model in [self.direction_model, self.energy_model, self.type_model]:
+                parameters_to_update = {}
+                parameters_to_update['testing_DL2_gamma_files'] = gamma_output_files
+                parameters_to_update['testing_DL2_proton_files'] = proton_output_files
+                model.update_model_manager_parameters_in_index(parameters_to_update)
         elif len(output_dirs) == 2:
             gamma_output_dir = output_dirs[0]
             proton_output_dir = output_dirs[1]
@@ -517,6 +558,11 @@ class CTLearnTriModelManager():
             gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
             proton_output_files = [f"{proton_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
             output_files = np.concatenate([gamma_output_files, proton_output_files])
+            for model in [self.direction_model, self.energy_model, self.type_model]:
+                parameters_to_update = {}
+                parameters_to_update['testing_DL2_gamma_files'] = gamma_output_files
+                parameters_to_update['testing_DL2_proton_files'] = proton_output_files
+                model.update_model_manager_parameters_in_index(parameters_to_update)
         else:
             raise ValueError("output_dirs must have length 1 or 2, to store all in the same directory, or gammas in the first and protons in the second")
         channels_string = ""
@@ -526,6 +572,7 @@ class CTLearnTriModelManager():
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
         
+            
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
                 cmd = f"ctlearn-predict-model --input_url {input_file} \
@@ -607,7 +654,10 @@ srun {cmd}
                 --type_model={type_model_dir}/ctlearn_model.cpk \
                 --energy_model={energy_model_dir}/ctlearn_model.cpk \
                 --direction_model={direction_model_dir}/ctlearn_model.cpk \
-                --no-dl1-images --no-true-images --output {output_file} \
+                --no-dl1-images --no-true-images \
+                --output {output_file} \
+                --PredictCTLearnModel.dl1dh_reader_type=DLImageReader \
+                --DLImageReader.image_mapper_type=BilinearMapper \
                 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
                 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
         else:
@@ -629,6 +679,124 @@ srun {cmd}
         if cluster == None:
             print(cmd)
             os.system(cmd)
+    
+    def load_DL2_data(self, input_file):
+        from ctapipe.io import read_table
+        from astropy.table import (join, hstack)
+        pointing = read_table(input_file, "dl1/monitoring/subarray/pointing/")
+        dl2_classification = read_table(input_file, "dl2/event/subarray/classification/CTLearn")
+        dl2_classification = hstack([dl2_classification, pointing])
+        dl2_classification = dl2_classification[~np.isnan(dl2_classification["CTLearn_prediction"])]
+        dl2_energy = read_table(input_file, "dl2/event/subarray/energy/CTLearn")
+        dl2_energy = dl2_energy[~np.isnan(dl2_energy["CTLearn_energy"])]
+        dl2_geometry = read_table(input_file, "dl2/event/subarray/geometry/CTLearn")
+        dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry["CTLearn_alt"])]
+        dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
+        dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+        return dl2
+    
+    def load_true_shower_parameters(self, input_file):
+        from ctapipe.io import read_table
+        true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
+        return true_shower_parameters
+    
+    def plot_DL2_classification(self):
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack
+        set_mpl_style()
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        dl2_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+        dl2_gamma = vstack(dl2_gamma)
+        
+        dl2_protons = []
+        for file in testing_DL2_proton_files:
+            dl2_protons.append(self.load_DL2_data(file))
+        dl2_proton = vstack(dl2_protons)
+        print(dl2_gamma.colnames)
+        plt.hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
+        plt.hist(dl2_proton["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        plt.xlabel("Gammaness")
+        plt.ylabel("Density")
+        
+    def plot_DL2_energy(self):
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack
+        set_mpl_style()
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        dl2_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+        dl2_gamma = vstack(dl2_gamma)
+        
+        dl2_protons = []
+        for file in testing_DL2_proton_files:
+            dl2_protons.append(self.load_DL2_data(file))
+        dl2_proton = vstack(dl2_protons)
+        print(dl2_gamma.colnames)
+        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
+        plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
+        plt.hist(dl2_proton["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, histtype="step", density=True, lw=2)
+        plt.set_xlabel("Energy [TeV]")
+        plt.set_ylabel("Density")
+        plt.set_xscale("log")
+        plt.set_yscale("log")
+    
+    def plot_DL2_data(self, DL2_file):
+    
+        import matplotlib.pyplot as plt
+        set_mpl_style()
+        fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+
+        dl2_gamma = self.load_DL2_data(DL2_file)
+        axs[0].hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2)
+        axs[0].set_xlabel("Gammaness")
+        axs[0].set_ylabel("Density")
+        
+        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
+        axs[1].hist(dl2_gamma["CTLearn_energy"], bins=log_bins, histtype="step", density=True, lw=2)
+        axs[1].set_xlabel("Energy [TeV]")
+        axs[1].set_ylabel("Density")
+        axs[1].set_xscale("log")
+        axs[1].set_yscale("log")
+
+        axs[2].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+        axs[2].hist2d(dl2_gamma["CTLearn_alt"], dl2_gamma["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[2].set_xlabel("Altitude [deg]")
+        axs[2].set_ylabel("Azimuth [deg]")
+        # axs[2].set_colorbar(label="Counts")
+        axs[2].legend()
+        plt.tight_layout()
+        plt.show()
+        
+    
+    def plot_migration_matrix(self, DL2_file):
+        set_mpl_style()
+        import matplotlib.pyplot as plt
+        from astropy.table import join
+        dl2 = self.load_DL2_data(DL2_file)
+        true_shower_parameters = self.load_true_shower_parameters(DL2_file)
+        dl2 = join(dl2, true_shower_parameters, keys=["obs_id", "event_id"])
+        
+        plt.figure(figsize=(5, 4))
+        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
+        plt.hist2d(dl2["CTLearn_energy"], dl2["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        plt.xlabel("CTLearn Energy [TeV]")
+        plt.ylabel("True Energy [TeV]")
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.plot([0.1, 500], [0.1, 500], color="red", ls="--")
+        plt.title("Energy Migration Matrix")
+        plt.tight_layout()
+        plt.axis('equal')
+        plt.show()
+        
+        
+    
     
     def produce_irfs(self):
         pass

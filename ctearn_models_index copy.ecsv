@@ -1,0 +1,32 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - {name: model_index, datatype: int64}
+# - {name: model_nickname, datatype: string}
+# - {name: model_name, datatype: string}
+# - {name: model_dir, datatype: string}
+# - {name: reco, datatype: string}
+# - {name: channels, datatype: string, subtype: json}
+# - {name: telescope_names, datatype: string, subtype: json}
+# - {name: telescopes_indices, datatype: string, subtype: json}
+# - {name: training_gamma_dirs, datatype: string, subtype: json}
+# - {name: training_proton_dirs, datatype: string, subtype: json}
+# - {name: training_gamma_zenith_distances, datatype: string, subtype: json}
+# - {name: training_gamma_azimuths, datatype: string, subtype: json}
+# - {name: training_proton_zenith_distances, datatype: string, subtype: json}
+# - {name: training_proton_azimuths, datatype: string, subtype: json}
+# - {name: notes, datatype: string}
+# - {name: zd_range, datatype: string, subtype: json}
+# - {name: az_range, datatype: string, subtype: json}
+# - {name: testing_gamma_dirs, datatype: string, subtype: json}
+# - {name: testing_proton_dirs, datatype: string, subtype: json}
+# - {name: testing_gamma_zenith_distances, datatype: string, subtype: json}
+# - {name: testing_gamma_azimuths, datatype: string, subtype: json}
+# - {name: testing_proton_zenith_distances, datatype: string, subtype: json}
+# - {name: testing_proton_azimuths, datatype: string, subtype: json}
+# - {name: max_training_epochs, datatype: int64}
+# schema: astropy-2.0
+model_index model_nickname model_name model_dir reco channels telescope_names telescopes_indices training_gamma_dirs training_proton_dirs training_gamma_zenith_distances training_gamma_azimuths training_proton_zenith_distances training_proton_azimuths notes zd_range az_range testing_gamma_dirs testing_proton_dirs testing_gamma_zenith_distances testing_gamma_azimuths testing_proton_zenith_distances testing_proton_azimuths max_training_epochs
+0 energy_stereo_20deg energy_TEL1_2_ZD20_Az0 /home/blacave/CTLearn/Data/CTLearn_Models_SST1M/ energy "[""cleaned_image"",""cleaned_relative_peak_time""]" "[""SST1M_1"",""SST1M_2""]" [1,2] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/training/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton/20deg/merged/training/""]" [20] [0] [20] [0] "Stereo model for 20deg zenith distance" [20,20] [0,0] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_point/20deg/testing/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton_diffuse/20deg/merged/testing/""]" [20] [0] [20] [0] 15
+1 direction_stereo_20deg direction_TEL1_2_ZD20_Az0 /home/blacave/CTLearn/Data/CTLearn_Models_SST1M/ direction "[""cleaned_image"",""cleaned_relative_peak_time""]" "[""SST1M_1"",""SST1M_2""]" [1,2] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/training/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton/20deg/merged/training/""]" [20] [0] [20] [0] "Stereo model for 20deg zenith distance" [20,20] [0,0] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_point/20deg/testing/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton_diffuse/20deg/merged/testing/""]" [20] [0] [20] [0] 15
+2 type_stereo_20deg type_TEL1_2_ZD20_Az0 /home/blacave/CTLearn/Data/CTLearn_Models_SST1M/ type "[""cleaned_image"",""cleaned_relative_peak_time""]" "[""SST1M_1"",""SST1M_2""]" [1,2] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/training/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton_diffuse/20deg/merged/training/""]" [20] [0] [20] [0] "Stereo model for 20deg zenith distance" [20,20] [0,0] "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_point/20deg/testing/""]" "[""/home/blacave/CTLearn/Data/DL1/SST1M/MC/Proton_diffuse/20deg/merged/testing/""]" [20] [0] [20] [0] 15
