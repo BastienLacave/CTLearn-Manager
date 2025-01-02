@@ -198,7 +198,7 @@ class CTLearnModelManager():
         - The method uses the `ctlearn-train-model` command to launch the training process.
         - The method prints the constructed command and executes it using `os.system`.
         """
-        
+        import yaml
         n_epoch_training = self.get_n_epoch_trained()
         print(f"📊 Model trained for {n_epoch_training} epochs")
         if n_epochs > self.max_training_epochs:
@@ -261,8 +261,30 @@ class CTLearnModelManager():
         stack_telescope_images = 'true' if self.stereo else 'false'
         min_telescopes = 2 if self.stereo else 1
         allowed_tels = '_'.join(map(str, self.telescopes_indices)) if self.stereo else int(self.telescopes_indices[0])
-        cmd = f"ctlearn-train-model {load_model_string}\
-            --signal {self.training_gamma_dirs[0]} {signal_patterns}\
+        
+        config = {
+            'load_model_string': load_model_string,
+            'background_string': background_string,
+            'signal_patterns': signal_patterns,
+            'background_patterns': background_patterns,
+            'channels_string': channels_string,
+            'stereo_mode': stereo_mode,
+            'stack_telescope_images': stack_telescope_images,
+            'min_telescopes': min_telescopes,
+            'allowed_tels': allowed_tels,
+            'n_epochs': n_epochs,
+            'model_dir': model_dir,
+            'save_best_validation_only': save_best_validation_only
+        }
+
+        config_file = f"{model_dir}/config.yml"
+        with open(config_file, 'w') as file:
+            yaml.dump(config, file)
+        print(f"Configuration saved to {config_file}")
+        
+        cmd = f"ctlearn-train-model {load_model_string} \
+            --TrainCTLearnModel.batch_size=64 \
+            --signal {self.training_gamma_dirs[0]} {signal_patterns} \
             {background_string}{background_patterns}\
             --reco {self.reco} \
             --output {model_dir} \
@@ -328,11 +350,12 @@ class CTLearnModelManager():
             losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
             losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
         epochs = np.arange(1, len(losses_train)+1)
-        plt.plot(epochs + 1, losses_train, label=f"Training")
-        plt.plot(epochs + 1, losses_val, label=f"Validation", ls='--')
-        plt.title(f"{self.reco} training")
+        plt.plot(epochs, losses_train, label=f"Training")
+        plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+        plt.title(f"{self.reco} training".title())
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
+        plt.xticks(np.arange(1, len(losses_train) + 1, 2))
         plt.legend()
         plt.show()
     
@@ -369,7 +392,7 @@ class CTLearnModelManager():
         
         models_table = QTable.read(self.model_index_file)
         model_index = np.where(models_table['model_nickname'] == self.model_nickname)[0][0]
-        print(f"💾 Model index update:")
+        print(f"💾 Model {self.model_nickname} index update:")
         for key, value in parameters.items():
             models_table[key][model_index] = value
             self.__dict__[key] = value
@@ -427,7 +450,7 @@ class CTLearnTriModelManager():
         else:
             self.stereo = self.direction_model.stereo
             
-    def set_testing_files(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = []):
+    def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = []):
         if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths)):
             raise ValueError("All testing gamma lists must be the same length")
         if not (len(testing_proton_dirs) == len(testing_proton_zenith_distances) == len(testing_proton_azimuths)):
@@ -449,8 +472,9 @@ class CTLearnTriModelManager():
             model.update_model_manager_parameters_in_index(parameters_to_update)
               
         
-    def launch_testing(self, zenith, azimuth, output_dirs: list, sbatch_scripts_dir, launch_particle_type='both', cluster=None, account=None):
+    def launch_testing(self, zenith, azimuth, output_dirs: list, pattern="*.dl1.h5", sbatch_scripts_dir=None, launch_particle_type='both', cluster=None, account=None, python_env='ctlearn-cluster'):
         import os
+        import glob
         # Check that the testing files are the same for each model
         gamma_dir = []
         proton_dir = []
@@ -483,19 +507,18 @@ class CTLearnTriModelManager():
             
         if len(output_dirs) == 1:
             output_dir = output_dirs[0]
-            testing_files = np.concatenate([np.sort(glob.glob(f"{gamma_dir}/*.dl1.h5")), np.sort(glob.glob(f"{proton_dir}/*.dl1.h5"))])
+            testing_files = np.concatenate([np.sort(glob.glob(f"{gamma_dir}/{pattern}")), np.sort(glob.glob(f"{proton_dir}/{pattern}"))])
             output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
         elif len(output_dirs) == 2:
             gamma_output_dir = output_dirs[0]
             proton_output_dir = output_dirs[1]
-            gamma_files = np.sort(glob.glob(f"{gamma_dir}/*.dl1.h5"))
-            proton_files = np.sort(glob.glob(f"{proton_dir}/*.dl1.h5"))
+            gamma_files = np.sort(glob.glob(f"{gamma_dir}/{pattern}"))
+            proton_files = np.sort(glob.glob(f"{proton_dir}/{pattern}"))
             gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
             proton_output_files = [f"{proton_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
             output_files = np.concatenate([gamma_output_files, proton_output_files])
         else:
             raise ValueError("output_dirs must have length 1 or 2, to store all in the same directory, or gammas in the first and protons in the second")
-        import glob
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
@@ -505,13 +528,32 @@ class CTLearnTriModelManager():
         
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
-                cmd = "" #TODO implement stereo testing
+                cmd = f"ctlearn-predict-model --input_url {input_file} \
+                    --type_model={type_model_dir}/ctlearn_model.cpk \
+                    --energy_model={energy_model_dir}/ctlearn_model.cpk \
+                    --direction_model={direction_model_dir}/ctlearn_model.cpk \
+                    --no-dl1-images --no-true-images --output {output_file} \
+                    --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
+                    --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             else:
-                cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
-            
+                # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+                cmd = f"ctlearn-predict-model --input_url {input_file} \
+                    --type_model={type_model_dir}/ctlearn_model.cpk \
+                    --energy_model={energy_model_dir}/ctlearn_model.cpk \
+                    --direction_model={direction_model_dir}/ctlearn_model.cpk \
+                    --no-dl1-images --no-true-images --output {output_file} \
+                    --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             if cluster == 'cscs':
-                sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir)
+                sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
                 os.system(f"sbatch {sbatch_file}")
+                
+            if cluster == "LST":
+                sbatch_file = self.write_LSTCluster_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
+                os.system(f"sbatch {sbatch_file}")
+                
+            if cluster == None:
+                print(cmd)
+                os.system(cmd)
             
     def write_cscs_sbatch_script(job_name, cmd, sbatch_scripts_dir, account='cta04', env_name='ctlearn-cluster'):
         sh_script = f'''#!/bin/bash -l
@@ -538,6 +580,10 @@ srun {cmd}
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
+        
+        def write_LSTCluster_sbatch_script(job_name, cmd, sbatch_scripts_dir, account='cta04', env_name='ctlearn-cluster'):
+            pass
+        
 
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
@@ -545,8 +591,44 @@ srun {cmd}
     def predict_lstchain_data(self, input_file, output_file):
         pass
     
-    def predict_data(self, input_file, output_file):
-        pass
+    def predict_data(self, input_file, output_file, pattern="*.dl1.h5", sbatch_scripts_dir=None, cluster=None, account=None, python_env='ctlearn-cluster'):
+        import os
+        import glob
+        
+        channels_string = ""
+        for channel in self.channels:
+            channels_string += f"--DLImageReader.channels={channel} "
+        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
+        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
+        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
+        
+        if self.stereo:
+            cmd = f"ctlearn-predict-model --input_url {input_file} \
+                --type_model={type_model_dir}/ctlearn_model.cpk \
+                --energy_model={energy_model_dir}/ctlearn_model.cpk \
+                --direction_model={direction_model_dir}/ctlearn_model.cpk \
+                --no-dl1-images --no-true-images --output {output_file} \
+                --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
+                --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+        else:
+            # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+            cmd = f"ctlearn-predict-model --input_url {input_file} \
+                --type_model={type_model_dir}/ctlearn_model.cpk \
+                --energy_model={energy_model_dir}/ctlearn_model.cpk \
+                --direction_model={direction_model_dir}/ctlearn_model.cpk \
+                --no-dl1-images --no-true-images --output {output_file} \
+                --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+        if cluster == 'cscs':
+            sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
+            os.system(f"sbatch {sbatch_file}")
+            
+        if cluster == "LST":
+            sbatch_file = self.write_LSTCluster_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
+            os.system(f"sbatch {sbatch_file}")
+            
+        if cluster == None:
+            print(cmd)
+            os.system(cmd)
     
     def produce_irfs(self):
         pass
@@ -560,17 +642,30 @@ srun {cmd}
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
+        
+        
         direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*/training_log.csv"))[-1]
         energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*/training_log.csv"))[-1]
         type_training_log = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*/training_log.csv"))[-1]
         fig, axs = plt.subplots(1, 3, figsize=(15, 4))
-        for ax, training_log, model in zip(axs, [direction_training_log, energy_training_log, type_training_log], [self.direction_model, self.energy_model, self.type_model]):
+        for ax, model in zip(axs, [self.direction_model, self.energy_model, self.type_model]):
+            training_logs = np.sort(glob.glob(f"{model.model_dir}/{model.model_nickname}_v*/training_log.csv"))
+            losses_train = []
+            losses_val = []
+            for training_log in training_logs:
+                df = pd.read_csv(training_log)
+                losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
+                losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
+            epochs = np.arange(1, len(losses_train)+1)
             df = pd.read_csv(training_log)
-            ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
-            ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
-            ax.set_title(f"{model.reco} training")
+            ax.plot(epochs, losses_train, label=f"Training")
+            ax.plot(epochs, losses_val, label=f"Validation", ls='--')
+            # ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
+            # ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
+            ax.set_title(f"{model.reco} training".title())
             ax.set_xlabel('Epoch')
             ax.set_ylabel('Loss')
+            ax.set_xticks(np.arange(1, len(df) + 1, 2))
             ax.legend()
         plt.tight_layout()
         plt.show()
@@ -585,9 +680,9 @@ class TriModelCollection():
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
         closest_tri_model.predict_lstchain_data(input_file, output_file)
         
-    def predict_data(self, input_file, output_file, pointing_table):
+    def predict_data(self, input_file, output_file, pointing_table, pattern="*.dl1.h5", sbatch_scripts_dir=None, cluster=None, account=None, python_env='ctlearn-cluster'):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
-        closest_tri_model.predict_data(input_file, output_file)
+        closest_tri_model.predict_data(input_file, output_file, pattern=pattern, sbatch_scripts_dir=sbatch_scripts_dir, cluster=cluster, account=account, python_env=python_env)
         
     def find_closest_model_to(self, input_file, pointing_table):
         from ctapipe.io import read_table
