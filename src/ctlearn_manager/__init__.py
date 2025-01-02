@@ -768,46 +768,20 @@ srun {cmd}
         axs[0].hist2d(dl2_gamma["CTLearn_alt"], dl2_gamma["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[0].set_xlabel("Altitude [deg]")
         axs[0].set_ylabel("Azimuth [deg]")
-        # axs[0].set_colorbar(label="Counts")
         axs[0].legend()
         axs[0].set_title("Gammas")
+        cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+        cbar.set_label("Counts")
         
         axs[1].scatter(dl2_proton['array_altitude'][0]/np.pi*180, dl2_proton['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
         axs[1].hist2d(dl2_proton["CTLearn_alt"], dl2_proton["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[1].set_xlabel("Altitude [deg]")
         axs[1].set_ylabel("Azimuth [deg]")
-        # axs[1].set_colorbar(label="Counts")
         axs[1].legend()
         axs[1].set_title("Protons")
+        cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
+        cbar.set_label("Counts")
         
-        plt.tight_layout()
-        plt.show()
-        
-    
-    def plot_DL2_data(self, DL2_file):
-    
-        import matplotlib.pyplot as plt
-        set_mpl_style()
-        fig, axs = plt.subplots(1, 3, figsize=(15, 4))
-
-        dl2_gamma = self.load_DL2_data(DL2_file)
-        axs[0].hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2)
-        axs[0].set_xlabel("Gammaness")
-        axs[0].set_ylabel("Density")
-        
-        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
-        axs[1].hist(dl2_gamma["CTLearn_energy"], bins=log_bins, histtype="step", density=True, lw=2)
-        axs[1].set_xlabel("Energy [TeV]")
-        axs[1].set_ylabel("Density")
-        axs[1].set_xscale("log")
-        axs[1].set_yscale("log")
-
-        axs[2].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-        axs[2].hist2d(dl2_gamma["CTLearn_alt"], dl2_gamma["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        axs[2].set_xlabel("Altitude [deg]")
-        axs[2].set_ylabel("Azimuth [deg]")
-        # axs[2].set_colorbar(label="Counts")
-        axs[2].legend()
         plt.tight_layout()
         plt.show()
         
@@ -845,8 +819,10 @@ srun {cmd}
         axs[0].set_ylabel("True Energy [TeV]")
         axs[0].set_xscale("log")
         axs[0].set_yscale("log")
-        axs[1].axis('equal')
+        axs[0].axis('equal')
         axs[0].set_title("Gammas")
+        cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+        cbar.set_label("Counts")
         
         axs[1].plot([0.1, 500], [0.1, 500], color="red", ls="--")
         axs[1].hist2d(dl2_proton["CTLearn_energy"], dl2_proton["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
@@ -856,6 +832,8 @@ srun {cmd}
         axs[1].set_yscale("log")
         axs[1].axis('equal')
         axs[1].set_title("Protons")
+        cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
+        cbar.set_label("Counts")
         
         plt.tight_layout()
         plt.show()
