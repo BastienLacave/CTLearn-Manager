@@ -715,11 +715,12 @@ srun {cmd}
         for file in testing_DL2_proton_files:
             dl2_protons.append(self.load_DL2_data(file))
         dl2_proton = vstack(dl2_protons)
-        print(dl2_gamma.colnames)
         plt.hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
         plt.hist(dl2_proton["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
         plt.xlabel("Gammaness")
         plt.ylabel("Density")
+        plt.legend()
+        plt.show()
         
     def plot_DL2_energy(self):
         import matplotlib.pyplot as plt
@@ -736,15 +737,52 @@ srun {cmd}
         for file in testing_DL2_proton_files:
             dl2_protons.append(self.load_DL2_data(file))
         dl2_proton = vstack(dl2_protons)
-        print(dl2_gamma.colnames)
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
         plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
         plt.hist(dl2_proton["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
-        plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, histtype="step", density=True, lw=2)
-        plt.set_xlabel("Energy [TeV]")
-        plt.set_ylabel("Density")
-        plt.set_xscale("log")
-        plt.set_yscale("log")
+        plt.xlabel("Energy [TeV]")
+        plt.ylabel("Density")
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.legend()
+        plt.show()
+        
+    def plot_DL2_AltAz(self):
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack
+        set_mpl_style()
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        dl2_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+        dl2_gamma = vstack(dl2_gamma)
+        
+        dl2_protons = []
+        for file in testing_DL2_proton_files:
+            dl2_protons.append(self.load_DL2_data(file))
+        dl2_proton = vstack(dl2_protons)
+        
+        axs[0].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+        axs[0].hist2d(dl2_gamma["CTLearn_alt"], dl2_gamma["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[0].set_xlabel("Altitude [deg]")
+        axs[0].set_ylabel("Azimuth [deg]")
+        # axs[0].set_colorbar(label="Counts")
+        axs[0].legend()
+        axs[0].set_title("Gammas")
+        
+        axs[1].scatter(dl2_proton['array_altitude'][0]/np.pi*180, dl2_proton['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+        axs[1].hist2d(dl2_proton["CTLearn_alt"], dl2_proton["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[1].set_xlabel("Altitude [deg]")
+        axs[1].set_ylabel("Azimuth [deg]")
+        # axs[1].set_colorbar(label="Counts")
+        axs[1].legend()
+        axs[1].set_title("Protons")
+        
+        plt.tight_layout()
+        plt.show()
+        
     
     def plot_DL2_data(self, DL2_file):
     
@@ -774,25 +812,52 @@ srun {cmd}
         plt.show()
         
     
-    def plot_migration_matrix(self, DL2_file):
-        set_mpl_style()
+    def plot_migration_matrix(self):      
         import matplotlib.pyplot as plt
-        from astropy.table import join
-        dl2 = self.load_DL2_data(DL2_file)
-        true_shower_parameters = self.load_true_shower_parameters(DL2_file)
-        dl2 = join(dl2, true_shower_parameters, keys=["obs_id", "event_id"])
+        from astropy.table import vstack, join
+        set_mpl_style()
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        dl2_gamma = []
+        shower_parameters_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+        dl2_gamma = vstack(dl2_gamma)
+        shower_parameters_gamma = vstack(shower_parameters_gamma)
+        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
         
-        plt.figure(figsize=(5, 4))
+        dl2_protons = []
+        shower_parameters_protons = []
+        for file in testing_DL2_proton_files:
+            dl2_protons.append(self.load_DL2_data(file))
+            shower_parameters_protons.append(self.load_true_shower_parameters(file))
+        dl2_proton = vstack(dl2_protons)
+        shower_parameters_protons = vstack(shower_parameters_protons)
+        dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
+        
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
-        plt.hist2d(dl2["CTLearn_energy"], dl2["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        plt.xlabel("CTLearn Energy [TeV]")
-        plt.ylabel("True Energy [TeV]")
-        plt.xscale("log")
-        plt.yscale("log")
-        plt.plot([0.1, 500], [0.1, 500], color="red", ls="--")
-        plt.title("Energy Migration Matrix")
+        
+        axs[0].plot([0.1, 500], [0.1, 500], color="red", ls="--")
+        axs[0].hist2d(dl2_gamma["CTLearn_energy"], dl2_gamma["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[0].set_xlabel("CTLean Energy [TeV]")
+        axs[0].set_ylabel("True Energy [TeV]")
+        axs[0].set_xscale("log")
+        axs[0].set_yscale("log")
+        axs[1].axis('equal')
+        axs[0].set_title("Gammas")
+        
+        axs[1].plot([0.1, 500], [0.1, 500], color="red", ls="--")
+        axs[1].hist2d(dl2_proton["CTLearn_energy"], dl2_proton["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[1].set_xlabel("CTLearn Energy [TeV]")
+        axs[1].set_ylabel("True Energy [TeV]")
+        axs[1].set_xscale("log")
+        axs[1].set_yscale("log")
+        axs[1].axis('equal')
+        axs[1].set_title("Protons")
+        
         plt.tight_layout()
-        plt.axis('equal')
         plt.show()
         
         
