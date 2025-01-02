@@ -87,10 +87,15 @@ Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energ
 
 `CTLeanrTriModelManager.launch_testing()`
 
-
 `CTLeanrTriModelManager.plot_loss()`
 
-`CTLeanrTriModelManager.plot_sky()`
+`Stereo_Tri_Model.plot_migration_matrix()`
+
+`Stereo_Tri_Model.plot_DL2_AltAz()`
+
+`Stereo_Tri_Model.plot_DL2_classification()`
+
+`Stereo_Tri_Model.plot_DL2_energy()`
 
 ## 🔭 Produce IRFs
 
