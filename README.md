@@ -84,6 +84,7 @@ Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energ
 
 ### Launch testing
 `CTLeanrTriModelManager.set_testing_directories()`
+
 Set testing directories for gammas and protons, as well as there respective alt az coordinates, you can set as many directories as you want.
 
 `CTLeanrTriModelManager.launch_testing()`

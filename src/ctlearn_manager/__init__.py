@@ -380,7 +380,7 @@ class CTLearnModelManager():
             losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
             losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
         epochs = np.arange(1, len(losses_train)+1)
-        plt.plot(epochs, losses_train, label=f"Training")
+        plt.plot(epochs, losses_train, label=f"Training", lw=2)
         plt.plot(epochs, losses_val, label=f"Validation", ls='--')
         plt.title(f"{self.reco} training".title())
         plt.xlabel('Epoch')
@@ -785,7 +785,6 @@ srun {cmd}
         plt.tight_layout()
         plt.show()
         
-    
     def plot_migration_matrix(self):      
         import matplotlib.pyplot as plt
         from astropy.table import vstack, join
@@ -838,9 +837,6 @@ srun {cmd}
         plt.tight_layout()
         plt.show()
         
-        
-    
-    
     def produce_irfs(self):
         pass
     
@@ -869,7 +865,7 @@ srun {cmd}
                 losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
             epochs = np.arange(1, len(losses_train)+1)
             df = pd.read_csv(training_log)
-            ax.plot(epochs, losses_train, label=f"Training")
+            ax.plot(epochs, losses_train, label=f"Training", lw=2)
             ax.plot(epochs, losses_val, label=f"Validation", ls='--')
             # ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
             # ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
