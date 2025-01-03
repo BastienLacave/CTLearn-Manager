@@ -11,7 +11,7 @@ authors = [
     {name = "Bastien Lacave", email = "bastien.lacave@unige.ch"},
 ]
 
-requires-python = ">=3.10"
+requires-python = ">=3.8"
 dependencies = [
     "numpy",
     "ctapipe",
@@ -22,7 +22,7 @@ dynamic = ["version"]
 
 [project.urls]
 repository = "https://github.com/BastienLacave/CTLearn-Manager"
-documentation = "http://cta-computing.gitlab-pages.cta-observatory.org/documentation/python-project-template"
+# documentation = "http://cta-computing.gitlab-pages.cta-observatory.org/documentation/python-project-template"
 
 # Command-line scripts mapping the name of the tool to the import and function to execute
 [project.scripts]
@@ -37,12 +37,12 @@ test = [
   "pytest",
   "pytest-cov",
 ]
-doc = [
-  "sphinx",
-  "numpydoc",
-  "ctao-sphinx-theme~=0.1.2",
-  "sphinx-changelog",
-]
+# doc = [
+#   "sphinx",
+#   "numpydoc",
+#   "ctao-sphinx-theme~=0.1.2",
+#   "sphinx-changelog",
+# ]
 dev = [
   "setuptools_scm",
   "towncrier",
@@ -50,7 +50,7 @@ dev = [
 
 # we can use self-references to simplify all, needs to match project.name defined above
 all = [
-  "ctlearn-manager[test,doc,dev]",
+  "ctlearn-manager[test,dev]",
 ]
 
 [tool.setuptools_scm]
