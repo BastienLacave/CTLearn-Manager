@@ -3,7 +3,7 @@ import ctlearn_manager
 
 class TestVersion(unittest.TestCase):
     def test_version(self):
-        expected_version = "1.0.0"  # Replace with the expected version
+        expected_version = "0.0.0"  # Replace with the expected version
         self.assertEqual(ctlearn_manager.__version__, expected_version)
 
 if __name__ == '__main__':
