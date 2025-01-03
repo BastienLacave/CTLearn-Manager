@@ -22,7 +22,7 @@ dynamic = ["version"]
 
 [project.urls]
 repository = "https://github.com/BastienLacave/CTLearn-Manager"
-documentation = "http://cta-computing.gitlab-pages.cta-observatory.org/documentation/python-project-template"
+# documentation = "http://cta-computing.gitlab-pages.cta-observatory.org/documentation/python-project-template"
 
 # Command-line scripts mapping the name of the tool to the import and function to execute
 [project.scripts]
