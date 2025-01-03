@@ -43,29 +43,29 @@ test = [
 #   "ctao-sphinx-theme~=0.1.2",
 #   "sphinx-changelog",
 # ]
-# dev = [
-#   "setuptools_scm",
-#   "towncrier",
-# ]
+dev = [
+  "setuptools_scm",
+  "towncrier",
+]
 
 # we can use self-references to simplify all, needs to match project.name defined above
 all = [
-  "ctlearn-manager[test]",
+  "ctlearn-manager[test,dev]",
 ]
 
 [tool.setuptools_scm]
 write_to = "src/ctlearn_manager/_version.py"
 
-# [tool.towncrier]
-# package = "ctlearn_manager"
-# directory = "docs/changes"
-# filename = "CHANGES.rst"
-# ctlearn_manager = "docs/changes/ctlearn_manager.rst"
-# underlines = ["-", "~", "^"]
+[tool.towncrier]
+package = "ctlearn_manager"
+directory = "docs/changes"
+filename = "CHANGES.rst"
+ctlearn_manager = "docs/changes/ctlearn_manager.rst"
+underlines = ["-", "~", "^"]
 # Let towncrier create proper links to the merged MR.
 # By default, towncrier connects everything to issues.
 # We rather want to connect it to merge request
-# issue_format = "`!{issue} <https://gitlab.cta-observatory.org/cta-computing/documentation/python-project-template/-/merge_requests/{issue}>`__"
+issue_format = "`!{issue} <https://gitlab.cta-observatory.org/cta-computing/documentation/python-project-template/-/merge_requests/{issue}>`__"
 
 [tool.towncrier.fragment.feature]
     name = "New Features"
