@@ -50,7 +50,7 @@ dev = [
 
 # we can use self-references to simplify all, needs to match project.name defined above
 all = [
-  "ctlearn-manager[test,dev]",
+  "ctlearn-manager[test,doc,dev]",
 ]
 
 [tool.setuptools_scm]
