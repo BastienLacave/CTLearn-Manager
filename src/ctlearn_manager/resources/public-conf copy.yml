@@ -81,4 +81,3 @@ EventPreProcessor:
     - ["valid classifier", "CTLearn_is_valid"]
     - ["valid geom reco", "CTLearn_is_valid"]
     - ["valid energy reco", "CTLearn_is_valid"]
-
