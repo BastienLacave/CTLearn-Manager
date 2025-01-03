@@ -37,12 +37,12 @@ test = [
   "pytest",
   "pytest-cov",
 ]
-doc = [
-  "sphinx",
-  "numpydoc",
-  "ctao-sphinx-theme~=0.1.2",
-  "sphinx-changelog",
-]
+# doc = [
+#   "sphinx",
+#   "numpydoc",
+#   "ctao-sphinx-theme~=0.1.2",
+#   "sphinx-changelog",
+# ]
 dev = [
   "setuptools_scm",
   "towncrier",
