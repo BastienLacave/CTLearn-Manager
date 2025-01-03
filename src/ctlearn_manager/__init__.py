@@ -1045,7 +1045,7 @@ srun {cmd}
 
 class TriModelCollection():
     
-    def __init__(self, tri_models: list[CTLearnTriModelManager]):
+    def __init__(self, tri_models: list):
         self.tri_models = tri_models
         
     def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
