@@ -1,4 +1,4 @@
 def test_version():
-    from template import __version__
+    from ctlearn_manager import __version__
 
     assert __version__ != "0.0.0"
