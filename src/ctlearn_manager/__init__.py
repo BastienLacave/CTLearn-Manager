@@ -87,8 +87,8 @@ class CTLearnModelManager():
             self.max_training_epochs = model_parameters.get('max_training_epochs', 10)
             
             # Training tables
-            self.training_gamma_dir = model_parameters.get('training_gamma_dir', [""])[0]
-            self.training_proton_dir = model_parameters.get('training_proton_dir', [""])[0]
+            self.training_gamma_dir = model_parameters.get('training_gamma_dir', "")
+            self.training_proton_dir = model_parameters.get('training_proton_dir', "")
             self.training_gamma_patterns = model_parameters.get('training_gamma_patterns', [])
             self.training_proton_patterns = model_parameters.get('training_proton_patterns', [])
             self.training_gamma_zenith_distances = model_parameters.get('training_gamma_zenith_distances', [])
