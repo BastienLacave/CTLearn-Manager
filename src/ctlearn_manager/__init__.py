@@ -20,25 +20,35 @@ class CTLearnModelManager():
         reco (str): Type of reconstruction.
         telescope_names (list): Names of the telescopes.
         telescopes_indices (list): Indices of the telescopes.
-        training_gamma_dirs (list): Directories of training gamma data.
-        training_proton_dirs (list): Directories of training proton data.
+        training_gamma_dir (str): Directory of training gamma data.
+        training_proton_dir (str): Directory of training proton data.
+        training_gamma_patterns (list): Patterns of training gamma data.
+        training_proton_patterns (list): Patterns of training proton data.
         training_gamma_zenith_distances (list): Zenith distances of training gamma data.
         training_gamma_azimuths (list): Azimuths of training gamma data.
         training_proton_zenith_distances (list): Zenith distances of training proton data.
         training_proton_azimuths (list): Azimuths of training proton data.
+        testing_gamma_dirs (list): Directories of testing gamma data.
+        testing_proton_dirs (list): Directories of testing proton data.
+        testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
+        testing_gamma_azimuths (list): Azimuths of testing gamma data.
+        testing_proton_zenith_distances (list): Zenith distances of testing proton data.
+        testing_proton_azimuths (list): Azimuths of testing proton data.
+        testing_DL2_gamma_files (list): DL2 gamma files for testing.
+        testing_DL2_proton_files (list): DL2 proton files for testing.
         channels (list): Channels used in the model.
         max_training_epochs (int): Maximum number of training epochs.
-        columns (list): Columns of the model index table.
         stereo (bool): Whether the model is stereo or not.
         zd_range (list): Zenith distance range.
         az_range (list): Azimuth range.
         model_name (str): Name of the model.
+        model_index (int): Index of the model.
     Methods:
-        __init__(model_parameters, MODEL_INDEX_FILE):
+        __init__(model_parameters, MODEL_INDEX_FILE, load=False):
             Initializes the CTLearnModelManager with the given parameters.
         save_to_index():
             Saves the model parameters to the index file.
-        launch_training(n_epochs=None):
+        launch_training(n_epochs):
             Launches the training process for the model.
         get_n_epoch_trained():
             Returns the number of epochs the model has been trained for.
@@ -48,6 +58,18 @@ class CTLearnModelManager():
             Prints information about the model.
         update_model_manager_parameters_in_index(parameters):
             Updates the model parameters in the index file.
+        update_model_manager_training_data(training_gamma_dir, training_proton_dir, training_gamma_patterns, training_proton_patterns, training_gamma_zenith_distances, training_gamma_azimuths, training_proton_zenith_distances, training_proton_azimuths):
+            Updates the training data in the model manager.
+        update_model_manager_testing_data(testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths):
+            Updates the testing data in the model manager.
+        update_model_manager_DL2_MC_files(testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
+            Updates the DL2 MC files in the model manager.
+        update_model_manager_IRF_data(config, cuts_file, irf_file, zenith, azimuth):
+            Updates the IRF data in the model manager.
+        get_IRF_data(zenith, azimuth):
+            Retrieves the IRF data for the given zenith and azimuth.
+        get_DL2_MC_files(zenith, azimuth):
+            Retrieves the DL2 MC files for the given zenith and azimuth.
     """
     def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False):
         from astropy.io.misc.hdf5 import read_table_hdf5
@@ -65,8 +87,10 @@ class CTLearnModelManager():
             self.max_training_epochs = model_parameters.get('max_training_epochs', 10)
             
             # Training tables
-            self.training_gamma_dirs = model_parameters.get('training_gamma_dirs', [])
-            self.training_proton_dirs = model_parameters.get('training_proton_dirs', [])
+            self.training_gamma_dir = model_parameters.get('training_gamma_dir', [""])[0]
+            self.training_proton_dir = model_parameters.get('training_proton_dir', [""])[0]
+            self.training_gamma_patterns = model_parameters.get('training_gamma_patterns', [])
+            self.training_proton_patterns = model_parameters.get('training_proton_patterns', [])
             self.training_gamma_zenith_distances = model_parameters.get('training_gamma_zenith_distances', [])
             self.training_gamma_azimuths = model_parameters.get('training_gamma_azimuths', [])
             self.training_proton_zenith_distances = model_parameters.get('training_proton_zenith_distances', [])
@@ -115,17 +139,15 @@ class CTLearnModelManager():
                 print("")
         self.model_index = 0
         self.stereo = len(self.telescopes_indices) > 1
-        if self.reco == 'type' and (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
-            raise ValueError("For reco type, training_proton_dirs and training_gamma_dirs are required")
-        # if self.reco == 'type' & (len(self.training_proton_dirs) == 0 or len(self.training_gamma_dirs) == 0):
-        #     raise ValueError("For reco type, training_proton_dirs and training_gamma_dirs are required")
+        if self.reco == 'type' and (len(self.training_proton_patterns) == 0 or len(self.training_gamma_patterns) == 0):
+            raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         # Check that all gamma related lists are the same length
-        gamma_lengths = [len(self.training_gamma_dirs), len(self.training_gamma_zenith_distances), len(self.training_gamma_azimuths)]
+        gamma_lengths = [len(self.training_gamma_patterns), len(self.training_gamma_zenith_distances), len(self.training_gamma_azimuths)]
         if len(set(gamma_lengths)) != 1:
             raise ValueError("All gamma related lists must be the same length")
 
         # Check that all proton related lists are the same length
-        proton_lengths = [len(self.training_proton_dirs), len(self.training_proton_zenith_distances), len(self.training_proton_azimuths)]
+        proton_lengths = [len(self.training_proton_patterns), len(self.training_proton_zenith_distances), len(self.training_proton_azimuths)]
         if len(set(proton_lengths)) != 1:
             raise ValueError("All proton related lists must be the same length")
         
@@ -161,20 +183,20 @@ class CTLearnModelManager():
             
             model_table = QTable(names=['model_index', 'model_nickname', 'model_name', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescopes_indices', 'notes', 'zd_range', 'az_range', 'max_training_epochs'],
                         dtype=[int, str, str, str, str, str, str, str, str, str, str, int])
-            training_table_gamma = QTable(names=['model_index', 'training_gamma_dirs', 'training_gamma_zenith_distances', 'training_gamma_azimuths'],
-                            dtype=[int, str, float, float])
-            training_table_proton = QTable(names=['model_index', 'training_proton_dirs', 'training_proton_zenith_distances', 'training_proton_azimuths'],
-                            dtype=[int, str, float, float])
+            training_table_gamma = QTable(names=['model_index', 'training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths'],
+                            dtype=[int, str, str, float, float])
+            training_table_proton = QTable(names=['model_index', 'training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths'],
+                            dtype=[int, str, str, float, float])
             testing_table_gamma = QTable(names=['model_index', 'testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths'],
                             dtype=[int, str, float, float])
             testing_table_proton = QTable(names=['model_index', 'testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths'],
                             dtype=[int, str, float, float])
             
             model_table.add_row([self.model_index, self.model_nickname, self.model_name, self.model_dir, self.reco, str(self.channels), str(self.telescope_names), str(self.telescopes_indices), self.notes, str(self.zd_range), str(self.az_range), self.max_training_epochs])
-            for i in range(len(self.training_gamma_dirs)):
-                training_table_gamma.add_row([self.model_index, self.training_gamma_dirs[i], self.training_gamma_zenith_distances[i], self.training_gamma_azimuths[i]])
-            for i in range(len(self.training_proton_dirs)):
-                training_table_proton.add_row([self.model_index, self.training_proton_dirs[i], self.training_proton_zenith_distances[i], self.training_proton_azimuths[i]])
+            for i in range(len(self.training_gamma_patterns)):
+                training_table_gamma.add_row([self.model_index, self.training_gamma_dir, self.training_proton_patterns[i], self.training_gamma_zenith_distances[i], self.training_gamma_azimuths[i]])
+            for i in range(len(self.training_proton_patterns)):
+                training_table_proton.add_row([self.model_index, self.training_proton_dir, self.training_proton_patterns[i], self.training_proton_zenith_distances[i], self.training_proton_azimuths[i]])
             for i in range(len(self.testing_gamma_dirs)):
                 testing_table_gamma.add_row([self.model_index, self.testing_gamma_dirs[i], self.testing_gamma_zenith_distances[i], self.testing_gamma_azimuths[i]])
             for i in range(len(self.testing_proton_dirs)):
@@ -259,14 +281,13 @@ class CTLearnModelManager():
             save_best_validation_only = False
 
         load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} " if load_model else ""
-        background_string = f"--background {self.training_proton_dirs[0]} " if self.reco == 'type' else "" #FIXM loop over protons/gamma dirs and add patterns
+        background_string = f"--background {self.training_proton_dir} " if self.reco == 'type' else ""
         signal_patterns = ""
+        for pattern in self.training_gamma_patterns:
+            signal_patterns += f'--pattern-signal "{pattern}" '
         background_patterns = ""
-        # for ze, az in zip(zes, azs):
-        #     signal_patterns += f'--pattern-signal "gamma_theta_{ze:.3f}_az_{az:.3f}_runs*.dl1.h5" '
-        # if reco == 'type':
-        #     for ze, az in zip(zes_protons, azs_protons):
-        #         background_patterns += f'--pattern-background "proton_theta_{ze:.3f}_az_{az:.3f}_runs*.dl1.h5" '
+        for pattern in self.training_proton_patterns:
+            background_patterns += f'--pattern-background "{pattern}" '
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
@@ -299,7 +320,7 @@ class CTLearnModelManager():
         #FIXME take in account all agga or proton dirs
         cmd = f"ctlearn-train-model {load_model_string} \
 --TrainCTLearnModel.batch_size=64 \
---signal {self.training_gamma_dirs[0]} {signal_patterns} \
+--signal {self.training_gamma_dir} {signal_patterns} \
 {background_string}{background_patterns}\
 --reco {self.reco} \
 --output {model_dir} \
@@ -383,8 +404,8 @@ class CTLearnModelManager():
         print(f"Channels: {self.channels}")
         print(f"Telescope names: {self.telescope_names}")
         print(f"Telescope indices: {self.telescopes_indices}")
-        print(f"Training gamma dirs: {self.training_gamma_dirs}")
-        print(f"Training proton dirs: {self.training_proton_dirs}")
+        print(f"Training gamma dir: {self.training_gamma_dir}")
+        print(f"Training proton dir: {self.training_proton_dir}")
         print(f"Training gamma zenith distances: {self.training_gamma_zenith_distances}")
         print(f"Training gamma azimuths: {self.training_gamma_azimuths}")
         print(f"Training proton zenith distances: {self.training_proton_zenith_distances}")
@@ -421,56 +442,48 @@ class CTLearnModelManager():
             print(f"\t➡️ {key} updated to {value}")
         write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters', append=True, overwrite=True)
         
-    def update_model_manager_training_data(self, training_gamma_dirs, training_proton_dirs, training_gamma_zenith_distances, training_gamma_azimuths, training_proton_zenith_distances, training_proton_azimuths):
-        """
-        Updates the model manager training data in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the training data in the index.
-        The updated training data are also reflected in the instance's attributes.
-        Args:
-            training_gamma_dirs (list): Directories of training gamma data.
-            training_proton_dirs (list): Directories of training proton data.
-            training_gamma_zenith_distances (list): Zenith distances of training gamma data.
-            training_gamma_azimuths (list): Azimuths of training gamma data.
-            training_proton_zenith_distances (list): Zenith distances of training proton data.
-            training_proton_azimuths (list): Azimuths of training proton data.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
-        """
+    def update_model_manager_training_data(self, training_gamma_dir, training_proton_dir, training_gamma_patterns, training_proton_patterns, training_gamma_zenith_distances, training_gamma_azimuths, training_proton_zenith_distances, training_proton_azimuths):
+
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
         training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
         print(f"💾 Model {self.model_nickname} training data update:")
         if len(training_gamma_table)==0:
-            training_gamma_table = QTable(names=['model_index', 'training_gamma_dirs', 'training_gamma_zenith_distances', 'training_gamma_azimuths'], dtype=[int, str, float, float])
+            training_gamma_table = QTable(names=['model_index', 'training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths'], 
+                                          dtype=[int, str, str, float, float])
         if len(training_proton_table)==0:
-            training_proton_table = QTable(names=['model_index', 'training_proton_dirs', 'training_proton_zenith_distances', 'training_proton_azimuths'], dtype=[int, str, float, float])
+            training_proton_table = QTable(names=['model_index', 'training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths'], 
+                                           dtype=[int, str, str, float, float])
         
-        if len(training_gamma_dirs) > 0:
-            for i in range(len(training_gamma_dirs)):
+        if len(training_gamma_patterns) > 0:
+            for i in range(len(training_gamma_patterns)):
                 match = np.where((training_gamma_table['training_gamma_zenith_distances'] == training_gamma_zenith_distances[i]) & 
                      (training_gamma_table['training_gamma_azimuths'] == training_gamma_azimuths[i]))[0]
                 if len(match) > 0:
-                    training_gamma_table['training_gamma_dirs'][match[0]] = training_gamma_dirs[i]
+                    training_gamma_table['training_gamma_dir'][match[0]] = training_gamma_dir
+                    training_gamma_table['training_gamma_patterns'][match[0]] = training_gamma_patterns[i]
                 else:
-                    training_gamma_table.add_row([self.model_index, training_gamma_dirs[i], training_gamma_zenith_distances[i], training_gamma_azimuths[i]])
+                    training_gamma_table.add_row([self.model_index, training_gamma_dir, training_proton_patterns[i], training_gamma_zenith_distances[i], training_gamma_azimuths[i]])
             write_table_hdf5(training_gamma_table, self.model_index_file, path=f'{self.model_nickname}/training/gamma', append=True, overwrite=True)
             print(f"\t➡️ Training gamma data updated")
         
-        if len(training_proton_dirs) > 0:
-            for i in range(len(training_proton_dirs)):
+        if len(training_proton_patterns) > 0:
+            for i in range(len(training_proton_patterns)):
                 match = np.where((training_proton_table['training_proton_zenith_distances'] == training_proton_zenith_distances[i]) & 
                      (training_proton_table['training_proton_azimuths'] == training_proton_azimuths[i]))[0]
                 if len(match) > 0:
-                    training_proton_table['training_proton_dirs'][match[0]] = training_proton_dirs[i]
+                    training_proton_table['training_proton_dir'][match[0]] = training_proton_dir
+                    training_proton_table['training_proton_patterns'][match[0]] = training_proton_patterns[i]
                 else:
-                    training_proton_table.add_row([self.model_index, training_proton_dirs[i], training_proton_zenith_distances[i], training_proton_azimuths[i]])
+                    training_proton_table.add_row([self.model_index, training_proton_dir, training_proton_patterns[i], training_proton_zenith_distances[i], training_proton_azimuths[i]])
             write_table_hdf5(training_proton_table, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True)
             print(f"\t➡️ Training proton data updated")
         
-        self.training_gamma_dirs = training_gamma_table['training_gamma_dirs']
-        self.training_proton_dirs = training_proton_table['training_proton_dirs']
+        self.training_gamma_dir = training_gamma_table['training_gamma_dir']
+        self.training_proton_dir = training_proton_table['training_proton_dir']
+        self.training_gamma_patterns = training_gamma_table['training_gamma_patterns']
+        self.training_proton_patterns = training_proton_table['training_proton_patterns']
         self.training_gamma_zenith_distances = training_gamma_table['training_gamma_zenith_distances']
         self.training_gamma_azimuths = training_gamma_table['training_gamma_azimuths']
         self.training_proton_zenith_distances = training_proton_table['training_proton_zenith_distances']
