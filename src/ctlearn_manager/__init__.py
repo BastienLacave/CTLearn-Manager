@@ -213,7 +213,7 @@ class CTLearnModelManager():
         #     print(f"❌ Model nickname {self.model_nickname} already in table")
         
         
-    def launch_training(self, n_epochs):
+    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False):
         """
         Launches the training process for the model.
         Parameters:
@@ -280,7 +280,10 @@ class CTLearnModelManager():
             os.system(f"mkdir -p {model_dir}")
             save_best_validation_only = False
 
-        load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} " if load_model else ""
+        if load_model:
+            load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} "
+        else:
+            load_model_string = "" if transfer_learning_model_cpk is None else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
         background_string = f"--background {self.training_proton_dir} " if self.reco == 'type' else ""
         signal_patterns = ""
         for pattern in self.training_gamma_patterns:
@@ -1094,6 +1097,7 @@ class CTLearnTriModelManager():
         os.system(cmd)
     
     def plot_irfs(self, zenith, azimuth):
+        set_mpl_style()
         from gammapy.irf import EffectiveAreaTable2D, EnergyDispersion2D, Background2D, RadMax2D
         # irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
         # # rad_max = RadMax2D.read(irf_file, hdu="RAD_MAX")
@@ -1137,6 +1141,78 @@ class CTLearnTriModelManager():
             ax.legend()
         plt.tight_layout()
         plt.show()
+        
+    def plot_angular_resolution(self, zenith, azimuth):
+        set_mpl_style()
+        import ctaplot
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack, join
+        import astropy.units as u
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        dl2_gamma = []
+        shower_parameters_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+        dl2_gamma = vstack(dl2_gamma)
+        shower_parameters_gamma = vstack(shower_parameters_gamma)
+        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+
+        reco_alt = dl2_gamma['CTLearn_alt'].to(u.deg)
+        reco_az = dl2_gamma['CTLearn_az'].to(u.deg)
+        true_alt = dl2_gamma['true_alt'].to(u.deg)
+        true_az = dl2_gamma['true_az'].to(u.deg)
+        reco_energy = dl2_gamma['CTLearn_energy']
+        true_energy = dl2_gamma['true_energy']
+        
+        # Define the range of true energy values
+        true_energy_min = np.min(true_energy)
+        true_energy_max = np.max(true_energy)
+
+        # Create bins with 5 bins per decade in log scale
+        bins_per_decade = 5
+        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+
+        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+        plt.legend()
+        plt.grid(False, which='both')
+        plt.show()
+        
+    def plot_energy_resolution(self, zenith, azimuth):
+        set_mpl_style()
+        import ctaplot
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack, join
+        import astropy.units as u
+        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
+        dl2_gamma = []
+        shower_parameters_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+        dl2_gamma = vstack(dl2_gamma)
+        shower_parameters_gamma = vstack(shower_parameters_gamma)
+        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+
+        reco_energy = dl2_gamma['CTLearn_energy']
+        true_energy = dl2_gamma['true_energy']
+        
+        # Define the range of true energy values
+        true_energy_min = np.min(true_energy)
+        true_energy_max = np.max(true_energy)
+
+        # Create bins with 5 bins per decade in log scale
+        bins_per_decade = 5
+        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+        
+        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+        plt.legend()
+        plt.grid(False, which='both')
+        plt.show()
+        
+        
 
 
 class TriModelCollection():
