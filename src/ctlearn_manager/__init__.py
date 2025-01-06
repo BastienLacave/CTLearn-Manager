@@ -3,7 +3,7 @@ from .version import __version__
 from astropy.table import QTable
 import numpy as np
 from pathlib import Path
-
+# from . import get_predict_data_sbaych_script
 __all__ = [
     "__version__",
 ]
@@ -296,21 +296,22 @@ class CTLearnModelManager():
             yaml.dump(config, file)
         print(f"Configuration saved to {config_file}")
         
+        #FIXME take in account all agga or proton dirs
         cmd = f"ctlearn-train-model {load_model_string} \
-            --TrainCTLearnModel.batch_size=64 \
-            --signal {self.training_gamma_dirs[0]} {signal_patterns} \
-            {background_string}{background_patterns}\
-            --reco {self.reco} \
-            --output {model_dir} \
-            {channels_string}\
-            --TrainCTLearnModel.n_epochs={n_epochs} \
-            --verbose \
-            --TrainCTLearnModel.save_best_validation_only=True\
-            --overwrite \
-            --DLImageReader.mode={stereo_mode} \
-            --TrainCTLearnModel.stack_telescope_images={stack_telescope_images}\
-            --DLImageReader.min_telescopes={min_telescopes}"# \
-            #--DLImageReader.allowed_tels={allowed_tels}"
+--TrainCTLearnModel.batch_size=64 \
+--signal {self.training_gamma_dirs[0]} {signal_patterns} \
+{background_string}{background_patterns}\
+--reco {self.reco} \
+--output {model_dir} \
+{channels_string}\
+--TrainCTLearnModel.n_epochs={n_epochs} \
+--verbose \
+--TrainCTLearnModel.save_best_validation_only=True\
+--overwrite \
+--DLImageReader.mode={stereo_mode} \
+--TrainCTLearnModel.stack_telescope_images={stack_telescope_images}\
+--DLImageReader.min_telescopes={min_telescopes}"# \
+#--DLImageReader.allowed_tels={allowed_tels}"
         print(cmd)
         # !{cmd}
         os.system(cmd)
@@ -807,61 +808,33 @@ class CTLearnTriModelManager():
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
                 cmd = f"ctlearn-predict-model --input_url {input_file} \
-                    --type_model={type_model_dir}/ctlearn_model.cpk \
-                    --energy_model={energy_model_dir}/ctlearn_model.cpk \
-                    --direction_model={direction_model_dir}/ctlearn_model.cpk \
-                    --no-dl1-images --no-true-images --output {output_file} \
-                    --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
-                    --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+--type_model={type_model_dir}/ctlearn_model.cpk \
+--energy_model={energy_model_dir}/ctlearn_model.cpk \
+--direction_model={direction_model_dir}/ctlearn_model.cpk \
+--no-dl1-images --no-true-images --output {output_file} \
+--DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
                 cmd = f"ctlearn-predict-model --input_url {input_file} \
-                    --type_model={type_model_dir}/ctlearn_model.cpk \
-                    --energy_model={energy_model_dir}/ctlearn_model.cpk \
-                    --direction_model={direction_model_dir}/ctlearn_model.cpk \
-                    --no-dl1-images --no-true-images --output {output_file} \
-                    --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
-            if cluster == 'cscs':
-                sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
-                os.system(f"sbatch {sbatch_file}")
-                
-            if cluster == "LST":
-                sbatch_file = self.write_LSTCluster_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
-                os.system(f"sbatch {sbatch_file}")
-                
-            if cluster == None:
+--type_model={type_model_dir}/ctlearn_model.cpk \
+--energy_model={energy_model_dir}/ctlearn_model.cpk \
+--direction_model={direction_model_dir}/ctlearn_model.cpk \
+--no-dl1-images --no-true-images --output {output_file} \
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+            
+            if cluster is not None:
+                sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, env_name=python_env, account=account)
+                os.system(f"sbatch {sbatch_file}")  
+            else:
                 print(cmd)
                 os.system(cmd)
             
-    def write_cscs_sbatch_script(job_name, cmd, sbatch_scripts_dir, account='cta04', env_name='ctlearn-cluster'):
-        sh_script = f'''#!/bin/bash -l
-#
-#SBATCH --job-name={job_name}
-#SBATCH --time=24:00:00
-#SBATCH --nodes=1
-#SBATCH --constraint=gpu
-#SBATCH --gres=gpu:1
-#SBATCH --mem=64000mb
-#SBATCH --output=MC_{job_name}.%j.out
-#SBATCH --error=MC_{job_name}.%j.err
-#SBATCH --account={account}
-
-source ~/.bashrc
-conda activate {env_name}
-echo $CONDA_DEFAULT_ENV
-echo $SLURM_ARRAY_TASK_ID
-
-srun {cmd}
-'''
-        #--type_model="{type_model_dir}/ctlearn_model.cpk"
-        #--energy_model="{energy_model_dir}/ctlearn_model.cpk"
+    def write_sbatch_script(self, cluster, job_name, cmd, sbatch_scripts_dir, env_name, account):
+        sh_script = get_predict_data_sbatch_script(cluster, cmd, job_name, sbatch_scripts_dir, account, env_name)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
-        
-        def write_LSTCluster_sbatch_script(job_name, cmd, sbatch_scripts_dir, account='cta04', env_name='ctlearn-cluster'):
-            pass
-        
 
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
@@ -869,45 +842,42 @@ srun {cmd}
     def predict_lstchain_data(self, input_file, output_file):
         pass
     
-    def predict_data(self, input_file, output_file, pattern="*.dl1.h5", sbatch_scripts_dir=None, cluster=None, account=None, python_env='ctlearn-cluster'):
+    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None):
         import os
         import glob
         
+        os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
         channels_string = ""
         for channel in self.channels:
-            channels_string += f"--DLImageReader.channels={channel} "
+            channels_string += f"--DLImageReader.channels {channel} "
         type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
         
         if self.stereo:
             cmd = f"ctlearn-predict-model --input_url {input_file} \
-                --type_model={type_model_dir}/ctlearn_model.cpk \
-                --energy_model={energy_model_dir}/ctlearn_model.cpk \
-                --direction_model={direction_model_dir}/ctlearn_model.cpk \
-                --no-dl1-images --no-true-images \
-                --output {output_file} \
-                --PredictCTLearnModel.dl1dh_reader_type=DLImageReader \
-                --DLImageReader.image_mapper_type=BilinearMapper \
-                --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
-                --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+--type_model {type_model_dir}/ctlearn_model.cpk \
+--energy_model {energy_model_dir}/ctlearn_model.cpk \
+--direction_model {direction_model_dir}/ctlearn_model.cpk \
+--no-dl1-images --no-true-images \
+--output {output_file} \
+--PredictCTLearnModel.dl1dh_reader_type DLImageReader \
+--DLImageReader.image_mapper_type BilinearMapper \
+--DLImageReader.mode stereo --PredictCTLearnModel.stack_telescope_images True --DLImageReader.min_telescopes 2 \
+--PredictCTLearnModel.overwrite_tables True -v {channels_string}"
         else:
-            # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+            # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
             cmd = f"ctlearn-predict-model --input_url {input_file} \
-                --type_model={type_model_dir}/ctlearn_model.cpk \
-                --energy_model={energy_model_dir}/ctlearn_model.cpk \
-                --direction_model={direction_model_dir}/ctlearn_model.cpk \
-                --no-dl1-images --no-true-images --output {output_file} \
-                --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
-        if cluster == 'cscs':
-            sbatch_file = self.write_cscs_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
-            os.system(f"sbatch {sbatch_file}")
+--type_model {type_model_dir}/ctlearn_model.cpk \
+--energy_model {energy_model_dir}/ctlearn_model.cpk \
+--direction_model {direction_model_dir}/ctlearn_model.cpk \
+--no-dl1-images --no-true-images --output {output_file} \
+--PredictCTLearnModel.overwrite_tables True -v {channels_string}"
             
-        if cluster == "LST":
-            sbatch_file = self.write_LSTCluster_sbatch_script(Path(input_file).stem, cmd, sbatch_scripts_dir, account=account, env_name=python_env)
+        if cluster is not None:
+            sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
             os.system(f"sbatch {sbatch_file}")
-            
-        if cluster == None:
+        else:
             print(cmd)
             os.system(cmd)
     
@@ -1218,3 +1188,41 @@ def angular_distance(ze1, az1, ze2, az2):
     a = np.sin(delta_ze / 2)**2 + np.cos(ze1) * np.cos(ze2) * np.sin(delta_az / 2)**2
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     return c
+
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name):
+    sbatch_predict_data_configs = {
+    'camk': 
+    f'''#!/bin/sh
+#SBATCH --time=03:00:00
+#SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
+#SBATCH -e {sbatch_scripts_dir}/{job_name}%x.%j.err 
+#SBATCH -J {job_name}
+#SBATCH --mem=10000
+source ~/.bashrc
+###. /home/blacave/mambaforge/etc/profile.d/conda.sh
+conda activate {env_name}
+echo $CONDA_DEFAULT_ENV
+srun {command}''',
+
+    'cscs': f'''#!/bin/bash -l
+#SBATCH --job-name={job_name}
+#SBATCH --time=24:00:00
+#SBATCH --nodes=1
+#SBATCH --constraint=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64000mb
+#SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
+#SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
+#SBATCH --account={account}
+
+source ~/.bashrc
+conda activate {env_name}
+echo $CONDA_DEFAULT_ENV
+echo $SLURM_ARRAY_TASK_ID
+
+srun {command}
+''',
+    'lst-cluster':f''' ''',
+                    
+    }
+    return sbatch_predict_data_configs[cluster]
