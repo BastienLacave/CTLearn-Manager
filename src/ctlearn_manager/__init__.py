@@ -84,10 +84,14 @@ class CTLearnModelManager():
             self.testing_DL2_gamma_files = model_parameters.get('testing_DL2_gamma_files', [])
             self.testing_DL2_proton_files = model_parameters.get('testing_DL2_proton_files', [])
         else:
+            import ast
             self.model_nickname = model_parameters.get('model_nickname', 'new_model')
             model_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/parameters')
             for key in model_table.colnames:
                 self.__dict__[key] = model_table[key][0]
+            self.channels = ast.literal_eval(model_table['channels'][0])
+            self.telescopes_indices = ast.literal_eval(model_table['telescopes_indices'][0])
+            self.telescope_names = ast.literal_eval(model_table['telescope_names'][0])
             training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
             for key in training_gamma_table.colnames:
                 self.__dict__[key] = training_gamma_table[key]
@@ -559,7 +563,7 @@ class CTLearnModelManager():
             # model_index = 0
             # DL2_proton_table.add_row([model_index, testing_DL2_proton_files, testing_proton_zenith_distances, testing_proton_azimuths])
             # write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/parameters', append=True, overwrite=True)
-        print(f"💾 Model {self.model_nickname} testing data update:")
+        print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
             DL2_gamma_table = QTable(names=['model_index', 'testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], dtype=[int, str, float, float])
         if len(DL2_proton_table)==0:
@@ -591,6 +595,68 @@ class CTLearnModelManager():
         self.testing_DL2_gamma_azimuths = DL2_gamma_table['testing_DL2_gamma_azimuths']
         self.testing_DL2_proton_zenith_distances = DL2_proton_table['testing_DL2_proton_zenith_distances']
         self.testing_DL2_proton_azimuths = DL2_proton_table['testing_DL2_proton_azimuths']
+        
+    def update_model_manager_IRF_data(self, config, cuts_file, irf_file, zenith, azimuth):
+        """
+        Updates the model manager IRF data in the index file.
+        This method reads the model index file, finds the entry corresponding to the
+        current model nickname, and updates the IRF data in the index.
+        The updated IRF data are also reflected in the instance's attributes.
+        Args:
+            config (str): Configuration file for IRF data.
+            cuts_file (str): Cuts file for IRF data.
+            irf_file (str): IRF file for IRF data.
+        Raises:
+            IndexError: If the model nickname is not found in the model index file.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+        
+        try:
+            IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
+        except:
+            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'zenith', 'azimuth'], dtype=[int, str, str, str, float, float])
+        print(f"💾 Model {self.model_nickname} IRF data update:")
+        if len(IRF_table)==0:
+            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'zenith', 'azimuth'], dtype=[int, str, str, str, float, float])
+        
+        match = np.where((IRF_table['config'] == config) or 
+                (IRF_table['cuts_file'] == cuts_file) or 
+                (IRF_table['irf_file'] == irf_file) or
+                (IRF_table['zenith'] == zenith) or
+                (IRF_table['azimuth'] == azimuth)
+                )[0]
+        if len(match) == 0:
+            IRF_table.add_row([self.model_index, config, cuts_file, irf_file, zenith, azimuth])
+            write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True)
+            print(f"\t➡️ IRF data updated")
+        
+        self.config = IRF_table['config']
+        self.cuts_file = IRF_table['cuts_file']
+        self.irf_file = IRF_table['irf_file']
+        
+    def get_IRF_data(self, zenith, azimuth):
+        
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        
+        IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
+        match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0]
+        if len(match) == 0:
+            raise IndexError(f"No IRF data found for altitude {zenith} and azimuth {azimuth}")
+        return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0]
+
+    def get_DL2_MC_files(self, zenith, azimuth):
+    
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        
+        DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+        DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+        match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
+        match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
+        if len(match_gamma) == 0:
+            raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
+        if len(match_proton) == 0:
+            raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
+        return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma][0], DL2_proton_table['testing_DL2_proton_files'][match_proton][0]
             
 class CTLearnTriModelManager():
     """
@@ -1002,12 +1068,59 @@ srun {cmd}
         plt.tight_layout()
         plt.show()
         
-    def produce_irfs(self):
-        pass
+    def produce_irfs(self, zenith, azimuth, config=None, output_cuts_file=None, output_irf_file=None):
+        import os
+        if config is None:
+            try:
+                config = self.direction_model.get_IRF_data(zenith, azimuth)[0]
+            except:
+                raise ValueError("A configuration file must be provided, at least the first time.")
+        if output_cuts_file is None:
+            try:
+                output_cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
+            except:
+                raise ValueError("A cuts file must be provided, at least the first time.")
+        if output_irf_file is None:
+            try:
+                output_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+            except:
+                raise ValueError("An IRF file must be provided, at least the first time.")
+        
+        self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
+        self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
+        self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
+            
+        gamma_file = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        proton_file = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+        cmd = f"ctapipe-optimize-event-selection \
+            -c {config} \
+            --gamma-file {gamma_file} \
+            --proton-file {proton_file} \
+            -v --point-like \
+            --output {output_cuts_file} \
+            --overwrite True \
+            --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
+        os.system(cmd)
+        cmd = f"ctapipe-compute-irf \
+            -c {config} --IrfTool.cuts_file {output_cuts_file} \
+            --gamma-file {gamma_file} \
+            --proton-file {proton_file}  \
+            -v --do-background --point-like \
+            --output {output_irf_file} \
+            --benchmark-output {output_irf_file.replace('.h5', '_benchmark.h5')}"
+        os.system(cmd)
     
-    def plot_irfs():
-        #Use gammapy to plot the IRFs
-        pass
+    def plot_irfs(self, zenith, azimuth):
+        from gammapy.irf import EffectiveAreaTable2D, EnergyDispersion2D, Background2D, RadMax2D
+        # irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+        # # rad_max = RadMax2D.read(irf_file, hdu="RAD_MAX")
+        # aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
+        # bkg = Background2D.read(irf_file, hdu="BACKGROUND")
+        # edisp = EnergyDispersion2D.read(irf_file, hdu="ENERGY DISPERSION")
+        # edisp.peek()
+        # aeff.peek()
+        # bkg.peek()
+        
     
     def plot_loss(self):
         set_mpl_style()

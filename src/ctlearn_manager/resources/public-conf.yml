@@ -34,7 +34,7 @@ DefaultRecoEnergyBins:
 
 DefaultFoVOffsetBins:
   fov_offset_min: 0.0 deg
-  fov_offset_max: 5.0 deg
+  fov_offset_max: 1.0 deg
   fov_offset_n_bins: 1
 
 EffectiveArea2dMaker:
@@ -69,7 +69,7 @@ BackgroundRate2dMaker:
 
 Sensitivity2dMaker:
   fov_offset_min: 0.0 deg
-  fov_offset_max: 5.0 deg
+  fov_offset_max: 1.0 deg
   fov_offset_n_bins: 1
 
 EventPreProcessor:
