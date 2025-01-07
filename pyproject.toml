@@ -15,6 +15,7 @@ requires-python = ">=3.8"
 dependencies = [
     "numpy",
     "ctapipe",
+    "gammapy",
 ]
 
 # needed for setuptools_scm, we don"t define a static version

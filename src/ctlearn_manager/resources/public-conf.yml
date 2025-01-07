@@ -34,7 +34,7 @@ DefaultRecoEnergyBins:
 
 DefaultFoVOffsetBins:
   fov_offset_min: 0.0 deg
-  fov_offset_max: 1.0 deg
+  fov_offset_max: 5.0 deg
   fov_offset_n_bins: 1
 
 EffectiveArea2dMaker:
@@ -60,7 +60,7 @@ Psf3dMaker:
   true_energy_n_bins_per_decade: 5
   source_offset_min: 0 deg
   source_offset_max: 6 deg
-  source_offset_n_bins: 7
+  source_offset_n_bins: 1
 
 BackgroundRate2dMaker:
   reco_energy_min: 0.05 TeV
@@ -69,7 +69,7 @@ BackgroundRate2dMaker:
 
 Sensitivity2dMaker:
   fov_offset_min: 0.0 deg
-  fov_offset_max: 1.0 deg
+  fov_offset_max: 5.0 deg
   fov_offset_n_bins: 1
 
 EventPreProcessor:
