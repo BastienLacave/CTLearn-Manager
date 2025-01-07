@@ -136,7 +136,7 @@ class CTLearnModelManager():
                 for key in DL2_proton_table.colnames:
                     self.__dict__[key] = DL2_proton_table[key]
             except:
-                print("")
+                print("No DL2 MC files yet")
         self.model_index = 0
         self.stereo = len(self.telescopes_indices) > 1
         if self.reco == 'type' and (len(self.training_proton_patterns) == 0 or len(self.training_gamma_patterns) == 0):
@@ -946,15 +946,10 @@ class CTLearnTriModelManager():
     def merge_DL2_files(self, zenith, azimuth, output_file_gammas=None, output_file_protons=None, overwrite=False):
         import glob
         import os
-        # from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-        # DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
-        # gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
         gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        # DL2_proton_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/proton')
-        # proton_files = DL2_proton_table['testing_DL2_proton_files'][DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith][DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth]
         proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        print(f"🔀 Merging DL2 files for zenith {zenith} and azimuth {azimuth}")
-        if len(gamma_files) > 0 and output_file_gammas is not None:
+        if len(gamma_files) > 1 and output_file_gammas is not None:
+            print(f"🔀 Merging DL2 gamma files for zenith {zenith} and azimuth {azimuth}")
             result = os.system(f"ctapipe-merge {' '.join(gamma_files)} --output={output_file_gammas} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
             if result == 0:
                 self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
@@ -962,7 +957,10 @@ class CTLearnTriModelManager():
                 self.type_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
             else:
                 print(f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}")
-        if len(proton_files) > 0 and output_file_protons is not None:
+        else:
+            print(f"✅ There already is a single gamma file for zenith {zenith} and azimuth {azimuth}")
+        if len(proton_files) > 1 and output_file_protons is not None:
+            print(f"🔀 Merging DL2 proton files for zenith {zenith} and azimuth {azimuth}")
             result = os.system(f"ctapipe-merge {' '.join(proton_files)} --output={output_file_protons} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
             if result == 0:
                 self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
@@ -970,6 +968,8 @@ class CTLearnTriModelManager():
                 self.type_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
             else:
                 print(f"Error: Failed to merge proton files for zenith {zenith} and azimuth {azimuth}")
+        else:
+            print(f"✅ There already is a single proton file for zenith {zenith} and azimuth {azimuth}")
                 
     def load_DL2_data(self, input_file):
         from ctapipe.io import read_table
@@ -1165,7 +1165,7 @@ class CTLearnTriModelManager():
             -c {config} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file} \
-            -v --point-like \
+            --point-like \
             --output {output_cuts_file} \
             --overwrite True \
             --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
@@ -1174,7 +1174,7 @@ class CTLearnTriModelManager():
             -c {config} --IrfTool.cuts_file {output_cuts_file} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file}  \
-            -v --do-background --point-like \
+            --do-background --point-like \
             --output {output_irf_file} \
             --benchmark-output {output_benchmark_file}"
         os.system(cmd)
