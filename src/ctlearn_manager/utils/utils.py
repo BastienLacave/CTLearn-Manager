@@ -5,7 +5,7 @@ def set_mpl_style():
     import matplotlib.pyplot as plt
     import matplotlib.font_manager as font_manager
     from matplotlib import rcParams
-    from . import resources
+    from .. import resources
 
 
     # font_path = "./resources/Outfit-Medium.ttf"

@@ -144,8 +144,8 @@ class CTLearnModelManager():
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         # self.model_index = 0
-        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_indeces'][0])) > 1
-        if self.reco == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
+        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescopes_indices'][0])) > 1
+        if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         # Check that all gamma related lists are the same length
         gamma_lengths = [len(training_table_gamma['training_gamma_patterns']), len(training_table_gamma['training_gamma_zenith_distances']), len(training_table_gamma['training_gamma_azimuths'])]
@@ -314,7 +314,7 @@ class CTLearnModelManager():
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = 'true' if self.stereo else 'false'
         min_telescopes = 2 if self.stereo else 1
-        allowed_tels = '_'.join(map(str, ast.literal_eval(self.model_parameters_table['telescope_indeces'][0]))) if self.stereo else int(ast.literal_eval(self.model_parameters_table['telescope_indeces'][0])[0])
+        allowed_tels = '_'.join(map(str, ast.literal_eval(self.model_parameters_table['telescope_indices'][0]))) if self.stereo else int(ast.literal_eval(self.model_parameters_table['telescope_indices'][0])[0])
         
         config = {
             'load_model_string': load_model_string,

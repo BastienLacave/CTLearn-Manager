@@ -34,15 +34,15 @@ class CTLearnTriModelManager():
     
     
     def __init__(self, direction_model: CTLearnModelManager, energy_model: CTLearnModelManager, type_model: CTLearnModelManager):
-        if direction_model.reco == 'direction':
+        if direction_model.model_parameters_table['reco'][0] == 'direction':
             self.direction_model = direction_model
         else:
             raise ValueError('direction_model must be a direction model')
-        if energy_model.reco == 'energy':
+        if energy_model.model_parameters_table['reco'][0] == 'energy':
             self.energy_model = energy_model
         else:
             raise ValueError('energy_model must be an energy model')
-        if type_model.reco == 'type':
+        if type_model.model_parameters_table['reco'][0] == 'type':
             self.type_model = type_model
         else:
             raise ValueError('type_model must be a type model')
@@ -545,7 +545,7 @@ class CTLearnTriModelManager():
             ax.plot(epochs, losses_val, label=f"Validation", ls='--')
             # ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
             # ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
-            ax.set_title(f"{model.reco} training".title())
+            ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
             ax.set_xlabel('Epoch')
             ax.set_ylabel('Loss')
             ax.set_xticks(np.arange(1, len(df) + 1, 2))
