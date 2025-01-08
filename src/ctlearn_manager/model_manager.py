@@ -71,75 +71,9 @@ class CTLearnModelManager():
     def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False):
         from astropy.io.misc.hdf5 import read_table_hdf5
         self.model_index_file = MODEL_INDEX_FILE
-        
+        self.model_nickname = model_parameters.get('model_nickname', 'new_model')
         if not load:
-            # Model parameters
-            self.model_nickname = model_parameters.get('model_nickname', 'new_model')
             self.save_to_index(model_parameters)
-            # self.notes = model_parameters.get('notes', '')
-            # model_dir = model_parameters.get('model_dir', '')
-            # self.reco = model_parameters.get('reco', 'default_reco')
-            # self.telescope_names = model_parameters.get('telescope_names', [])
-            # self.telescopes_indices = model_parameters.get('telescopes_indices', [])
-            # self.channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
-            # self.max_training_epochs = model_parameters.get('max_training_epochs', 10)
-            
-            # # Validity
-            # self.validity = ModelRangeOfValidity()
-            
-            # Training tables
-            # self.training_gamma_dir = model_parameters.get('training_gamma_dir', "")
-            # self.training_proton_dir = model_parameters.get('training_proton_dir', "")
-            # self.training_gamma_patterns = model_parameters.get('training_gamma_patterns', [])
-            # self.training_proton_patterns = model_parameters.get('training_proton_patterns', [])
-            # self.training_gamma_zenith_distances = model_parameters.get('training_gamma_zenith_distances', [])
-            # self.training_gamma_azimuths = model_parameters.get('training_gamma_azimuths', [])
-            # self.training_proton_zenith_distances = model_parameters.get('training_proton_zenith_distances', [])
-            # self.training_proton_azimuths = model_parameters.get('training_proton_azimuths', [])
-            
-            # Testing tables
-            # self.testing_gamma_dirs = model_parameters.get('testing_gamma_dirs', [])
-            # self.testing_proton_dirs = model_parameters.get('testing_proton_dirs', [])
-            # self.testing_gamma_zenith_distances = model_parameters.get('testing_gamma_zenith_distances', [])
-            # self.testing_gamma_azimuths = model_parameters.get('testing_gamma_azimuths', [])
-            # self.testing_proton_zenith_distances = model_parameters.get('testing_proton_zenith_distances', [])
-            # self.testing_proton_azimuths = model_parameters.get('testing_proton_azimuths', [])
-            
-            # DL2 tables
-            # self.testing_DL2_gamma_files = model_parameters.get('testing_DL2_gamma_files', [])
-            # self.testing_DL2_proton_files = model_parameters.get('testing_DL2_proton_files', [])
-        else:
-            
-            self.model_nickname = model_parameters.get('model_nickname', 'new_model')
-            # model_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/parameters')
-            # for key in model_table.colnames:
-            #     self.__dict__[key] = model_table[key][0]
-            # self.channels = ast.literal_eval(model_table['channels'][0])
-            # self.telescopes_indices = ast.literal_eval(model_table['telescopes_indices'][0])
-            # self.telescope_names = ast.literal_eval(model_table['telescope_names'][0])
-            # training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
-            # for key in training_gamma_table.colnames:
-            #     self.__dict__[key] = training_gamma_table[key]
-            # training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
-            # for key in training_proton_table.colnames:
-            #     self.__dict__[key] = training_proton_table[key]
-            # testing_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma')
-            # for key in testing_gamma_table.colnames:
-            #     self.__dict__[key] = testing_gamma_table[key]
-            # testing_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/proton')
-            # for key in testing_proton_table.colnames:
-            #     self.__dict__[key] = testing_proton_table[key]
-            # validity_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/validity')
-            # self.validity = ModelRangeOfValidity()
-            # try:
-            #     DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-            #     for key in DL2_gamma_table.colnames:
-            #         self.__dict__[key] = DL2_gamma_table[key]
-            #     DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-            #     for key in DL2_proton_table.colnames:
-            #         self.__dict__[key] = DL2_proton_table[key]
-            # except:
-            #     print("No DL2 MC files yet")
         self.model_parameters_table = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/parameters")
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
@@ -157,10 +91,6 @@ class CTLearnModelManager():
         if len(set(proton_lengths)) != 1:
             raise ValueError("All proton related lists must be the same length")
         
-        # Model parameters
-        # self.zd_range = [min(self.training_gamma_zenith_distances), max(self.training_gamma_zenith_distances)]
-        # self.az_range = [min(self.training_gamma_azimuths), max(self.training_gamma_azimuths)]
-        # self.model_name = f"{self.reco}_TEL{'_'.join(map(str, self.telescopes_indices))}_ZD{'_'.join(map(str, self.training_gamma_zenith_distances))}_Az{'_'.join(map(str, self.training_gamma_azimuths))}"
         print(f"🧠 Model name: {self.model_nickname}")
         
         
@@ -413,30 +343,6 @@ class CTLearnModelManager():
         plt.xticks(np.arange(1, len(losses_train) + 1, 2))
         plt.legend()
         plt.show()
-    
-            
-    # def info(self):
-        # print(f"Model nickname: {self.model_nickname}")
-        # print(f"Model name: {self.model_name}")
-        # print(f"Model directory: {model_dir}")
-        # print(f"Reco: {self.reco}")
-        # print(f"Channels: {self.channels}")
-        # print(f"Telescope names: {self.telescope_names}")
-        # print(f"Telescope indices: {self.telescopes_indices}")
-        # print(f"Training gamma dir: {self.training_gamma_dir}")
-        # print(f"Training proton dir: {self.training_proton_dir}")
-        # print(f"Training gamma zenith distances: {self.training_gamma_zenith_distances}")
-        # print(f"Training gamma azimuths: {self.training_gamma_azimuths}")
-        # print(f"Training proton zenith distances: {self.training_proton_zenith_distances}")
-        # print(f"Training proton azimuths: {self.training_proton_azimuths}")
-        # print(f"Notes: {self.notes}")
-        # print(f"ZD range: {self.zd_range}")
-        # print(f"Az range: {self.az_range}")
-        # print(f"Stereo: {self.stereo}")
-        # print(f"Max training epochs: {self.max_training_epochs}")
-        # print(f"Model index: {self.model_index}")
-        # print(f"Testing gamma dirs: {self.testing_gamma_dirs}")
-        # print(f"Testing proton dirs: {self.testing_proton_dirs}")
         
         
     def update_model_manager_parameters_in_index(self, parameters: dict):
@@ -499,14 +405,6 @@ class CTLearnModelManager():
             write_table_hdf5(training_proton_table, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True)
             print(f"\t➡️ Training proton data updated")
         
-        # self.training_gamma_dir = training_gamma_table['training_gamma_dir']
-        # self.training_proton_dir = training_proton_table['training_proton_dir']
-        # self.training_gamma_patterns = training_gamma_table['training_gamma_patterns']
-        # self.training_proton_patterns = training_proton_table['training_proton_patterns']
-        # self.training_gamma_zenith_distances = training_gamma_table['training_gamma_zenith_distances']
-        # self.training_gamma_azimuths = training_gamma_table['training_gamma_azimuths']
-        # self.training_proton_zenith_distances = training_proton_table['training_proton_zenith_distances']
-        # self.training_proton_azimuths = training_proton_table['training_proton_azimuths']
             
 
     def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths):
@@ -567,13 +465,7 @@ class CTLearnModelManager():
                     testing_proton_table.add_row([testing_proton_dirs[i], testing_proton_zenith_distances[i], testing_proton_azimuths[i]])
             write_table_hdf5(testing_proton_table, self.model_index_file, path=f'{self.model_nickname}/testing/proton', append=True, overwrite=True)
             print(f"\t➡️ Testing proton data updated")
-            
-        # self.testing_gamma_dirs = testing_gamma_table['testing_gamma_dirs']
-        # self.testing_proton_dirs = testing_proton_table['testing_proton_dirs']
-        # self.testing_gamma_zenith_distances = testing_gamma_table['testing_gamma_zenith_distances']
-        # self.testing_gamma_azimuths = testing_gamma_table['testing_gamma_azimuths']
-        # self.testing_proton_zenith_distances = testing_proton_table['testing_proton_zenith_distances']
-        # self.testing_proton_azimuths = testing_proton_table['testing_proton_azimuths']
+
             
     def update_model_manager_DL2_MC_files(self, testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
         """
@@ -631,13 +523,6 @@ class CTLearnModelManager():
                     DL2_proton_table.add_row([testing_DL2_proton_files[i], testing_DL2_proton_zenith_distances[i], testing_DL2_proton_azimuths[i]])
             write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True)
             print(f"\t➡️ Testing DL2 proton data updated")
-        
-        # self.testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files']
-        # self.testing_DL2_proton_files = DL2_proton_table['testing_DL2_proton_files']
-        # self.testing_DL2_gamma_zenith_distances = DL2_gamma_table['testing_DL2_gamma_zenith_distances']
-        # self.testing_DL2_gamma_azimuths = DL2_gamma_table['testing_DL2_gamma_azimuths']
-        # self.testing_DL2_proton_zenith_distances = DL2_proton_table['testing_DL2_proton_zenith_distances']
-        # self.testing_DL2_proton_azimuths = DL2_proton_table['testing_DL2_proton_azimuths']
         
     def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
         """
@@ -717,10 +602,6 @@ class CTLearnModelManager():
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
             write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True)
         print(f"\t➡️ IRF data updated")
-        
-        # self.config = IRF_table['config']
-        # self.cuts_file = IRF_table['cuts_file']
-        # self.irf_file = IRF_table['irf_file']
         
     def get_IRF_data(self, zenith, azimuth):
         
