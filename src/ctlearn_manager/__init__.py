@@ -970,41 +970,21 @@ class CTLearnTriModelManager():
                 print(f"Error: Failed to merge proton files for zenith {zenith} and azimuth {azimuth}")
         else:
             print(f"✅ There already is a single proton file for zenith {zenith} and azimuth {azimuth}")
-                
-    def load_DL2_data(self, input_file):
-        from ctapipe.io import read_table
-        from astropy.table import (join, hstack)
-        pointing = read_table(input_file, "dl1/monitoring/subarray/pointing/")
-        dl2_classification = read_table(input_file, "dl2/event/subarray/classification/CTLearn")
-        dl2_classification = hstack([dl2_classification, pointing])
-        dl2_classification = dl2_classification[~np.isnan(dl2_classification["CTLearn_prediction"])]
-        dl2_energy = read_table(input_file, "dl2/event/subarray/energy/CTLearn")
-        dl2_energy = dl2_energy[~np.isnan(dl2_energy["CTLearn_energy"])]
-        dl2_geometry = read_table(input_file, "dl2/event/subarray/geometry/CTLearn")
-        dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry["CTLearn_alt"])]
-        dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
-        dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
-        return dl2
     
-    def load_true_shower_parameters(self, input_file):
-        from ctapipe.io import read_table
-        true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
-        return true_shower_parameters
-    
-    def plot_DL2_classification(self):
+    def plot_DL2_classification(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         plt.hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
         plt.hist(dl2_proton["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
@@ -1013,20 +993,20 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.show()
         
-    def plot_DL2_energy(self):
+    def plot_DL2_energy(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
         plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
@@ -1038,21 +1018,21 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.show()
         
-    def plot_DL2_AltAz(self):
+    def plot_DL2_AltAz(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         
         axs[0].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
@@ -1076,18 +1056,18 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def plot_migration_matrix(self):      
+    def plot_migration_matrix(self, zenith, azimuth):      
         import matplotlib.pyplot as plt
         from astropy.table import vstack, join
         set_mpl_style()
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
-            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
@@ -1095,8 +1075,8 @@ class CTLearnTriModelManager():
         dl2_protons = []
         shower_parameters_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
-            shower_parameters_protons.append(self.load_true_shower_parameters(file))
+            dl2_protons.append(load_DL2_data_MC(file))
+            shower_parameters_protons.append(load_true_shower_parameters(file))
         dl2_proton = vstack(dl2_protons)
         shower_parameters_protons = vstack(shower_parameters_protons)
         dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
@@ -1286,7 +1266,7 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
             dl2_gamma.append(self.load_DL2_data(file))
-            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
@@ -1325,7 +1305,7 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
             dl2_gamma.append(self.load_DL2_data(file))
-            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
@@ -1450,3 +1430,24 @@ srun {command}
                     
     }
     return sbatch_predict_data_configs[cluster]
+
+
+def load_DL2_data_MC(input_file):
+    from ctapipe.io import read_table
+    from astropy.table import (join, hstack)
+    pointing = read_table(input_file, "dl1/monitoring/subarray/pointing/")
+    dl2_classification = read_table(input_file, "dl2/event/subarray/classification/CTLearn")
+    dl2_classification = hstack([dl2_classification, pointing])
+    dl2_classification = dl2_classification[~np.isnan(dl2_classification["CTLearn_prediction"])]
+    dl2_energy = read_table(input_file, "dl2/event/subarray/energy/CTLearn")
+    dl2_energy = dl2_energy[~np.isnan(dl2_energy["CTLearn_energy"])]
+    dl2_geometry = read_table(input_file, "dl2/event/subarray/geometry/CTLearn")
+    dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry["CTLearn_alt"])]
+    dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
+    dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+    return dl2
+
+def load_true_shower_parameters(input_file):
+    from ctapipe.io import read_table
+    true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
+    return true_shower_parameters
