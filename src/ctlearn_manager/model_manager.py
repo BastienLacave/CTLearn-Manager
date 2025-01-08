@@ -160,6 +160,7 @@ class CTLearnModelManager():
             
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
+        
     def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False):
         """
         Launches the training process for the model.
@@ -628,7 +629,7 @@ class CTLearnModelManager():
             raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
         return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
       
-    def plot_zenith_azimuth_ranges(zenith_range, azimuth_range=None):
+    def plot_zenith_azimuth_ranges(self):
         """
         Plots the area or line or point covered by the zenith and azimuth ranges in a polar projection.
         
@@ -638,34 +639,73 @@ class CTLearnModelManager():
         """
         set_mpl_style()
         import matplotlib.pyplot as plt
+        import astropy.units as u
+        from astropy.io.misc.hdf5 import read_table_hdf5
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
         
-        zenith_min, zenith_max = np.radians(zenith_range)
+        zenith_range = self.validity.zenith_range
+        azimuth_range = self.validity.azimuth_range
+        
+        zenith_min, zenith_max = zenith_range.to(u.deg)
         
         if azimuth_range is None:
             azimuth_min, azimuth_max = 0, 2 * np.pi
         else:
-            azimuth_min, azimuth_max = np.radians(azimuth_range)
+            azimuth_min, azimuth_max = azimuth_range.to(u.rad)
         
-        # Create a grid of azimuth and zenith values
-        azimuths = np.linspace(azimuth_min, azimuth_max, 100)
-        zeniths = np.linspace(zenith_min, zenith_max, 100)
+        if zenith_min == zenith_max:
+            if np.isnan(azimuth_min) and np.isnan(azimuth_max):
+                # Plot a circle for this zenith
+                theta = np.linspace(0, 2 * np.pi, 100) * u.rad
+                r = np.full_like(theta, zenith_min).to(u.deg)
+                ax.plot(theta, r, lw=3, zorder=0)
+            elif azimuth_min == azimuth_max:
+                # Plot a point for that position
+                ax.scatter(azimuth_min, zenith_min, s=100, zorder=0)
+            else:
+                # Plot a portion of a circle between the azimuth range at the correct zenith
+                theta = np.linspace(azimuth_min, azimuth_max, 100)
+                r = np.full_like(theta, zenith_min).to(u.deg)
+                ax.plot(theta, r, lw=3, zorder=0)
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+                zeniths = training_gamma_table['training_gamma_zenith_distances']
+                azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+                for zenith, azimuth in zip(zeniths, azimuths):
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+        else:
+            if np.isnan(azimuth_min) and np.isnan(azimuth_max):
+                # Plot the area between the two circles
+                theta = np.linspace(0, 2 * np.pi, 100) * u.rad
+                r1 = np.full_like(theta, zenith_min).to(u.deg)
+                r2 = np.full_like(theta, zenith_max).to(u.deg)
+                ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+            else:
+                theta = np.linspace(azimuth_min, azimuth_max, 100)
+                r1 = np.full_like(theta, zenith_min).to(u.deg).value
+                r2 = np.full_like(theta, zenith_max).to(u.deg).value
+                theta = theta.value
+                ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+                zeniths = training_gamma_table['training_gamma_zenith_distances']
+                azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+                for zenith, azimuth in zip(zeniths, azimuths):
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
         
-        # Create a meshgrid for plotting
-        azimuth_grid, zenith_grid = np.meshgrid(azimuths, zeniths)
-        
-        # Plot the area covered by the zenith and azimuth ranges
-        ax.pcolormesh(azimuth_grid, zenith_grid, np.ones_like(zenith_grid), shading='auto', alpha=0.3)
-        
-        # Plot the boundary lines
-        ax.plot([azimuth_min, azimuth_max], [zenith_min, zenith_min], color='blue')
-        ax.plot([azimuth_min, azimuth_max], [zenith_max, zenith_max], color='blue')
-        ax.plot([azimuth_min, azimuth_min], [zenith_min, zenith_max], color='blue')
-        ax.plot([azimuth_max, azimuth_max], [zenith_min, zenith_max], color='blue')
-        
-        ax.set_theta_zero_location('N')
+        ax.set_theta_zero_location('E')
         ax.set_theta_direction(-1)
-        ax.set_rlabel_position(90)
+        ax.set_rlabel_position(-30)
+        ax.set_ylim(0, 90)
+        ax.set_yticks(np.arange(10, 91, 10))
+        ax.set_yticklabels(["", "", "30°", "", "", "60°", "", "", "90°"], fontsize=10)
+        ax.set_xlabel('Azimuth [deg]', fontsize=10)
+        
         
         ax.set_title('Zenith and Azimuth Ranges')
         plt.show()
@@ -673,7 +713,8 @@ class CTLearnModelManager():
 
 class TrainingSample:
     import astropy.units as u
-    def __init__(self, directory, pattern, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan * u.TeV, np.nan * u.TeV], nsb_range=[np.nan * u.Hz, np.nan * u.Hz]):
+    @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
+    def __init__(self, directory, pattern, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
         self.training_directory = directory
         self.training_pattern = pattern
         self.training_zenith_distance = zenith_distance
@@ -690,17 +731,17 @@ class ModelRangeOfValidity:
         
         
         training_gamma_zeniths = training_gamma_table['training_gamma_zenith_distances']
-        self.zenith_range = [min(training_gamma_zeniths), max(training_gamma_zeniths)]
+        self.zenith_range = [min(training_gamma_zeniths).value, max(training_gamma_zeniths).value] * training_gamma_zeniths.unit
         training_gamma_azimuths = training_gamma_table['training_gamma_azimuths']
-        self.azimuth_range = [min(training_gamma_azimuths), max(training_gamma_azimuths)]
+        self.azimuth_range = [min(training_gamma_azimuths.value), max(training_gamma_azimuths).value] * training_gamma_azimuths.unit
         training_gamma_energies_mins = training_gamma_table['training_gamma_energy_min']
         training_gamma_energies_maxs = training_gamma_table['training_gamma_energy_max']
         taining_gamma_energies = np.concatenate((training_gamma_energies_mins, training_gamma_energies_maxs))
-        self.energy_range = [min(taining_gamma_energies), max(taining_gamma_energies)]
+        self.energy_range = [min(taining_gamma_energies).value, max(taining_gamma_energies).value] * taining_gamma_energies.unit
         training_gamma_nsbs_mins = training_gamma_table['training_gamma_nsb_min']
         training_gamma_nsbs_maxs = training_gamma_table['training_gamma_nsb_max']
         taining_gamma_nsbs = np.concatenate((training_gamma_nsbs_mins, training_gamma_nsbs_maxs))
-        self.nsb_range = [min(taining_gamma_nsbs), max(taining_gamma_nsbs)]
+        self.nsb_range = [min(taining_gamma_nsbs).value, max(taining_gamma_nsbs).value] * taining_gamma_nsbs.unit
         
 
     def matches(self, **kwargs):
