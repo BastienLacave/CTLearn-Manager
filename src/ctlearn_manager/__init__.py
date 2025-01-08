@@ -136,7 +136,7 @@ class CTLearnModelManager():
                 for key in DL2_proton_table.colnames:
                     self.__dict__[key] = DL2_proton_table[key]
             except:
-                print("")
+                print("No DL2 MC files yet")
         self.model_index = 0
         self.stereo = len(self.telescopes_indices) > 1
         if self.reco == 'type' and (len(self.training_proton_patterns) == 0 or len(self.training_gamma_patterns) == 0):
@@ -213,7 +213,7 @@ class CTLearnModelManager():
         #     print(f"❌ Model nickname {self.model_nickname} already in table")
         
         
-    def launch_training(self, n_epochs):
+    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False):
         """
         Launches the training process for the model.
         Parameters:
@@ -280,7 +280,10 @@ class CTLearnModelManager():
             os.system(f"mkdir -p {model_dir}")
             save_best_validation_only = False
 
-        load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} " if load_model else ""
+        if load_model:
+            load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} "
+        else:
+            load_model_string = "" if transfer_learning_model_cpk is None else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
         background_string = f"--background {self.training_proton_dir} " if self.reco == 'type' else ""
         signal_patterns = ""
         for pattern in self.training_gamma_patterns:
@@ -610,7 +613,45 @@ class CTLearnModelManager():
         self.testing_DL2_proton_zenith_distances = DL2_proton_table['testing_DL2_proton_zenith_distances']
         self.testing_DL2_proton_azimuths = DL2_proton_table['testing_DL2_proton_azimuths']
         
-    def update_model_manager_IRF_data(self, config, cuts_file, irf_file, zenith, azimuth):
+    def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
+        """
+        Updates the model manager testing data in the index file.
+        This method reads the model index file, finds the entry corresponding to the
+        current model nickname, and updates the testing data in the index.
+        The updated testing data are also reflected in the instance's attributes.
+        Args:
+            testing_gamma_dirs (list): Directories of testing gamma data.
+            testing_proton_dirs (list): Directories of testing proton data.
+            testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
+            testing_gamma_azimuths (list): Azimuths of testing gamma data.
+            testing_proton_zenith_distances (list): Zenith distances of testing proton data.
+            testing_proton_azimuths (list): Azimuths of testing proton data.
+        Raises:
+            IndexError: If the model nickname is not found in the model index file.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+        print(f"💾 Model {self.model_nickname} DL2 merged data update:")
+        if testing_DL2_gamma_merged_file is not None:
+            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+            match = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == testing_DL2_zenith_distance) &
+                    (DL2_gamma_table['testing_DL2_gamma_azimuths'] == testing_DL2_azimuth))[0]
+            if len(match) > 0:
+                DL2_gamma_table.remove_rows(match)
+            DL2_gamma_table.add_row([self.model_index, testing_DL2_gamma_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth])
+            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True)
+            print(f"\t➡️ Testing DL2 gamma merged data updated")
+        
+        if testing_DL2_proton_merged_file is not None:
+            DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+            match = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == testing_DL2_zenith_distance) &
+                        (DL2_proton_table['testing_DL2_proton_azimuths'] == testing_DL2_azimuth))[0]
+            if len(match) > 0:
+                DL2_proton_table.remove_rows(match)
+            DL2_proton_table.add_row([self.model_index, testing_DL2_proton_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth])
+            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True)
+            print(f"\t➡️ Testing DL2 proton merged data updated")
+        
+    def update_model_manager_IRF_data(self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth):
         """
         Updates the model manager IRF data in the index file.
         This method reads the model index file, finds the entry corresponding to the
@@ -628,21 +669,28 @@ class CTLearnModelManager():
         try:
             IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         except:
-            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'zenith', 'azimuth'], dtype=[int, str, str, str, float, float])
+            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
+                               dtype=[int, str, str, str, str, float, float])
         print(f"💾 Model {self.model_nickname} IRF data update:")
         if len(IRF_table)==0:
-            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'zenith', 'azimuth'], dtype=[int, str, str, str, float, float])
+            IRF_table = QTable(names=['model_index', 'config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
+                               dtype=[int, str, str, str, str, float, float])
         
         match = np.where((IRF_table['config'] == config) or 
                 (IRF_table['cuts_file'] == cuts_file) or 
                 (IRF_table['irf_file'] == irf_file) or
-                (IRF_table['zenith'] == zenith) or
-                (IRF_table['azimuth'] == azimuth)
+                (IRF_table['benckmark_file'] == bencmark_file) or
+                ((IRF_table['zenith'] == zenith) and
+                (IRF_table['azimuth'] == azimuth))
                 )[0]
         if len(match) == 0:
-            IRF_table.add_row([self.model_index, config, cuts_file, irf_file, zenith, azimuth])
+            IRF_table.add_row([self.model_index, config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
             write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True)
-            print(f"\t➡️ IRF data updated")
+        else:
+            IRF_table.remove_rows(match)
+            IRF_table.add_row([self.model_index, config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
+            write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True)
+        print(f"\t➡️ IRF data updated")
         
         self.config = IRF_table['config']
         self.cuts_file = IRF_table['cuts_file']
@@ -656,7 +704,7 @@ class CTLearnModelManager():
         match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0]
         if len(match) == 0:
             raise IndexError(f"No IRF data found for altitude {zenith} and azimuth {azimuth}")
-        return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0]
+        return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     def get_DL2_MC_files(self, zenith, azimuth):
     
@@ -670,7 +718,7 @@ class CTLearnModelManager():
             raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
         if len(match_proton) == 0:
             raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
-        return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma][0], DL2_proton_table['testing_DL2_proton_files'][match_proton][0]
+        return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
             
 class CTLearnTriModelManager():
     """
@@ -894,40 +942,49 @@ class CTLearnTriModelManager():
             print(cmd)
             os.system(cmd)
     
-    def load_DL2_data(self, input_file):
-        from ctapipe.io import read_table
-        from astropy.table import (join, hstack)
-        pointing = read_table(input_file, "dl1/monitoring/subarray/pointing/")
-        dl2_classification = read_table(input_file, "dl2/event/subarray/classification/CTLearn")
-        dl2_classification = hstack([dl2_classification, pointing])
-        dl2_classification = dl2_classification[~np.isnan(dl2_classification["CTLearn_prediction"])]
-        dl2_energy = read_table(input_file, "dl2/event/subarray/energy/CTLearn")
-        dl2_energy = dl2_energy[~np.isnan(dl2_energy["CTLearn_energy"])]
-        dl2_geometry = read_table(input_file, "dl2/event/subarray/geometry/CTLearn")
-        dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry["CTLearn_alt"])]
-        dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
-        dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
-        return dl2
     
-    def load_true_shower_parameters(self, input_file):
-        from ctapipe.io import read_table
-        true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
-        return true_shower_parameters
+    def merge_DL2_files(self, zenith, azimuth, output_file_gammas=None, output_file_protons=None, overwrite=False):
+        import glob
+        import os
+        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+        if len(gamma_files) > 1 and output_file_gammas is not None:
+            print(f"🔀 Merging DL2 gamma files for zenith {zenith} and azimuth {azimuth}")
+            result = os.system(f"ctapipe-merge {' '.join(gamma_files)} --output={output_file_gammas} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
+            if result == 0:
+                self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
+                self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
+                self.type_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
+            else:
+                print(f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}")
+        else:
+            print(f"✅ There already is a single gamma file for zenith {zenith} and azimuth {azimuth}")
+        if len(proton_files) > 1 and output_file_protons is not None:
+            print(f"🔀 Merging DL2 proton files for zenith {zenith} and azimuth {azimuth}")
+            result = os.system(f"ctapipe-merge {' '.join(proton_files)} --output={output_file_protons} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
+            if result == 0:
+                self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
+                self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
+                self.type_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
+            else:
+                print(f"Error: Failed to merge proton files for zenith {zenith} and azimuth {azimuth}")
+        else:
+            print(f"✅ There already is a single proton file for zenith {zenith} and azimuth {azimuth}")
     
-    def plot_DL2_classification(self):
+    def plot_DL2_classification(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         plt.hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
         plt.hist(dl2_proton["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
@@ -936,20 +993,20 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.show()
         
-    def plot_DL2_energy(self):
+    def plot_DL2_energy(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
         plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
@@ -961,21 +1018,21 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.show()
         
-    def plot_DL2_AltAz(self):
+    def plot_DL2_AltAz(self, zenith, azimuth):
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
+            dl2_protons.append(load_DL2_data_MC(file))
         dl2_proton = vstack(dl2_protons)
         
         axs[0].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
@@ -999,18 +1056,18 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def plot_migration_matrix(self):      
+    def plot_migration_matrix(self, zenith, azimuth):      
         import matplotlib.pyplot as plt
         from astropy.table import vstack, join
         set_mpl_style()
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.testing_DL2_gamma_files
-        testing_DL2_proton_files = self.direction_model.testing_DL2_proton_files
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
-            shower_parameters_gamma.append(self.load_true_shower_parameters(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
@@ -1018,8 +1075,8 @@ class CTLearnTriModelManager():
         dl2_protons = []
         shower_parameters_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(self.load_DL2_data(file))
-            shower_parameters_protons.append(self.load_true_shower_parameters(file))
+            dl2_protons.append(load_DL2_data_MC(file))
+            shower_parameters_protons.append(load_true_shower_parameters(file))
         dl2_proton = vstack(dl2_protons)
         shower_parameters_protons = vstack(shower_parameters_protons)
         dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
@@ -1051,7 +1108,7 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def produce_irfs(self, zenith, azimuth, config=None, output_cuts_file=None, output_irf_file=None):
+    def produce_irfs(self, zenith, azimuth, config=None, output_cuts_file=None, output_irf_file=None, output_benchmark_file=None):
         import os
         if config is None:
             try:
@@ -1068,18 +1125,27 @@ class CTLearnTriModelManager():
                 output_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
             except:
                 raise ValueError("An IRF file must be provided, at least the first time.")
+        if output_benchmark_file is None:
+            try:
+                output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
+            except:
+                raise ValueError("A benchmark file must be provided, at least the first time.")
         
-        self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
-        self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
-        self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, zenith, azimuth)
+        self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
+        self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
+        self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
             
-        gamma_file = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        proton_file = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+        if len(gamma_files) > 1 or len(proton_files) > 1:
+            raise ValueError(f"Multiple files found for zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
+        gamma_file = gamma_files[0]
+        proton_file = proton_files[0]
         cmd = f"ctapipe-optimize-event-selection \
             -c {config} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file} \
-            -v --point-like \
+            --point-like \
             --output {output_cuts_file} \
             --overwrite True \
             --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
@@ -1088,23 +1154,72 @@ class CTLearnTriModelManager():
             -c {config} --IrfTool.cuts_file {output_cuts_file} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file}  \
-            -v --do-background --point-like \
+            --do-background --point-like \
             --output {output_irf_file} \
-            --benchmark-output {output_irf_file.replace('.h5', '_benchmark.h5')}"
+            --benchmark-output {output_benchmark_file}"
         os.system(cmd)
     
-    def plot_irfs(self, zenith, azimuth):
-        from gammapy.irf import EffectiveAreaTable2D, EnergyDispersion2D, Background2D, RadMax2D
-        # irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        # # rad_max = RadMax2D.read(irf_file, hdu="RAD_MAX")
-        # aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
-        # bkg = Background2D.read(irf_file, hdu="BACKGROUND")
-        # edisp = EnergyDispersion2D.read(irf_file, hdu="ENERGY DISPERSION")
-        # edisp.peek()
-        # aeff.peek()
-        # bkg.peek()
+    def plot_benchmark(self, zenith, azimuth):
+        set_mpl_style()
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
+        hudl = fits.open(irf_file)
+        # energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+        # plt.plot(energy_center[0], hudl['SENSITIVITY'].data['FLUX_SENSITIVITY'][0,0,:])
+        # plt.xscale('log')
+        # plt.yscale('log')
+        # plt.xlabel('Energy [TeV]')
+        # plt.ylabel('Sensitivity [erg$^{-1}$ s$^{-1}$ cm$^{-2}$]')
+        # plt.show()
         
-    
+        energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+        plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        plt.show()
+        
+        energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION '].data['ANGULAR_RESOLUTION'][0,0,:])
+        plt.xscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Angular resolution [deg]')
+        plt.show()
+        
+        energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
+        plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['RESOLUTION'][0,0,:])
+        plt.xscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Energy resolution')
+        plt.show()
+        
+        energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
+        plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['BIAS'][0,0,:])
+        plt.xscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Energy bias')
+        plt.show()
+        hudl.close()
+        
+        
+    def plot_irfs(self, zenith, azimuth):
+        set_mpl_style()
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, RadMax2D
+        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+        rad_max = RadMax2D.read(irf_file, hdu="RAD_MAX")
+        aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
+        bkg = Background2D.read(irf_file, hdu="BACKGROUND")
+        edisp = EnergyDispersion2D.read(irf_file, hdu="ENERGY DISPERSION")
+        edisp.peek()
+        aeff.peek()
+        bkg.peek()
+        
+
+        
     def plot_loss(self):
         set_mpl_style()
         import matplotlib.pyplot as plt
@@ -1137,6 +1252,82 @@ class CTLearnTriModelManager():
             ax.legend()
         plt.tight_layout()
         plt.show()
+        
+    def plot_angular_resolution(self, zenith, azimuth):
+        set_mpl_style()
+        import ctaplot
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack, join
+        import astropy.units as u
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
+        testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
+        dl2_gamma = []
+        shower_parameters_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
+        dl2_gamma = vstack(dl2_gamma)
+        shower_parameters_gamma = vstack(shower_parameters_gamma)
+        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+
+        reco_alt = dl2_gamma['CTLearn_alt'].to(u.deg)
+        reco_az = dl2_gamma['CTLearn_az'].to(u.deg)
+        true_alt = dl2_gamma['true_alt'].to(u.deg)
+        true_az = dl2_gamma['true_az'].to(u.deg)
+        reco_energy = dl2_gamma['CTLearn_energy']
+        true_energy = dl2_gamma['true_energy']
+        
+        # Define the range of true energy values
+        true_energy_min = np.min(true_energy)
+        true_energy_max = np.max(true_energy)
+
+        # Create bins with 5 bins per decade in log scale
+        bins_per_decade = 5
+        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+
+        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+        plt.legend()
+        plt.grid(False, which='both')
+        plt.show()
+        
+    def plot_energy_resolution(self, zenith, azimuth):
+        set_mpl_style()
+        import ctaplot
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack, join
+        import astropy.units as u
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
+        testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
+        dl2_gamma = []
+        shower_parameters_gamma = []
+        for file in testing_DL2_gamma_files:
+            dl2_gamma.append(self.load_DL2_data(file))
+            shower_parameters_gamma.append(load_true_shower_parameters(file))
+        dl2_gamma = vstack(dl2_gamma)
+        shower_parameters_gamma = vstack(shower_parameters_gamma)
+        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+
+        reco_energy = dl2_gamma['CTLearn_energy']
+        true_energy = dl2_gamma['true_energy']
+        
+        # Define the range of true energy values
+        true_energy_min = np.min(true_energy)
+        true_energy_max = np.max(true_energy)
+
+        # Create bins with 5 bins per decade in log scale
+        bins_per_decade = 5
+        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+        
+        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+        plt.legend()
+        plt.grid(False, which='both')
+        plt.show()
+        
+        
 
 
 class TriModelCollection():
@@ -1239,3 +1430,24 @@ srun {command}
                     
     }
     return sbatch_predict_data_configs[cluster]
+
+
+def load_DL2_data_MC(input_file):
+    from ctapipe.io import read_table
+    from astropy.table import (join, hstack)
+    pointing = read_table(input_file, "dl1/monitoring/subarray/pointing/")
+    dl2_classification = read_table(input_file, "dl2/event/subarray/classification/CTLearn")
+    dl2_classification = hstack([dl2_classification, pointing])
+    dl2_classification = dl2_classification[~np.isnan(dl2_classification["CTLearn_prediction"])]
+    dl2_energy = read_table(input_file, "dl2/event/subarray/energy/CTLearn")
+    dl2_energy = dl2_energy[~np.isnan(dl2_energy["CTLearn_energy"])]
+    dl2_geometry = read_table(input_file, "dl2/event/subarray/geometry/CTLearn")
+    dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry["CTLearn_alt"])]
+    dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
+    dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+    return dl2
+
+def load_true_shower_parameters(input_file):
+    from ctapipe.io import read_table
+    true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
+    return true_shower_parameters
