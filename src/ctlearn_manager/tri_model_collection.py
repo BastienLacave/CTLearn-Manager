@@ -1,4 +1,5 @@
 import numpy as np
+from .utils.utils import angular_distance
 
 
 class TriModelCollection():
@@ -24,7 +25,7 @@ class TriModelCollection():
         avg_model_azs = []
         avg_model_zes = []
         for tri_model in self.tri_models:
-            avg_model_azs.append(np.mean((tri_model.direction_model.az_range)))
+            avg_model_azs.append(np.mean((tri_model.direction_model.az_range))) # FIXME read the ranges from validity
             avg_model_zes.append(np.mean((tri_model.direction_model.zd_range)))
         print(f"🔍 Closest model avg node : ({avg_model_zes[np.argmin(np.abs(avg_model_zes - avg_data_ze))]:3f}, {avg_model_azs[np.argmin(np.abs(avg_model_azs - avg_data_az))]:3f})")
         closest_model_index = np.argmin(angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs))

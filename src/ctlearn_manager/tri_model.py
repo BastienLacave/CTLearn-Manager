@@ -2,7 +2,8 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 from .model_manager import CTLearnModelManager
-from .utils.utils import get_predict_data_sbatch_script, set_mpl_style, load_DL2_data_MC, load_true_shower_parameters
+from .utils.utils import get_predict_data_sbatch_script, set_mpl_style
+from .io.io import load_DL2_data_MC, load_true_shower_parameters
 
 __all__ = [
     "CTLearnTriModelManager",
@@ -45,16 +46,18 @@ class CTLearnTriModelManager():
             self.type_model = type_model
         else:
             raise ValueError('type_model must be a type model')
-        
-        if not (self.direction_model.channels == self.energy_model.channels == self.type_model.channels):
+        direction_channels = self.direction_model.model_parameters_table['channels'][0]
+        energy_channels = self.energy_model.model_parameters_table['channels'][0]
+        type_channels = self.type_model.model_parameters_table['channels'][0]
+        if not (direction_channels == energy_channels == type_channels):
             raise ValueError('All models must have the same channels')
         else:
-            self.channels = self.direction_model.channels
+            self.channels = direction_channels
             
-        if not (self.direction_model.zd_range == self.energy_model.zd_range == self.type_model.zd_range):
-            raise ValueError('All models must have the same zenith distance range')
-        if not (self.direction_model.az_range == self.energy_model.az_range == self.type_model.az_range):
-            raise ValueError('All models must have the same azimuth range')
+        # if not (self.direction_model.zd_range == self.energy_model.zd_range == self.type_model.zd_range):
+        #     raise ValueError('All models must have the same zenith distance range')
+        # if not (self.direction_model.az_range == self.energy_model.az_range == self.type_model.az_range):
+        #     raise ValueError('All models must have the same azimuth range')
         
         if not (self.direction_model.stereo == self.energy_model.stereo == self.type_model.stereo):
             raise ValueError('All models must have the same stereo value')
@@ -81,31 +84,38 @@ class CTLearnTriModelManager():
     def launch_testing(self, zenith, azimuth, output_dirs: list, pattern="*.dl1.h5", sbatch_scripts_dir=None, launch_particle_type='both', cluster=None, account=None, python_env='ctlearn-cluster'):
         import os
         import glob
+        from astropy.io.misc.hdf5 import read_table_hdf5
         # Check that the testing files are the same for each model
         gamma_dir = []
         proton_dir = []
         if launch_particle_type not in ['gamma', 'proton', 'both']:
             raise ValueError("launch_particle_type must be 'gamma', 'proton', or 'both'")
         if launch_particle_type in ['gamma', 'both']:
-            if not (self.direction_model.testing_gamma_dirs == self.energy_model.testing_gamma_dirs == self.type_model.testing_gamma_dirs):
+            direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/gamma')
+            energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/gamma')
+            type_testing_table =  read_table_hdf5(self.type_model.model_index_file, path=f'{self.type_model.model_nickname}/testing/gamma')
+            if not (direction_testing_table['testing_gamma_dirs'] == energy_testing_table['testing_gamma_dirs'] == type_testing_table['testing_gamma_dirs']):
                 raise ValueError("All models must have the same testing gamma directories, use set_testing_files to set them")
-            if not self.direction_model.testing_gamma_dirs or not self.energy_model.testing_gamma_dirs or not self.type_model.testing_gamma_dirs:
+            if not direction_testing_table['testing_gamma_dirs'] or not energy_testing_table['testing_gamma_dirs'] or not type_testing_table['testing_gamma_dirs']:
                 raise ValueError("Testing gamma directories cannot be empty")
-            gamma_dirs = self.direction_model.testing_gamma_dirs
-            gamma_zeniths = self.direction_model.testing_gamma_zenith_distances
-            gamma_azimuths = self.direction_model.testing_gamma_azimuths
+            gamma_dirs = direction_testing_table['testing_gamma_dirs']
+            gamma_zeniths = direction_testing_table['testing_gamma_zenith_distances']
+            gamma_azimuths = direction_testing_table['testing_gamma_azimuths']
             matching_dirs = [gamma_dirs[i] for i in range(len(gamma_dirs)) if gamma_zeniths[i] == zenith and gamma_azimuths[i] == azimuth]
             if not matching_dirs:
                 raise ValueError(f"No matching gamma directory found for zenith {zenith} and azimuth {azimuth}")
             gamma_dir = matching_dirs[0]
         if launch_particle_type in ['proton', 'both']:
-            if not (self.direction_model.testing_proton_dirs == self.energy_model.testing_proton_dirs == self.type_model.testing_proton_dirs):
+            direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/proton')
+            energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/proton')
+            type_testing_table =  read_table_hdf5(self.type_model.model_index_file, path=f'{self.type_model.model_nickname}/testing/proton')
+            if not (direction_testing_table['testing_proton_dirs'] == energy_testing_table['testing_proton_dirs'] == type_testing_table['testing_proton_dirs']):
                 raise ValueError("All models must have the same testing proton directories, use set_testing_files to set them")
-            if not self.direction_model.testing_proton_dirs or not self.energy_model.testing_proton_dirs or not self.type_model.testing_proton_dirs:
+            if not direction_testing_table['testing_proton_dirs'] or not energy_testing_table['testing_proton_dirs'] or not type_testing_table['testing_proton_dirs']:
                 raise ValueError("Testing proton directories cannot be empty")
-            proton_dirs = self.direction_model.testing_proton_dirs
-            proton_zeniths = self.direction_model.testing_proton_zenith_distances
-            proton_azimuths = self.direction_model.testing_proton_azimuths
+            proton_dirs = direction_testing_table['testing_proton_dirs']
+            proton_zeniths = direction_testing_table['testing_proton_zenith_distances']
+            proton_azimuths = direction_testing_table['testing_proton_azimuths']
             matching_dirs = [proton_dirs[i] for i in range(len(proton_dirs)) if proton_zeniths[i] == zenith and proton_azimuths[i] == azimuth]
             if not matching_dirs:
                 raise ValueError(f"No matching proton directory found for zenith {zenith} and azimuth {azimuth}")
@@ -151,9 +161,9 @@ class CTLearnTriModelManager():
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
-        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
-        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
-        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
+        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"))[-1]
+        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"))[-1]
+        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"))[-1]
         
             
         for input_file, output_file in zip(testing_files, output_files):
@@ -201,9 +211,9 @@ class CTLearnTriModelManager():
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels {channel} "
-        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*"))[-1]
-        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*"))[-1]
-        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*"))[-1]
+        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"))[-1]
+        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"))[-1]
+        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"))[-1]
         
         if self.stereo:
             cmd = f"ctlearn-predict-model --input_url {input_file} \
@@ -517,12 +527,12 @@ class CTLearnTriModelManager():
         import glob
         
         
-        direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_dir}/{self.direction_model.model_nickname}_v*/training_log.csv"))[-1]
-        energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_dir}/{self.energy_model.model_nickname}_v*/training_log.csv"))[-1]
-        type_training_log = np.sort(glob.glob(f"{self.type_model.model_dir}/{self.type_model.model_nickname}_v*/training_log.csv"))[-1]
+        # direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*/training_log.csv"))[-1]
+        # energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*/training_log.csv"))[-1]
+        # type_training_log = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*/training_log.csv"))[-1]
         fig, axs = plt.subplots(1, 3, figsize=(15, 4))
         for ax, model in zip(axs, [self.direction_model, self.energy_model, self.type_model]):
-            training_logs = np.sort(glob.glob(f"{model.model_dir}/{model.model_nickname}_v*/training_log.csv"))
+            training_logs = np.sort(glob.glob(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}_v*/training_log.csv"))
             losses_train = []
             losses_val = []
             for training_log in training_logs:
@@ -555,7 +565,7 @@ class CTLearnTriModelManager():
         dl2_gamma = []
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
@@ -594,7 +604,7 @@ class CTLearnTriModelManager():
         dl2_gamma = []
         shower_parameters_gamma = []
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(self.load_DL2_data(file))
+            dl2_gamma.append(load_DL2_data_MC(file))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
