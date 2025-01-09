@@ -225,6 +225,7 @@ class CTLearnTriModelManager():
 --output {output_file} \
 --PredictCTLearnModel.dl1dh_reader_type DLImageReader \
 --DLImageReader.image_mapper_type BilinearMapper \
+--dl1-features \
 --DLImageReader.mode stereo --PredictCTLearnModel.stack_telescope_images True --DLImageReader.min_telescopes 2 \
 --PredictCTLearnModel.overwrite_tables True -v {channels_string}"
         else:
