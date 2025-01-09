@@ -289,7 +289,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
             
-            config_file = f"{model_dir}/config.json"
+            config_file = f"{model_dir}/train_config.json"
             with open(config_file, 'w') as file:
                 json.dump(config, file)
             print(f"Configuration saved to {config_file}")

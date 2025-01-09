@@ -207,6 +207,8 @@ class CTLearnTriModelManager():
     def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None):
         import os
         import glob
+        import ast
+        import json
         
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
         channels_string = ""
@@ -215,27 +217,44 @@ class CTLearnTriModelManager():
         type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"))[-1]
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"))[-1]
+        allowed_tels = ast.literal_eval(self.direction_model.model_parameters_table['telescope_ids'][0])
+        stereo_mode = 'stereo' if self.stereo else "mono"
+        stack_telescope_images = True if self.stereo else False
+        config = {}
+        config['PredictCTLearnModel'] = {}
+        config['PredictCTLearnModel']['DLImageReader'] = {}
+
+        config['PredictCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
+        config['PredictCTLearnModel']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
+        config['PredictCTLearnModel']['DLImageReader']['mode'] = stereo_mode
+        config['PredictCTLearnModel']['stack_telescope_images'] = stack_telescope_images
+        config['PredictCTLearnModel']['DLImageReader']['channels'] = self.channels
+        config['PredictCTLearnModel']['dl1dh_reader_type'] = "DLImageReader"
+        config['PredictCTLearnModel']['output_path'] = output_file
+    
+        config_file = f"{direction_model_dir}/pred_config_{Path(input_file).stem}.json"
+        with open(config_file, 'w') as file:
+            json.dump(config, file)
+        print(f"Configuration saved to {config_file}")
         
-        if self.stereo:
-            cmd = f"ctlearn-predict-model --input_url {input_file} \
+        cmd = f"ctlearn-predict-model --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
 --energy_model {energy_model_dir}/ctlearn_model.cpk \
 --direction_model {direction_model_dir}/ctlearn_model.cpk \
+--config '{config_file}' \
 --no-dl1-images --no-true-images \
---output {output_file} \
---PredictCTLearnModel.dl1dh_reader_type DLImageReader \
---DLImageReader.image_mapper_type BilinearMapper \
 --dl1-features \
---DLImageReader.mode stereo --PredictCTLearnModel.stack_telescope_images True --DLImageReader.min_telescopes 2 \
---PredictCTLearnModel.overwrite_tables True -v {channels_string}"
-        else:
-            # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
-            cmd = f"ctlearn-predict-model --input_url {input_file} \
---type_model {type_model_dir}/ctlearn_model.cpk \
---energy_model {energy_model_dir}/ctlearn_model.cpk \
---direction_model {direction_model_dir}/ctlearn_model.cpk \
---no-dl1-images --no-true-images --output {output_file} \
---PredictCTLearnModel.overwrite_tables True -v {channels_string}"
+--PredictCTLearnModel.overwrite_tables True -v"
+#         else:
+#             # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+#             cmd = f"ctlearn-predict-model --input_url {input_file} \
+# --type_model {type_model_dir}/ctlearn_model.cpk \
+# --energy_model {energy_model_dir}/ctlearn_model.cpk \
+# --direction_model {direction_model_dir}/ctlearn_model.cpk \
+# --config '{config_file}' \
+# --no-dl1-images --no-true-images \
+# --dl1-features \
+# --PredictCTLearnModel.overwrite_tables True -v"
             
         if cluster is not None:
             sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
