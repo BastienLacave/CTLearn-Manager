@@ -16,7 +16,7 @@ class CTLearnModelManager():
         model_dir (str): Directory where the model is stored.
         reco (str): Type of reconstruction.
         telescope_names (list): Names of the telescopes.
-        telescopes_indices (list): Indices of the telescopes.
+        telescopes_ids (list): Ids of the telescopes.
         training_gamma_dir (str): Directory of training gamma data.
         training_proton_dir (str): Directory of training proton data.
         training_gamma_patterns (list): Patterns of training gamma data.
