@@ -709,6 +709,49 @@ class CTLearnModelManager():
         
         ax.set_title('Zenith and Azimuth Ranges')
         plt.show()
+        
+    def plot_training_nodes(self):
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        import matplotlib.pyplot as plt
+        import astropy.units as u
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+        zeniths = training_gamma_table['training_gamma_zenith_distances']
+        azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+        i = 0
+        for zenith, azimuth in zip(zeniths, azimuths):
+            if (zenith == np.nan) or (azimuth == np.nan):
+                continue    
+            else:
+                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                i += 1
+        if i == 0:
+            print('Training nodes for gammas cannot be shown because the zenith or azimuth are not defined.')
+            
+        training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
+        zeniths = training_proton_table['training_proton_zenith_distances']
+        azimuths = training_proton_table['training_proton_azimuths'].to(u.rad)
+        i = 0
+        for zenith, azimuth in zip(zeniths, azimuths):
+            if (zenith == np.nan) or (azimuth == np.nan):
+                continue
+            else:
+                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+                i += 1
+        if i == 0:
+            print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
+            
+        ax.set_theta_zero_location('E')
+        ax.set_theta_direction(-1)
+        ax.set_rlabel_position(-30)
+        ax.set_ylim(0, 90)
+        ax.set_yticks(np.arange(10, 91, 10))
+        ax.set_yticklabels(["", "", "30°", "", "", "60°", "", "", "90°"], fontsize=10)
+        ax.set_xlabel('Azimuth [deg]', fontsize=10)
+        
+        
+        ax.set_title('Training nodes')
+        plt.show()
       
 
 class TrainingSample:
