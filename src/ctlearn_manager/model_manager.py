@@ -16,7 +16,7 @@ class CTLearnModelManager():
         model_dir (str): Directory where the model is stored.
         reco (str): Type of reconstruction.
         telescope_names (list): Names of the telescopes.
-        telescopes_indices (list): Indices of the telescopes.
+        telescopes_ids (list): Ids of the telescopes.
         training_gamma_dir (str): Directory of training gamma data.
         training_proton_dir (str): Directory of training proton data.
         training_gamma_patterns (list): Patterns of training gamma data.
@@ -79,7 +79,7 @@ class CTLearnModelManager():
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
         # self.model_index = 0
-        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescopes_indices'][0])) > 1
+        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescopes_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         # Check that all gamma related lists are the same length
@@ -115,7 +115,7 @@ class CTLearnModelManager():
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
-            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescopes_indices', 'notes', 'max_training_epochs'],
+            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescopes_ids', 'notes', 'max_training_epochs'],
                         dtype=[str, str, str, str, str, str, str, int])
             training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
                             dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
@@ -126,14 +126,14 @@ class CTLearnModelManager():
             model_dir = model_parameters.get('model_dir', '')
             reco = model_parameters.get('reco', 'default_reco')
             telescope_names = model_parameters.get('telescope_names', [])
-            telescopes_indices = model_parameters.get('telescopes_indices', [])
+            telescopes_ids = model_parameters.get('telescopes_ids', [])
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
             
             gamma_training_samples = model_parameters.get('gamma_training_samples', [])
             proton_training_samples = model_parameters.get('proton_training_samples', [])
             
-            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescopes_indices), notes, max_training_epochs])
+            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescopes_ids), notes, max_training_epochs])
             for sample in gamma_training_samples:
                 training_table_gamma.add_row([sample.training_directory, 
                                               sample.training_pattern, 
