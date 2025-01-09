@@ -46,9 +46,10 @@ class CTLearnTriModelManager():
             self.type_model = type_model
         else:
             raise ValueError('type_model must be a type model')
-        direction_channels = self.direction_model.model_parameters_table['channels'][0]
-        energy_channels = self.energy_model.model_parameters_table['channels'][0]
-        type_channels = self.type_model.model_parameters_table['channels'][0]
+        import ast
+        direction_channels = ast.literal_eval(self.direction_model.model_parameters_table['channels'][0])
+        energy_channels = ast.literal_eval(self.energy_model.model_parameters_table['channels'][0])
+        type_channels = ast.literal_eval(self.type_model.model_parameters_table['channels'][0])
         if not (direction_channels == energy_channels == type_channels):
             raise ValueError('All models must have the same channels')
         else:
