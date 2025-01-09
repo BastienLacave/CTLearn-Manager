@@ -9,7 +9,7 @@
         "input_dir_signal": "/home/blacave/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/training", 
         "log_config": {}, 
         "log_datefmt": "%Y-%m-%d %H:%M:%S", 
-        "log_file": None,
+        "log_file": null,
         "log_file_level": "INFO", 
         "log_format": "[%(name)s]%(highlevel)s %(message)s", 
         "log_level": 10, 
@@ -39,7 +39,7 @@
         "stack_telescope_images": true, 
         "validation_split": 0.1, 
         "DLImageReader": {
-            "allowed_tel_types": None, 
+            "allowed_tel_types": null, 
             "allowed_tels": [1, 2], 
             "channels": ["cleaned_image", "cleaned_relative_peak_time"], 
             "image_mapper_type": ["type", "*", "BilinearMapper"], 
