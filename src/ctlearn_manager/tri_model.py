@@ -522,8 +522,7 @@ class CTLearnTriModelManager():
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Energy bias')
         plt.show()
-        hudl.close()
-        
+        hudl.close() 
         
     def plot_irfs(self, zenith, azimuth):
         set_mpl_style()
@@ -538,8 +537,6 @@ class CTLearnTriModelManager():
         edisp.peek()
         aeff.peek()
         bkg.peek()
-        
-
         
     def plot_loss(self):
         set_mpl_style()
@@ -648,4 +645,26 @@ class CTLearnTriModelManager():
         plt.grid(False, which='both')
         plt.show()
         
+        
+    def compare_irfs_to_RF(self, zenith, azimuth=None):
+        set_mpl_style()
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        from . import resources
+        import importlib.resources as pkg_resources
+
+        # with pkg_resources.path(resources, 'train_ctlearn_config.json') as config_example:
+            
+        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
+        hudl = fits.open(irf_file)
+        
+        RF_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+        energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+        plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        plt.show()
+        hudl.close()
         
