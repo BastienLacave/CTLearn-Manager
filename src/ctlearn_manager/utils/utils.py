@@ -67,3 +67,9 @@ srun {command}
     }
     return sbatch_predict_data_configs[cluster]
 
+def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
+    import h5py
+
+    with h5py.File(MODEL_INDEX_FILE, 'a') as f:
+        del f[model_nickname]
+

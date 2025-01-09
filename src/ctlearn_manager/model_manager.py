@@ -161,7 +161,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False):
+    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False, config_file=None):
         """
         Launches the training process for the model.
         Parameters:
@@ -182,8 +182,11 @@ class CTLearnModelManager():
         - The method uses the `ctlearn-train-model` command to launch the training process.
         - The method prints the constructed command and executes it using `os.system`.
         """
-        import yaml
+        import json
         from astropy.io.misc.hdf5 import read_table_hdf5
+        import glob
+        import os
+        import numpy as np
         n_epoch_training = self.get_n_epoch_trained()
         print(f"📊 Model trained for {n_epoch_training} epochs")
         max_training_epochs = self.model_parameters_table['max_training_epochs'][0]
@@ -198,8 +201,7 @@ class CTLearnModelManager():
             return
         n_epochs = max_training_epochs - n_epoch_training
         print(f"🚀 Launching training for {n_epochs} epochs")
-        import glob
-        import os
+        
         models_dir = np.sort(glob.glob(f"{model_dir}/{self.model_nickname}*"))
         load_model = False
         if len(models_dir) > 0 :
@@ -242,54 +244,64 @@ class CTLearnModelManager():
         signal_patterns = ""
         for pattern in training_gamma_table['training_gamma_patterns']:
             signal_patterns += f'--pattern-signal "{pattern}" '
+        print(signal_patterns)
+        # signal_patterns = list(training_gamma_table['training_gamma_patterns'])
+        print(signal_patterns)
         background_patterns = ""
-        for pattern in training_proton_table['training_proton_patterns']:
-            background_patterns += f'--pattern-background "{pattern}" '
-        channels_string = ""
-        for channel in ast.literal_eval(self.model_parameters_table['channels'][0]):
-            channels_string += f"--DLImageReader.channels={channel} "
+        if self.model_parameters_table['reco'][0] == 'type':
+            for pattern in training_proton_table['training_proton_patterns']:
+                background_patterns += f'--pattern-background "{pattern}" '
+        # background_patterns = list(training_proton_table['training_proton_patterns'])
+        # channels_string = ""
+        # for channel in ast.literal_eval(self.model_parameters_table['channels'][0]):
+        #     channels_string += f"--DLImageReader.channels={channel} "
+        channels = ast.literal_eval(self.model_parameters_table['channels'][0])
 
         stereo_mode = 'stereo' if self.stereo else "mono"
-        stack_telescope_images = 'true' if self.stereo else 'false'
-        min_telescopes = 2 if self.stereo else 1
-        allowed_tels = '_'.join(map(str, ast.literal_eval(self.model_parameters_table['telescope_ids'][0]))) if self.stereo else int(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])[0])
+        stack_telescope_images = True if self.stereo else False
+        # min_telescopes = 2 if self.stereo else 1
+        allowed_tels = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
+        # for t in ast.literal_eval(self.model_parameters_table['telescope_ids'][0]):
+        #     allowed_tels.append(str(t))
         
-        config = {
-            'load_model_string': load_model_string,
-            'background_string': background_string,
-            'signal_patterns': signal_patterns,
-            'background_patterns': background_patterns,
-            'channels_string': channels_string,
-            'stereo_mode': stereo_mode,
-            'stack_telescope_images': stack_telescope_images,
-            'min_telescopes': min_telescopes,
-            'allowed_tels': allowed_tels,
-            'n_epochs': n_epochs,
-            'model_dir': model_dir,
-            'save_best_validation_only': save_best_validation_only
-        }
+        if config_file is None:
+            # from . import resources
+            # import importlib.resources as pkg_resources
 
-        config_file = f"{model_dir}/config.yml"
-        with open(config_file, 'w') as file:
-            yaml.dump(config, file)
-        print(f"Configuration saved to {config_file}")
+            # with pkg_resources.path(resources, 'train_ctlearn_config.json') as config_example:
+            
+            #     with open(config_example, 'r') as file:
+            #         config = json.load(file)
+            config = {}
+            config['TrainCTLearnModel'] = {}
+            config['TrainCTLearnModel']['DLImageReader'] = {}
+            config['TrainCTLearnModel']['save_best_validation_only'] = save_best_validation_only
+            config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
+            config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
+            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
+            config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
+            config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
+            config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
+            # config['TrainCTLearnModel']['input_dir_signal'] = training_gamma_table['training_gamma_dir'][0]
+            # config['TrainCTLearnModel']['input_dir_background'] = training_proton_table['training_proton_dir'][0] if self.model_parameters_table['reco'][0] == 'type' else None
+            # config['TrainCTLearnModel']['file_pattern_signal'] = signal_patterns
+            # config['TrainCTLearnModel']['file_pattern_background'] = background_patterns if self.model_parameters_table['reco'][0] == 'type' else []
+            config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
+            config['TrainCTLearnModel']['output_dir'] = model_dir
+            
+            config_file = f"{model_dir}/config.json"
+            with open(config_file, 'w') as file:
+                json.dump(config, file)
+            print(f"Configuration saved to {config_file}")
         
-        #FIXME take in account all agga or proton dirs
         cmd = f"ctlearn-train-model {load_model_string} \
 --TrainCTLearnModel.batch_size=64 \
---signal {self.training_gamma_dir} {signal_patterns} \
-{background_string}{background_patterns}\
---reco {self.model_parameters_table['reco'][0]} \
+--signal {training_gamma_table['training_gamma_dir'][0]} {signal_patterns}\
+{background_string} {background_patterns}\
 --output {model_dir} \
-{channels_string}\
---TrainCTLearnModel.n_epochs={n_epochs} \
---verbose \
---TrainCTLearnModel.save_best_validation_only=True\
+--config {config_file} \
 --overwrite \
---DLImageReader.mode={stereo_mode} \
---TrainCTLearnModel.stack_telescope_images={stack_telescope_images}\
---DLImageReader.min_telescopes={min_telescopes}"# \
-#--DLImageReader.allowed_tels={allowed_tels}"
+--verbose"
         print(cmd)
         # !{cmd}
         os.system(cmd)
