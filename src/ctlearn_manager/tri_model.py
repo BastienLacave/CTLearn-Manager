@@ -65,10 +65,10 @@ class CTLearnTriModelManager():
         else:
             self.stereo = self.direction_model.stereo
             
-    def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = []):
-        if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths)):
+    def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
+        if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths) == len(testing_gamma_patterns)):
             raise ValueError("All testing gamma lists must be the same length")
-        if not (len(testing_proton_dirs) == len(testing_proton_zenith_distances) == len(testing_proton_azimuths)):
+        if not (len(testing_proton_dirs) == len(testing_proton_zenith_distances) == len(testing_proton_azimuths) == len(testing_proton_patterns)):
             raise ValueError("All testing proton lists must be the same length")
                 
         for model in [self.direction_model, self.energy_model, self.type_model]:
@@ -78,11 +78,20 @@ class CTLearnTriModelManager():
                 testing_gamma_zenith_distances, 
                 testing_gamma_azimuths, 
                 testing_proton_zenith_distances, 
-                testing_proton_azimuths
+                testing_proton_azimuths,
+                testing_gamma_patterns,
+                testing_proton_patterns
             )
-              
+
+    def get_available_testing_directions(self):
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/gamma')
+        gamma_zeniths = direction_testing_table['testing_gamma_zenith_distances']
+        gamma_azimuths = direction_testing_table['testing_gamma_azimuths']
+        for zenith, azimuth in zip(gamma_zeniths, gamma_azimuths):
+            print(f"(ZD, Az): ({zenith}, {azimuth})")
         
-    def launch_testing(self, zenith, azimuth, output_dirs: list, pattern="*.dl1.h5", sbatch_scripts_dir=None, launch_particle_type='both', cluster=None, account=None, python_env='ctlearn-cluster'):
+    def launch_testing(self, zenith, azimuth, output_dirs: list, sbatch_scripts_dir=None, launch_particle_type='both', cluster=None, account=None, python_env='ctlearn-cluster'):
         import os
         import glob
         from astropy.io.misc.hdf5 import read_table_hdf5
@@ -102,10 +111,12 @@ class CTLearnTriModelManager():
             gamma_dirs = direction_testing_table['testing_gamma_dirs']
             gamma_zeniths = direction_testing_table['testing_gamma_zenith_distances']
             gamma_azimuths = direction_testing_table['testing_gamma_azimuths']
+            gamma_patterns = direction_testing_table['testing_gamma_patterns']
             matching_dirs = [gamma_dirs[i] for i in range(len(gamma_dirs)) if gamma_zeniths[i] == zenith and gamma_azimuths[i] == azimuth]
             if not matching_dirs:
                 raise ValueError(f"No matching gamma directory found for zenith {zenith} and azimuth {azimuth}")
             gamma_dir = matching_dirs[0]
+            gamma_pattern = [gamma_patterns[i] for i in range(len(gamma_patterns)) if gamma_zeniths[i] == zenith and gamma_azimuths[i] == azimuth][0]
         if launch_particle_type in ['proton', 'both']:
             direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/proton')
             energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/proton')
@@ -117,48 +128,61 @@ class CTLearnTriModelManager():
             proton_dirs = direction_testing_table['testing_proton_dirs']
             proton_zeniths = direction_testing_table['testing_proton_zenith_distances']
             proton_azimuths = direction_testing_table['testing_proton_azimuths']
+            proton_patterns = direction_testing_table['testing_proton_patterns']
             matching_dirs = [proton_dirs[i] for i in range(len(proton_dirs)) if proton_zeniths[i] == zenith and proton_azimuths[i] == azimuth]
             if not matching_dirs:
                 raise ValueError(f"No matching proton directory found for zenith {zenith} and azimuth {azimuth}")
             proton_dir = matching_dirs[0] 
+            proton_pattern = [proton_patterns[i] for i in range(len(proton_patterns)) if proton_zeniths[i] == zenith and proton_azimuths[i] == azimuth][0]
             
         if len(output_dirs) == 1:
-            output_dir = output_dirs[0]
-            gamma_files = np.sort(glob.glob(f"{gamma_dir}/{pattern}"))
-            proton_files = np.sort(glob.glob(f"{proton_dir}/{pattern}"))
-            testing_files = np.concatenate([gamma_files, proton_files])
-            gamma_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
-            proton_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
-            output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
-            for model in [self.direction_model, self.energy_model, self.type_model]:
-                model.update_model_manager_DL2_MC_files(
-                    gamma_output_files, 
-                    proton_output_files, 
-                    [zenith] * len(gamma_output_files), 
-                    [azimuth] * len(gamma_output_files), 
-                    [zenith] * len(proton_output_files), 
-                    [azimuth] * len(proton_output_files)
-                )
+            gamma_output_dir = output_dirs[0]
+            proton_output_dir = output_dirs[0]
         elif len(output_dirs) == 2:
             gamma_output_dir = output_dirs[0]
             proton_output_dir = output_dirs[1]
-            gamma_files = np.sort(glob.glob(f"{gamma_dir}/{pattern}"))
-            proton_files = np.sort(glob.glob(f"{proton_dir}/{pattern}"))
-            gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
-            proton_output_files = [f"{proton_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
-            output_files = np.concatenate([gamma_output_files, proton_output_files])
-            for model in [self.direction_model, self.energy_model, self.type_model]:
-                model.update_model_manager_DL2_MC_files(
-                    gamma_output_files, 
-                    proton_output_files, 
-                    [zenith] * len(gamma_output_files), 
-                    [azimuth] * len(gamma_output_files), 
-                    [zenith] * len(proton_output_files), 
-                    [azimuth] * len(proton_output_files)
-                )
-                
         else:
             raise ValueError("output_dirs must have length 1 or 2, to store all in the same directory, or gammas in the first and protons in the second")
+        # gamma_files = np.sort(glob.glob(f"{gamma_dir}/{gamma_pattern}"))
+        # proton_files = np.sort(glob.glob(f"{proton_dir}/{proton_pattern}"))
+        # testing_files = np.concatenate([gamma_files, proton_files])
+        # gamma_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
+        # proton_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
+        # output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
+        # for model in [self.direction_model, self.energy_model, self.type_model]:
+        #     model.update_model_manager_DL2_MC_files(
+        #         gamma_output_files, 
+        #         proton_output_files, 
+        #         [zenith] * len(gamma_output_files), 
+        #         [azimuth] * len(gamma_output_files), 
+        #         [zenith] * len(proton_output_files), 
+        #         [azimuth] * len(proton_output_files)
+        #     )
+        if launch_particle_type in ['gamma', 'both']:
+            gamma_files = np.sort(glob.glob(f"{gamma_dir}/{gamma_pattern}"))
+            gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
+        else:
+            gamma_files = []
+            gamma_output_files = []
+        if launch_particle_type in ['proton', 'both']:
+            proton_files = np.sort(glob.glob(f"{proton_dir}/{proton_pattern}"))
+            proton_output_files = [f"{proton_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
+        else:
+            proton_files = []
+            proton_output_files = []
+        testing_files = np.concatenate([gamma_files, proton_files])
+        output_files = np.concatenate([gamma_output_files, proton_output_files])
+        for model in [self.direction_model, self.energy_model, self.type_model]:
+            model.update_model_manager_DL2_MC_files(
+                gamma_output_files, 
+                proton_output_files, 
+                [zenith] * len(gamma_output_files), 
+                [azimuth] * len(gamma_output_files), 
+                [zenith] * len(proton_output_files), 
+                [azimuth] * len(proton_output_files)
+            )
+                
+        
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
@@ -566,7 +590,7 @@ class CTLearnTriModelManager():
             ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
             ax.set_xlabel('Epoch')
             ax.set_ylabel('Loss')
-            ax.set_xticks(np.arange(1, len(df) + 1, 2))
+            ax.set_xticks(np.arange(1, len(epochs) + 1, 2))
             ax.legend()
         plt.tight_layout()
         plt.show()

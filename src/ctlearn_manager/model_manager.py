@@ -422,7 +422,7 @@ class CTLearnModelManager():
         #     write_table_hdf5(training_proton_table, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True)
         #     print(f"\t➡️ Training proton data updated")
 
-    def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths):
+    def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns):
         """
         Updates the model manager testing data in the index file.
         This method reads the model index file, finds the entry corresponding to the
@@ -443,21 +443,21 @@ class CTLearnModelManager():
         try:
             testing_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma')
         except:
-            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths'], 
-                                        dtype=[str, float, float])
+            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
+                                        dtype=[str, float, float, str])
             
         try:
             testing_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/proton')
         except:
-            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths'], 
-                                        dtype=[str, float, float])
+            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
+                                        dtype=[str, float, float, str])
         print(f"💾 Model {self.model_nickname} testing data update:")
         if len(testing_gamma_table)==0:
-            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths'], 
-                                        dtype=[str, float, float])
+            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
+                                        dtype=[str, float, float, str])
         if len(testing_proton_table)==0:
-            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths'], 
-                                        dtype=[str, float, float])
+            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
+                                        dtype=[str, float, float, str])
         
         if len(testing_gamma_dirs) > 0:
             for i in range(len(testing_gamma_dirs)):
@@ -465,8 +465,9 @@ class CTLearnModelManager():
                         (testing_gamma_table['testing_gamma_azimuths'] == testing_gamma_azimuths[i]))[0]
                 if len(match) > 0:
                     testing_gamma_table['testing_gamma_dirs'][match[0]] = testing_gamma_dirs[i]
+                    testing_gamma_table['testing_gamma_patterns'][match[0]] = testing_gamma_patterns[i]
                 else:
-                    testing_gamma_table.add_row([testing_gamma_dirs[i], testing_gamma_zenith_distances[i], testing_gamma_azimuths[i]])
+                    testing_gamma_table.add_row([testing_gamma_dirs[i], testing_gamma_zenith_distances[i], testing_gamma_azimuths[i], testing_gamma_patterns[i]])
             write_table_hdf5(testing_gamma_table, self.model_index_file, path=f'{self.model_nickname}/testing/gamma', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing gamma data updated")
         
@@ -476,8 +477,9 @@ class CTLearnModelManager():
                         (testing_proton_table['testing_proton_azimuths'] == testing_proton_azimuths[i]))[0]
                 if len(match) > 0:
                     testing_proton_table['testing_proton_dirs'][match[0]] = testing_proton_dirs[i]
+                    testing_proton_table['testing_proton_patterns'][match[0]] = testing_proton_patterns[i]
                 else:
-                    testing_proton_table.add_row([testing_proton_dirs[i], testing_proton_zenith_distances[i], testing_proton_azimuths[i]])
+                    testing_proton_table.add_row([testing_proton_dirs[i], testing_proton_zenith_distances[i], testing_proton_azimuths[i], testing_proton_patterns[i]])
             write_table_hdf5(testing_proton_table, self.model_index_file, path=f'{self.model_nickname}/testing/proton', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing proton data updated")
        
@@ -735,7 +737,7 @@ class CTLearnModelManager():
             if (zenith == np.nan) or (azimuth == np.nan):
                 continue    
             else:
-                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], label='Gammas', zorder=2)
                 i += 1
         if i == 0:
             print('Training nodes for gammas cannot be shown because the zenith or azimuth are not defined.')
@@ -748,7 +750,7 @@ class CTLearnModelManager():
             if (zenith == np.nan) or (azimuth == np.nan):
                 continue
             else:
-                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+                ax.scatter(azimuth, zenith, label='Protons', edgecolor=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], facecolors='w', zorder=1, s=100, lw=2)
                 i += 1
         if i == 0:
             print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
@@ -760,6 +762,9 @@ class CTLearnModelManager():
         ax.set_yticks(np.arange(10, 91, 10))
         ax.set_yticklabels(["", "", "30°", "", "", "60°", "", "", "90°"], fontsize=10)
         ax.set_xlabel('Azimuth [deg]', fontsize=10)
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys())
         
         
         ax.set_title('Training nodes')
