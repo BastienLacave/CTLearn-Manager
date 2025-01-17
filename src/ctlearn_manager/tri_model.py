@@ -225,10 +225,70 @@ class CTLearnTriModelManager():
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
     
-    def predict_lstchain_data(self, input_file, output_file):
-        pass
+    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False):
+        import os
+        import glob
+        import ast
+        import json
+
+
+        os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
+        channels_string = ""
+        for channel in self.channels:
+            channels_string += f"--DLImageReader.channels {channel} "
+        type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"))[-1]
+        energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"))[-1]
+        direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"))[-1]
+        allowed_tels = ast.literal_eval(self.direction_model.model_parameters_table['telescope_ids'][0])
+        stereo_mode = 'stereo' if self.stereo else "mono"
+        # stack_telescope_images = True if self.stereo else False
+        config = {}
+        config['LST1PredictionTool'] = {}
+        config['LST1PredictionTool']['DLImageReader'] = {}
+
+        config['LST1PredictionTool']['DLImageReader']['allowed_tels'] = allowed_tels
+        config['LST1PredictionTool']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
+        config['LST1PredictionTool']['DLImageReader']['mode'] = stereo_mode
+        # config['LST1PredictionTool']['stack_telescope_images'] = stack_telescope_images # Mono only
+        config['LST1PredictionTool']['DLImageReader']['channels'] = self.channels
+        # config['LST1PredictionTool']['dl1dh_reader_type'] = "DLImageReader"
+        if (run is not None) and (subrun is not None):
+            config['LST1PredictionTool']['override_obs_id'] = int(f"{run}{subrun}")
+        config['LST1PredictionTool']['output_path'] = output_file
+        config['LST1PredictionTool']['log_file'] = output_file.replace('.h5', '.log')
+        config['LST1PredictionTool']['overwrite'] = overwrite
     
-    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None):
+        config_file = f"{direction_model_dir}/pred_config_{Path(input_file).stem}.json"
+        with open(config_file, 'w') as file:
+            json.dump(config, file)
+        print(f"🪛 Configuration saved to {config_file}")
+        
+        cmd = f"ctlearn-predict-LST1 --input_url {input_file} \
+--type_model {type_model_dir}/ctlearn_model.cpk \
+--energy_model {energy_model_dir}/ctlearn_model.cpk \
+--direction_model {direction_model_dir}/ctlearn_model.cpk \
+--config '{config_file}' \
+--PredictCTLearnModel.overwrite_tables True -v"
+#         else:
+#             # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
+#             cmd = f"ctlearn-predict-model --input_url {input_file} \
+# --type_model {type_model_dir}/ctlearn_model.cpk \
+# --energy_model {energy_model_dir}/ctlearn_model.cpk \
+# --direction_model {direction_model_dir}/ctlearn_model.cpk \
+# --config '{config_file}' \
+# --no-dl1-images --no-true-images \
+# --dl1-features \
+# --PredictCTLearnModel.overwrite_tables True -v"
+            
+        if cluster is not None:
+            sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
+            os.system(f"sbatch {sbatch_file}")
+        else:
+            print(cmd)
+            os.system(cmd)
+        
+    
+    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False):
         import os
         import glob
         import ast
@@ -255,11 +315,13 @@ class CTLearnTriModelManager():
         config['PredictCTLearnModel']['DLImageReader']['channels'] = self.channels
         config['PredictCTLearnModel']['dl1dh_reader_type'] = "DLImageReader"
         config['PredictCTLearnModel']['output_path'] = output_file
+        config['PredictCTLearnModel']['log_file'] = output_file.replace('.h5', '.log')
+        config['PredictCTLearnModel']['overwrite'] = overwrite
     
         config_file = f"{direction_model_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
-        print(f"Configuration saved to {config_file}")
+        print(f"🪛 Configuration saved to {config_file}")
         
         cmd = f"ctlearn-predict-model --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
