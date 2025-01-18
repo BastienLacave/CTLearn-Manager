@@ -224,12 +224,15 @@ class CTLearnTriModelManager():
 
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
+
     
-    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False):
+    
+    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
         import os
         import glob
         import ast
         import json
+        from .utils.utils import get_avg_pointing
 
 
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
@@ -262,6 +265,14 @@ class CTLearnTriModelManager():
         with open(config_file, 'w') as file:
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
+
+        avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        for model in [self.direction_model, self.energy_model, self.type_model]:
+            model.update_model_manager_DL2_data_files(
+                [output_file], 
+                [avg_data_ze],
+                [avg_data_az],
+            )
         
         cmd = f"ctlearn-predict-LST1 --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
@@ -269,16 +280,6 @@ class CTLearnTriModelManager():
 --direction_model {direction_model_dir}/ctlearn_model.cpk \
 --config '{config_file}' \
 --PredictCTLearnModel.overwrite_tables True -v"
-#         else:
-#             # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
-#             cmd = f"ctlearn-predict-model --input_url {input_file} \
-# --type_model {type_model_dir}/ctlearn_model.cpk \
-# --energy_model {energy_model_dir}/ctlearn_model.cpk \
-# --direction_model {direction_model_dir}/ctlearn_model.cpk \
-# --config '{config_file}' \
-# --no-dl1-images --no-true-images \
-# --dl1-features \
-# --PredictCTLearnModel.overwrite_tables True -v"
             
         if cluster is not None:
             sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
@@ -286,13 +287,16 @@ class CTLearnTriModelManager():
         else:
             print(cmd)
             os.system(cmd)
+
+        print("")
         
     
-    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False):
+    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False, pointing_table='dl0/monitoring/subarray/pointing'):
         import os
         import glob
         import ast
         import json
+        from .utils.utils import get_avg_pointing
         
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
         channels_string = ""
@@ -322,6 +326,14 @@ class CTLearnTriModelManager():
         with open(config_file, 'w') as file:
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
+
+        avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        for model in [self.direction_model, self.energy_model, self.type_model]:
+            model.update_model_manager_DL2_data_files(
+                [output_file], 
+                [avg_data_ze],
+                [avg_data_az],
+            )
         
         cmd = f"ctlearn-predict-model --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
@@ -331,16 +343,6 @@ class CTLearnTriModelManager():
 --no-dl1-images --no-true-images \
 --dl1-features \
 --PredictCTLearnModel.overwrite_tables True -v"
-#         else:
-#             # cmd   f"ctlearn-predict-mono --input_url {input_file} --type_model {type_model_dir}/ctlearn_model.cpk --energy_model {energy_model_dir}/ctlearn_model.cpk --direction_model {direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
-#             cmd = f"ctlearn-predict-model --input_url {input_file} \
-# --type_model {type_model_dir}/ctlearn_model.cpk \
-# --energy_model {energy_model_dir}/ctlearn_model.cpk \
-# --direction_model {direction_model_dir}/ctlearn_model.cpk \
-# --config '{config_file}' \
-# --no-dl1-images --no-true-images \
-# --dl1-features \
-# --PredictCTLearnModel.overwrite_tables True -v"
             
         if cluster is not None:
             sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
@@ -348,6 +350,8 @@ class CTLearnTriModelManager():
         else:
             print(cmd)
             os.system(cmd)
+
+        print("")
     
     
     def merge_DL2_files(self, zenith, azimuth, output_file_gammas=None, output_file_protons=None, overwrite=False):

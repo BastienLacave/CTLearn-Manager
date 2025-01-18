@@ -45,6 +45,14 @@ def get_files(run, DL1_data_dir):
     print(f"{len(testing_files)} files found for run {run:05d}")
     return testing_files
 
+def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
+    from ctapipe.io import read_table
+    import astropy.units as u
+    pointing = read_table(input_file, path=pointing_table)
+    avg_data_az = np.mean(pointing['az_tel']*180/np.pi)
+    avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
+    return avg_data_ze, avg_data_az
+
 def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name):
     sbatch_predict_data_configs = {
     'camk': 

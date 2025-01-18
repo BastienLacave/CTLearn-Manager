@@ -540,6 +540,36 @@ class CTLearnModelManager():
             write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing DL2 proton data updated")
         
+    def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+
+        
+        try:
+            DL2_data_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/Data')
+        except:
+            DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
+                                     dtype=[ str, float, float])
+
+        print(f"💾 Model {self.model_nickname} DL2 data update:")
+        if len(DL2_data_table)==0:
+            DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
+                                     dtype=[str, float, float])
+        
+        if len(DL2_files) > 0:
+            for i in range(len(DL2_files)):
+                match = np.where(
+                    (DL2_data_table['DL2_files'] == DL2_files[i]) & 
+                        (DL2_data_table['DL2_zenith_distances'] == DL2_zenith_distances[i]) & 
+                        (DL2_data_table['DL2_azimuths'] == DL2_azimuths[i]))[0]
+                if len(match) == 0:
+                    DL2_data_table.add_row([DL2_files[i], DL2_zenith_distances[i], DL2_azimuths[i]])
+                # else:
+                #     DL2_data_table.remove_rows(match)
+            write_table_hdf5(DL2_data_table, self.model_index_file, path=f'{self.model_nickname}/DL2/Data', append=True, overwrite=True, serialize_meta=True)
+            print(f"\t➡️ Testing DL2 real data updated")
+
+    
     def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
         """
         Updates the model manager testing data in the index file.
