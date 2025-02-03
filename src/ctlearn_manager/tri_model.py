@@ -466,7 +466,6 @@ class CTLearnTriModelManager():
             -c {config} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file} \
-            --point-like \
             --output {output_cuts_file} \
             --overwrite True \
             --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
@@ -475,7 +474,7 @@ class CTLearnTriModelManager():
             -c {config} --IrfTool.cuts_file {output_cuts_file} \
             --gamma-file {gamma_file} \
             --proton-file {proton_file}  \
-            --do-background --point-like \
+            --do-background \
             --output {output_irf_file} \
             --benchmark-output {output_benchmark_file}"
         os.system(cmd)
