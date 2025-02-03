@@ -212,20 +212,20 @@ class CTLearnModelManager():
                 model_version += 1
                 print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                 save_best_validation_only = True
+                model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
-                model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk/"
                 load_model = True
                 os.system(f"mkdir -p {model_dir}")
             else :
-                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk/"
+                    model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                     load_model = True
                     print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
                     save_best_validation_only = True
                 else:
                     print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
                     save_best_validation_only = False
+                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
         else:
             model_version = 0
             print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
@@ -317,7 +317,7 @@ class CTLearnModelManager():
         
         import glob
         import pandas as pd
-        training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}_v*/training_log.csv"))
+        training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}*/training_log.csv"))
         n_epochs = 0
         for training_log in training_logs:
             df = pd.read_csv(training_log)
@@ -345,7 +345,7 @@ class CTLearnModelManager():
         import pandas as pd
         import glob
         set_mpl_style()
-        training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}_v*/training_log.csv"))
+        training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}*/training_log.csv"))
         losses_train = []
         losses_val = []
         for training_log in training_logs:
