@@ -64,6 +64,10 @@ class CTLearnTriModelManager():
             raise ValueError('All models must have the same stereo value')
         else:
             self.stereo = self.direction_model.stereo
+        if not (self.direction_model.telescope_ids == self.energy_model.telescope_ids == self.type_model.telescope_ids):
+            raise ValueError('All models must have the same telescope_ids')
+        self.telescope_ids = self.direction_model.telescope_ids
+        self.telescope_names = self.direction_model.telescope_names
             
     def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
         if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths) == len(testing_gamma_patterns)):

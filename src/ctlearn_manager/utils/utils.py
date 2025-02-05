@@ -113,4 +113,3 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
 
     with h5py.File(MODEL_INDEX_FILE, 'a') as f:
         del f[model_nickname]
-

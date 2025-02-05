@@ -82,6 +82,8 @@ class CTLearnModelManager():
         self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
+        self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
+        self.telescope_names = ast.literal_eval(self.model_parameters_table['telescope_names'][0])
         # Check that all gamma related lists are the same length
         gamma_lengths = [len(training_table_gamma['training_gamma_patterns']), len(training_table_gamma['training_gamma_zenith_distances']), len(training_table_gamma['training_gamma_azimuths'])]
         if len(set(gamma_lengths)) != 1:

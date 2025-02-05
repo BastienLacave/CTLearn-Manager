@@ -29,3 +29,23 @@ def load_true_shower_parameters(input_file):
     from ctapipe.io import read_table
     true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
     return true_shower_parameters
+
+def load_DL2_data(input_file, tel_id):
+    from ctapipe.io import read_table
+    from astropy.table import (join, hstack)
+    pointing = read_table(input_file, f"dl1/monitoring/telescope/pointing/tel_{tel_id:03d}")
+    pointing.sort('time')
+    dl2_classification = read_table(input_file, f"dl2/event/telescope/classification/CTLearn/tel_{tel_id:03d}")
+    dl2_energy = read_table(input_file, f"dl2/event/telescope/energy/CTLearn/tel_{tel_id:03d}")
+    dl2_geometry = read_table(input_file, f"dl2/event/telescope/geometry/CTLearn/tel_{tel_id:03d}")
+    dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
+    dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+    dl2.sort('event_id')
+    dl2 = hstack([dl2, pointing])
+    dl2.sort('time')
+    times = np.array(dl2['time'])
+    t_diff = times[1:] - times[:-1] #np.diff(dl2['time'])
+    t_diff = np.insert(t_diff, 0, 0)  # Insert 0 at the beginning to align with the original times array
+    dl2['delta_t'] = t_diff
+    print(f"Loaded {len(dl2)} events")
+    return dl2
