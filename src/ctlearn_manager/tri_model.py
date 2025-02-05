@@ -264,8 +264,8 @@ class CTLearnTriModelManager():
         config['LST1PredictionTool']['output_path'] = output_file
         config['LST1PredictionTool']['log_file'] = output_file.replace('.h5', '.log')
         config['LST1PredictionTool']['overwrite'] = overwrite
-    
-        config_file = f"{direction_model_dir}/pred_config_{Path(input_file).stem}.json"
+
+        config_file = f"{sbatch_scripts_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
