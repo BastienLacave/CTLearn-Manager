@@ -32,14 +32,18 @@ def load_true_shower_parameters(input_file):
     true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
     return true_shower_parameters
 
-def load_DL2_data(input_file, tel_id):
+def load_DL2_data(input_file, DL2DataProcessor):
+    tel_id = DL2DataProcessor.tel_id
+    reco_method = DL2DataProcessor.reconstruction_method
+    path = "subarray" if DL2DataProcessor.stereo else "telescope"
+    tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
     from ctapipe.io import read_table
     from astropy.table import (join, hstack)
-    pointing = read_table(input_file, f"dl1/monitoring/telescope/pointing/tel_{tel_id:03d}")
+    pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort('time')
-    dl2_classification = read_table(input_file, f"dl2/event/telescope/classification/CTLearn/tel_{tel_id:03d}")
-    dl2_energy = read_table(input_file, f"dl2/event/telescope/energy/CTLearn/tel_{tel_id:03d}")
-    dl2_geometry = read_table(input_file, f"dl2/event/telescope/geometry/CTLearn/tel_{tel_id:03d}")
+    dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
+    dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
+    dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
     dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
     dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
     dl2.sort('event_id')

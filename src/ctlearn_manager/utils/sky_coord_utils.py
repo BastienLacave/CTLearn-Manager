@@ -60,16 +60,17 @@ class DL2DataProcessor():
         Computes the on-source and off-source counts, as well as the Li & Ma significance.
     """
     
-    def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab")):
+    def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None):
         self.DL2_files = DL2_files
         self.CTLearnTriModelManager = CTLearnTriModelManager
         self.source_position = source_position
-        self.telescope_ids = CTLearnTriModelManager.telescope_ids
+        self.dl2_processed_dir = dl2_processed_dir
         self_telscope_names = CTLearnTriModelManager.telescope_names
         self.stereo = CTLearnTriModelManager.stereo
         self.gammaness_cut = gammaness_cut
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
+        self.telescope_id = CTLearnTriModelManager.telescope_ids[0] if self.stereo else CTLearnTriModelManager.telescope_ids
 
         if any("LST" in name and "1" in name for name in self_telscope_names):
             print("LST1 is in the telescope names")
@@ -92,10 +93,14 @@ class DL2DataProcessor():
         self.dl2s = []
         self.dl2s_cuts = []
         for DL2_file in self.DL2_files:
-            output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+            if self.dl2_processed_dir is None:
+                output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+            else:
+                output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+
             if not os.path.exists(output_file):
                 print(f"Loading {DL2_file}")
-                dl2 = load_DL2_data(DL2_file, 1)
+                dl2 = load_DL2_data(DL2_file, self)
                 with open(output_file, 'wb') as f:
                     pickle.dump(dl2, f)
                 print(f"Saved processed DL2 data to {output_file}")
