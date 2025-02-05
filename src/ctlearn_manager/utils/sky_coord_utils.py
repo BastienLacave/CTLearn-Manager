@@ -70,7 +70,7 @@ class DL2DataProcessor():
         self.gammaness_cut = gammaness_cut
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
-        self.telescope_id = CTLearnTriModelManager.telescope_ids[0] if self.stereo else CTLearnTriModelManager.telescope_ids
+        self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
 
         if any("LST" in name and "1" in name for name in self_telscope_names):
             print("LST1 is in the telescope names")
