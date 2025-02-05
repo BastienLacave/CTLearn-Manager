@@ -7,7 +7,7 @@ import astropy.units as u
 import numpy as np
 from pyirf.statistics import li_ma_significance
 from astropy.coordinates import Angle
-from astropy.io.misc.hdf5 import write_table_hdf5, read_table_hdf5
+import pickle
 import os
 
 
@@ -69,7 +69,7 @@ class DL2DataProcessor():
         self.stereo = CTLearnTriModelManager.stereo
         self.gammaness_cut = gammaness_cut
         self.reconstruction_method = "CTLearn"
-        self.reco_field_suffix = "subarray" if self.stereo else "tel"
+        self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
 
         if any("LST" in name and "1" in name for name in self_telscope_names):
             print("LST1 is in the telescope names")
@@ -92,23 +92,24 @@ class DL2DataProcessor():
         self.dl2s = []
         self.dl2s_cuts = []
         for DL2_file in self.DL2_files:
-            print(f"Loading {DL2_file}")
-            output_file = DL2_file.replace('.h5', '_dl2_processed.h5')
+            output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
             if not os.path.exists(output_file):
+                print(f"Loading {DL2_file}")
                 dl2 = load_DL2_data(DL2_file, 1)
-                write_table_hdf5(dl2_cuts, output_file, overwrite=True, path='dl2')
+                with open(output_file, 'wb') as f:
+                    pickle.dump(dl2, f)
                 print(f"Saved processed DL2 data to {output_file}")
             else:
                 print(f"Loading processed DL2 data from {output_file}")
-                dl2 = read_table_hdf5(output_file, path='dl2')
-
-            dl2_cuts = dl2[dl2[f"{self.reconstruction_method}_{self.reco_field_suffix}_prediction"] > self.gammaness_cut]
+                with open(output_file, 'rb') as f:
+                    dl2 = pickle.load(f)
+            dl2_cuts = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut]
             print(f"{len(dl2_cuts)} events after cuts")
             print("Computing sky positions...")
             times = dl2_cuts["time"]
             # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
             frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-            reco_temp = SkyCoord(alt=dl2_cuts[f"{self.reconstruction_method}_{self.reco_field_suffix}_alt"], az=dl2_cuts[f"{self.reconstruction_method}_{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2_cuts["time"])
+            reco_temp = SkyCoord(alt=dl2_cuts[f"{self.reco_field_suffix}_alt"], az=dl2_cuts[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2_cuts["time"])
             pointing_temp = SkyCoord(alt=dl2_cuts["altitude"], az=dl2_cuts["azimuth"], frame=frame)#, obstime=dl2_cuts["time"])
             self.reco_directions.append(reco_temp.transform_to(self.source_position))
             self.pointings.append(pointing_temp.transform_to(self.source_position))
@@ -174,14 +175,14 @@ class DL2DataProcessor():
                     verticalalignment='top', bbox=props, color="k")
         plt.plot(angle2_center, h_on, label='on source')
         plt.plot(angle2_center, h_off, label='off source', zorder=0)
-        # plt.fill_between(angle2_center, 
-        #                 h_on_CTL - np.sqrt(h_on_CTL), 
-        #                 h_on_CTL + np.sqrt(h_on_CTL), 
-        #                 alpha=0.3, zorder=1)
-        # plt.fill_between(angle2_center,
-        #                     h_off_CTL/3 - np.sqrt(h_off_CTL/3),
-        #                     h_off_CTL/3 + np.sqrt(h_off_CTL/3),
-        #                     alpha=0.3, zorder=1)
+        plt.fill_between(angle2_center, 
+                        h_on - np.sqrt(h_on), 
+                        h_on + np.sqrt(h_on), 
+                        alpha=0.3, zorder=1)
+        plt.fill_between(angle2_center,
+                            h_off - np.sqrt(h_off),
+                            h_off + np.sqrt(h_off),
+                            alpha=0.3, zorder=1)
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color='black', linestyle='--')
         plt.text(0.1, 0.8, '0.2° radius', color='black', fontsize=14, rotation=90, transform=ax.transAxes, ha='right', va='center')
@@ -214,8 +215,9 @@ class DL2DataProcessor():
         return off_regions
     
     def compute_eff_time(self, events): 
-        timestamp = np.array(events["time"])
+        timestamp = np.array(events["time"].to_value('unix'))
         delta_t = np.array(events["delta_t"])
+        delta_t = [dt.to_value('sec') for dt in delta_t]
 
         if not isinstance(timestamp, u.Quantity):
             timestamp *= u.s
@@ -245,16 +247,16 @@ class DL2DataProcessor():
         rate = 1 / (np.mean(delta_t) - dead_time)
 
         t_eff = t_elapsed / (1 + rate * dead_time)
-        print(t_eff.to(u.h))   
+        # print(t_eff.to(u.h))   
         # with open(f"/home/bastien.lacave/PhD/Analysis/DL2_Processing/times/{run}_t_eff.pkl", "wb") as f:
         #     pickle.dump(t_eff, f)
         return t_eff, t_elapsed
 
     def compute_on_off_counts(self, events, reco_coord, pointing_coord, n_off, theta2_cut=0.04*u.deg**2, gcut=0.5, E_min=0, E_max=100, I_min=None, I_max=None):
         if I_min == None or I_max == None:
-            mask = (events[f"{self.reconstruction_method}_{self.reco_field_suffix}_energy"] > E_min) & (events[f"{self.reconstruction_method}_{self.reco_field_suffix}_energy"] < E_max) & (events[f"{self.reconstruction_method}_{self.reco_field_suffix}_prediction"] > gcut)
+            mask = (events[f"{self.reco_field_suffix}_energy"] > E_min) & (events[f"{self.reco_field_suffix}_energy"] < E_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
         # else:
-        #     mask = (events['intensity'] > I_min) & (events['intensity'] < I_max) & (events[f"{self.reconstruction_method}_{self.reco_field_suffix}_prediction"] > gcut)
+        #     mask = (events['intensity'] > I_min) & (events['intensity'] < I_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
 
 
         # ON

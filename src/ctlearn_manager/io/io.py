@@ -1,6 +1,8 @@
 from ..model_manager import CTLearnModelManager
 from astropy.table import QTable
 import numpy as np
+import astropy.units as u
+from astropy.time import TimeDelta
 
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
     # models_table = QTable.read(MODEL_INDEX_FILE)
@@ -43,9 +45,9 @@ def load_DL2_data(input_file, tel_id):
     dl2.sort('event_id')
     dl2 = hstack([dl2, pointing])
     dl2.sort('time')
-    times = np.array(dl2['time'])
-    t_diff = times[1:] - times[:-1] #np.diff(dl2['time'])
-    t_diff = np.insert(t_diff, 0, 0)  # Insert 0 at the beginning to align with the original times array
+    # times = np.array(dl2['time'])
+    t_diff = np.diff(dl2['time'])#.to_value('unix')
+    t_diff = np.insert(t_diff, 0, TimeDelta(0*u.s, format='jd', scale='tai'))  # Insert 0 at the beginning to align with the original times array
     dl2['delta_t'] = t_diff
     print(f"Loaded {len(dl2)} events")
     return dl2
