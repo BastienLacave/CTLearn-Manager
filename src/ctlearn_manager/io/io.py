@@ -33,7 +33,7 @@ def load_true_shower_parameters(input_file):
     return true_shower_parameters
 
 def load_DL2_data(input_file, DL2DataProcessor):
-    tel_id = DL2DataProcessor.tel_id
+    tel_id = DL2DataProcessor.telescope_id
     reco_method = DL2DataProcessor.reconstruction_method
     path = "subarray" if DL2DataProcessor.stereo else "telescope"
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
