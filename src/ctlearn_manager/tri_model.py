@@ -2,7 +2,7 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 from .model_manager import CTLearnModelManager
-from .utils.utils import get_predict_data_sbatch_script, set_mpl_style, write_sbatch_script, ClusterConfiguration
+from .utils.utils import set_mpl_style, ClusterConfiguration
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 
 __all__ = [

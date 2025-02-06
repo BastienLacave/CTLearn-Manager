@@ -72,7 +72,7 @@ class DL2DataProcessor():
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
 
-        
+
 
         if any("LST" in name and "1" in name for name in self_telscope_names):
             print("LST1 is in the telescope names")
@@ -94,6 +94,7 @@ class DL2DataProcessor():
         self.pointings = []
         self.dl2s = []
         self.dl2s_cuts = []
+
         for DL2_file in self.DL2_files:
             if self.dl2_processed_dir is None:
                 dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
