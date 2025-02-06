@@ -72,6 +72,8 @@ class DL2DataProcessor():
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
 
+        
+
         if any("LST" in name and "1" in name for name in self_telscope_names):
             print("LST1 is in the telescope names")
             self.telescope_location = EarthLocation(
@@ -94,35 +96,56 @@ class DL2DataProcessor():
         self.dl2s_cuts = []
         for DL2_file in self.DL2_files:
             if self.dl2_processed_dir is None:
-                output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+                dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+                reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+                pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
             else:
-                output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
 
-            if not os.path.exists(output_file):
+            if not os.path.exists(dl2_output_file):
                 print(f"Loading {DL2_file}")
                 dl2 = load_DL2_data(DL2_file, self)
-                with open(output_file, 'wb') as f:
+                with open(dl2_output_file, 'wb') as f:
                     pickle.dump(dl2, f)
-                print(f"Saved processed DL2 data to {output_file}")
+                print(f"Saved processed DL2 data to {dl2_output_file}")
             else:
-                print(f"Loading processed DL2 data from {output_file}")
-                with open(output_file, 'rb') as f:
+                print(f"Loading processed DL2 data from {dl2_output_file}")
+                with open(dl2_output_file, 'rb') as f:
                     dl2 = pickle.load(f)
-            dl2_cuts = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut]
+            cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+            dl2_cuts = dl2[cut_mask]
             print(f"{len(dl2_cuts)} events after cuts")
-            print("Computing sky positions...")
-            times = dl2_cuts["time"]
-            # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
-            frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-            reco_temp = SkyCoord(alt=dl2_cuts[f"{self.reco_field_suffix}_alt"], az=dl2_cuts[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2_cuts["time"])
-            pointing_temp = SkyCoord(alt=dl2_cuts["altitude"], az=dl2_cuts["azimuth"], frame=frame)#, obstime=dl2_cuts["time"])
-            self.reco_directions.append(reco_temp.transform_to(self.source_position))
-            self.pointings.append(pointing_temp.transform_to(self.source_position))
+
+            if (not os.path.exists(reco_output_file)) and (not os.path.exists(pointing_output_file)): 
+                print("Computing sky positions...")
+                times = dl2["time"]
+                # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
+                frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
+                reco_temp = SkyCoord(alt=dl2[f"{self.reco_field_suffix}_alt"], az=dl2[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
+                pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
+                transformed_reco = reco_temp.transform_to(self.source_position)
+                transformed_pointing = pointing_temp.transform_to(self.source_position)
+                with open(reco_output_file, 'wb') as f:
+                    pickle.dump(transformed_reco, f)
+                with open(pointing_output_file, 'wb') as f:
+                    pickle.dump(transformed_pointing, f)
+
+                print(f"Saved reco directions to {reco_output_file}")
+                print(f"Saved pointings to {pointing_output_file}")
+            else:
+                print(f"Loading reco directions from {reco_output_file}")
+                with open(reco_output_file, 'rb') as f:
+                    transformed_reco = pickle.load(f)
+                print(f"Loading pointings from {pointing_output_file}")
+                with open(pointing_output_file, 'rb') as f:
+                    transformed_pointing = pickle.load(f)
+            
+            self.reco_directions.append(transformed_reco[cut_mask])
+            self.pointings.append(transformed_pointing[cut_mask])
             self.dl2s.append(dl2)
             self.dl2s_cuts.append(dl2_cuts)
-
-            
-
 
     def plot_theta2_distribution(self, bins, n_off=3):
         import matplotlib.pyplot as plt

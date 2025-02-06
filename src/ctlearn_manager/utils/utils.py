@@ -110,6 +110,55 @@ srun {command}
 
 def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
     import h5py
-
     with h5py.File(MODEL_INDEX_FILE, 'a') as f:
         del f[model_nickname]
+
+
+# def write_sbatch_script(cluster_configuration: ClusterConfiguration, job_name, cmd, sbatch_scripts_dir):
+#     sh_script = get_predict_data_sbatch_script(cluster_configuration.cluster, cmd, job_name, sbatch_scripts_dir, cluster_configuration.account, cluster_configuration.env_name)
+#     sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
+#     with open(sbatch_file, "w") as f:
+#         f.write(sh_script)
+
+#     print(f"💾 Testing script saved in {sbatch_file}")
+#     return sbatch_file
+
+
+
+class ClusterConfiguration():
+    def __init__(self, account=None, python_env=None, use_cluster=True):
+        self.use_cluster = use_cluster
+        self.cluster = self.get_cluster()['cluster']
+        self.account = account if account!=None else self.get_cluster()['account']
+        self.python_env = python_env if python_env!=None else "ctlearn-cluster"
+        if self.use_cluster:
+            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
+
+    def get_cluster(self):
+        import socket
+        host_name = socket.gethostname()
+
+        match host_name:
+            case "ui.cta.camk.edu.pl":
+                cluster = 'camk'
+                account = None
+            case "daint.alps.cscs.ch":
+                cluster = 'cscs'
+                account = 'cta04'
+            case "cp02":
+                cluster = 'lst-cluster'
+                account = 'aswg'
+            case _:
+                cluster = None
+                account = None
+        self.use_cluster = cluster!=None
+        return {"cluster": cluster, "account": account}
+
+    def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.env_name)
+        sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
+        with open(sbatch_file, "w") as f:
+            f.write(sh_script)
+
+        print(f"💾 Testing script saved in {sbatch_file}")
+        return sbatch_file

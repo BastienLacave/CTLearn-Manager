@@ -2,7 +2,7 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 from .model_manager import CTLearnModelManager
-from .utils.utils import get_predict_data_sbatch_script, set_mpl_style
+from .utils.utils import get_predict_data_sbatch_script, set_mpl_style, write_sbatch_script, ClusterConfiguration
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 
 __all__ = [
@@ -30,10 +30,8 @@ class CTLearnTriModelManager():
         plot_loss():
             Plots the training and validation loss for each model using matplotlib.
     """
-    
-    
-    
-    def __init__(self, direction_model: CTLearnModelManager, energy_model: CTLearnModelManager, type_model: CTLearnModelManager):
+
+    def __init__(self, direction_model: CTLearnModelManager, energy_model: CTLearnModelManager, type_model: CTLearnModelManager, cluster_configuration=ClusterConfiguration()):
         if direction_model.model_parameters_table['reco'][0] == 'direction':
             self.direction_model = direction_model
         else:
@@ -68,6 +66,7 @@ class CTLearnTriModelManager():
             raise ValueError('All models must have the same telescope_ids')
         self.telescope_ids = self.direction_model.telescope_ids
         self.telescope_names = self.direction_model.telescope_names
+        self.cluster_configuration = cluster_configuration
             
     def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
         if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths) == len(testing_gamma_patterns)):
@@ -95,7 +94,7 @@ class CTLearnTriModelManager():
         for zenith, azimuth in zip(gamma_zeniths, gamma_azimuths):
             print(f"(ZD, Az): ({zenith}, {azimuth})")
         
-    def launch_testing(self, zenith, azimuth, output_dirs: list, sbatch_scripts_dir=None, launch_particle_type='both', cluster=None, account=None, python_env='ctlearn-cluster'):
+    def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', ):
         import os
         import glob
         from astropy.io.misc.hdf5 import read_table_hdf5
@@ -213,25 +212,18 @@ class CTLearnTriModelManager():
 --no-dl1-images --no-true-images --output {output_file} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
-            if cluster is not None:
-                sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, env_name=python_env, account=account)
+            if self.cluster_configuration.use_cluster:
+                # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
+                sbatch_file = self.cluster_configuration.write_sbatch_script(Path(input_file).stem, cmd, config_dir)
                 os.system(f"sbatch {sbatch_file}")  
             else:
                 print(cmd)
                 os.system(cmd)
             
-    def write_sbatch_script(self, cluster, job_name, cmd, sbatch_scripts_dir, env_name, account):
-        sh_script = get_predict_data_sbatch_script(cluster, cmd, job_name, sbatch_scripts_dir, account, env_name)
-        sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
-        with open(sbatch_file, "w") as f:
-            f.write(sh_script)
-
-        print(f"💾 Testing script saved in {sbatch_file}")
-        return sbatch_file
 
     
     
-    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
+    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, config_dir=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
         import os
         import glob
         import ast
@@ -265,7 +257,7 @@ class CTLearnTriModelManager():
         config['LST1PredictionTool']['log_file'] = output_file.replace('.h5', '.log')
         config['LST1PredictionTool']['overwrite'] = overwrite
 
-        config_file = f"{sbatch_scripts_dir}/pred_config_{Path(input_file).stem}.json"
+        config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
@@ -285,8 +277,9 @@ class CTLearnTriModelManager():
 --config '{config_file}' \
 -v"
             
-        if cluster is not None:
-            sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
+        if self.cluster_configuration.use_cluster:
+            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(Path(input_file).stem, cmd, config_dir)
             import os
             os.system(f"sbatch {sbatch_file}")
     
@@ -298,7 +291,7 @@ class CTLearnTriModelManager():
         print("")
         
     
-    def predict_data(self, input_file, output_file, sbatch_scripts_dir=None, cluster=None, account=None, python_env=None, overwrite=False, pointing_table='dl0/monitoring/subarray/pointing'):
+    def predict_data(self, input_file, output_file, config_dir=None, overwrite=False, pointing_table='dl0/monitoring/subarray/pointing'):
         import os
         import glob
         import ast
@@ -329,7 +322,7 @@ class CTLearnTriModelManager():
         config['PredictCTLearnModel']['log_file'] = output_file.replace('.h5', '.log')
         config['PredictCTLearnModel']['overwrite'] = overwrite
     
-        config_file = f"{direction_model_dir}/pred_config_{Path(input_file).stem}.json"
+        config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
@@ -351,18 +344,13 @@ class CTLearnTriModelManager():
 --dl1-features \
 --PredictCTLearnModel.overwrite_tables True -v"
             
-        if cluster is not None:
-            sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
-            original_dir = os.getcwd()
-            os.chdir('/')
+        if self.cluster_configuration.use_cluster:
+            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(Path(input_file).stem, cmd, config_dir)
             os.system(f"sbatch {sbatch_file}")
-            os.chdir(original_dir)
         else:
             print(cmd)
-            original_dir = os.getcwd()
-            os.chdir('/')
             os.system(cmd)
-            os.chdir(original_dir)
             # os.system(cmd)
 
         print("")

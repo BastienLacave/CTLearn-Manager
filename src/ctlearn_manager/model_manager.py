@@ -2,7 +2,7 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 import ast
-from ctlearn_manager.utils.utils import set_mpl_style
+from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration
 
 __all__ = ['CTLearnModelManager']
 
@@ -68,7 +68,7 @@ class CTLearnModelManager():
         get_DL2_MC_files(zenith, azimuth):
             Retrieves the DL2 MC files for the given zenith and azimuth.
     """
-    def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False):
+    def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False, cluster_configuration=ClusterConfiguration()):
         from astropy.io.misc.hdf5 import read_table_hdf5
         self.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters.get('model_nickname', 'new_model')
@@ -93,6 +93,8 @@ class CTLearnModelManager():
         proton_lengths = [len(training_table_proton['training_proton_patterns']), len(training_table_proton['training_proton_zenith_distances']), len(training_table_proton['training_proton_azimuths'])]
         if len(set(proton_lengths)) != 1:
             raise ValueError("All proton related lists must be the same length")
+
+        self.cluster_configuration = cluster_configuration
         
         print(f"🧠 Model name: {self.model_nickname}")
         
@@ -304,9 +306,18 @@ class CTLearnModelManager():
 --config {config_file} \
 --overwrite \
 --verbose"
-        print(cmd)
-        # !{cmd}
-        os.system(cmd)
+
+        if self.cluster_configuration.use_cluster:
+            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(self.model_nickname, cmd, model_dir)
+            os.system(f"sbatch {sbatch_file}")
+        else:
+            print(cmd)
+            os.system(cmd)
+            # os.system(cmd)
+        # print(cmd)
+        # # !{cmd}
+        # os.system(cmd)
         
     def get_n_epoch_trained(self):
         """
