@@ -90,8 +90,8 @@ srun {command}
 #
 #SBATCH --job-name={job_name}
 #SBATCH --account=aswg
-#SBATCH --partition=long
-#SBATCH --time=24:00:00
+#SBATCH --partition=short
+#SBATCH --time=2:00:00
 #SBATCH --nodes=1
 #SBATCH --mem=64000mb
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out

@@ -236,6 +236,7 @@ class CTLearnTriModelManager():
         import glob
         import ast
         import json
+        import yaml
         from .utils.utils import get_avg_pointing
 
 
@@ -251,16 +252,15 @@ class CTLearnTriModelManager():
         # stack_telescope_images = True if self.stereo else False
         config = {}
         config['LST1PredictionTool'] = {}
-        config['LST1PredictionTool']['DLImageReader'] = {}
 
-        config['LST1PredictionTool']['DLImageReader']['allowed_tels'] = allowed_tels
-        config['LST1PredictionTool']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
-        config['LST1PredictionTool']['DLImageReader']['mode'] = stereo_mode
+        # config['LST1PredictionTool']['allowed_tels'] = allowed_tels
+        # config['LST1PredictionTool']['min_telescopes'] = int(len(allowed_tels))
+        # config['LST1PredictionTool']['mode'] = stereo_mode
         # config['LST1PredictionTool']['stack_telescope_images'] = stack_telescope_images # Mono only
-        config['LST1PredictionTool']['DLImageReader']['channels'] = self.channels
+        config['LST1PredictionTool']['channels'] = self.channels
         # config['LST1PredictionTool']['dl1dh_reader_type'] = "DLImageReader"
         if (run is not None) and (subrun is not None):
-            config['LST1PredictionTool']['override_obs_id'] = int(f"{run}{subrun}")
+            config['LST1PredictionTool']['override_obs_id'] = int(f"{run:05d}{subrun:04d}")
         config['LST1PredictionTool']['output_path'] = output_file
         config['LST1PredictionTool']['log_file'] = output_file.replace('.h5', '.log')
         config['LST1PredictionTool']['overwrite'] = overwrite
@@ -283,14 +283,17 @@ class CTLearnTriModelManager():
 --energy_model {energy_model_dir}/ctlearn_model.cpk \
 --direction_model {direction_model_dir}/ctlearn_model.cpk \
 --config '{config_file}' \
---PredictCTLearnModel.overwrite_tables True -v"
+-v"
             
         if cluster is not None:
             sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
+            import os
             os.system(f"sbatch {sbatch_file}")
+    
         else:
             print(cmd)
             os.system(cmd)
+     
 
         print("")
         
@@ -350,10 +353,17 @@ class CTLearnTriModelManager():
             
         if cluster is not None:
             sbatch_file = self.write_sbatch_script(cluster, Path(input_file).stem, cmd, sbatch_scripts_dir, python_env, account)
+            original_dir = os.getcwd()
+            os.chdir('/')
             os.system(f"sbatch {sbatch_file}")
+            os.chdir(original_dir)
         else:
             print(cmd)
+            original_dir = os.getcwd()
+            os.chdir('/')
             os.system(cmd)
+            os.chdir(original_dir)
+            # os.system(cmd)
 
         print("")
     
@@ -745,6 +755,7 @@ class CTLearnTriModelManager():
         from astropy.io import fits
         import matplotlib.pyplot as plt
         from . import resources
+
         import importlib.resources as pkg_resources
 
         # with pkg_resources.path(resources, 'train_ctlearn_config.json') as config_example:
