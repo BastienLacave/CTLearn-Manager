@@ -686,7 +686,7 @@ class CTLearnModelManager():
             raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
         return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
       
-    def plot_zenith_azimuth_ranges(self):
+    def plot_zenith_azimuth_ranges(self, ax=None):
         """
         Plots the area or line or point covered by the zenith and azimuth ranges in a polar projection.
         
@@ -698,7 +698,8 @@ class CTLearnModelManager():
         import matplotlib.pyplot as plt
         import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
-        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+        if ax is None:
+            fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
         
         zenith_range = self.validity.zenith_range
         azimuth_range = self.validity.azimuth_range
@@ -765,7 +766,8 @@ class CTLearnModelManager():
         
         
         ax.set_title('Zenith and Azimuth Ranges')
-        plt.show()
+        if ax is None:
+            plt.show()
         
     def plot_training_nodes(self):
         from astropy.io.misc.hdf5 import read_table_hdf5

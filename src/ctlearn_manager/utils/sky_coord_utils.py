@@ -61,6 +61,7 @@ class DL2DataProcessor():
     """
     
     def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None):
+        
         self.DL2_files = DL2_files
         self.CTLearnTriModelManager = CTLearnTriModelManager
         self.source_position = source_position
@@ -89,7 +90,7 @@ class DL2DataProcessor():
 
     def process_DL2_data(self):
         
-        print(f"Preprocessing DL2 data...")
+        # print(f"Preprocessing DL2 data...")
         self.reco_directions = []
         self.pointings = []
         self.dl2s = []
@@ -108,6 +109,7 @@ class DL2DataProcessor():
             if not os.path.exists(dl2_output_file):
                 print(f"Loading {DL2_file}")
                 dl2 = load_DL2_data(DL2_file, self)
+                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
                 with open(dl2_output_file, 'wb') as f:
                     pickle.dump(dl2, f)
                 print(f"Saved processed DL2 data to {dl2_output_file}")
@@ -115,33 +117,75 @@ class DL2DataProcessor():
                 print(f"Loading processed DL2 data from {dl2_output_file}")
                 with open(dl2_output_file, 'rb') as f:
                     dl2 = pickle.load(f)
+            dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
             cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
             dl2_cuts = dl2[cut_mask]
             print(f"{len(dl2_cuts)} events after cuts")
 
-            if (not os.path.exists(reco_output_file)) and (not os.path.exists(pointing_output_file)): 
+            if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)): 
                 print("Computing sky positions...")
+
+                # ############################
                 times = dl2["time"]
                 # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
+
                 frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
                 reco_temp = SkyCoord(alt=dl2[f"{self.reco_field_suffix}_alt"], az=dl2[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
                 pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
                 transformed_reco = reco_temp.transform_to(self.source_position)
                 transformed_pointing = pointing_temp.transform_to(self.source_position)
+
+                # Convert SkyCoord objects to dictionaries
+                transformed_reco_dict = {'ra': transformed_reco.ra.deg, 'dec': transformed_reco.dec.deg}
+                transformed_pointing_dict = {'ra': transformed_pointing.ra.deg, 'dec': transformed_pointing.dec.deg}
+                # ######################################
+
+                # times = dl2["time"]
+                # times_unix = times.to_value('unix')  # Convert times to Unix timestamps
+                # # frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
+                # alt = dl2[f"{self.reco_field_suffix}_alt"]
+                # az = dl2[f"{self.reco_field_suffix}_az"]
+                # source_position_ra = self.source_position.ra.deg
+                # source_position_dec = self.source_position.dec.deg
+
+                # location_lat = self.telescope_location.lat.deg
+                # location_lon = self.telescope_location.lon.deg
+                # location_height = self.telescope_location.height.value
+
+                # transformed_reco_ra, transformed_reco_dec = transform_coordinates(alt, az, times_unix, location_lat, location_lon, location_height, 100, 20, 0.1, source_position_ra, source_position_dec)
+
+                # transformed_reco_dict = {'ra': transformed_reco_ra, 'dec': transformed_reco_dec}
+
+                # # Repeat for pointing_temp if needed
+                # alt_pointing = dl2["altitude"]
+                # az_pointing = dl2["azimuth"]
+
+                # transformed_pointing_ra, transformed_pointing_dec = transform_coordinates(alt_pointing, az_pointing, times_unix, location_lat, location_lon, location_height, 100, 20, 0.1, source_position_ra, source_position_dec)
+
+                # transformed_pointing_dict = {'ra': transformed_pointing_ra, 'dec': transformed_pointing_dec}
+
+                #######################################
+
+
+
                 with open(reco_output_file, 'wb') as f:
-                    pickle.dump(transformed_reco, f)
+                    pickle.dump(transformed_reco_dict, f)
                 with open(pointing_output_file, 'wb') as f:
-                    pickle.dump(transformed_pointing, f)
+                    pickle.dump(transformed_pointing_dict, f)
 
                 print(f"Saved reco directions to {reco_output_file}")
                 print(f"Saved pointings to {pointing_output_file}")
             else:
                 print(f"Loading reco directions from {reco_output_file}")
                 with open(reco_output_file, 'rb') as f:
-                    transformed_reco = pickle.load(f)
+                    transformed_reco_dict = pickle.load(f)
                 print(f"Loading pointings from {pointing_output_file}")
                 with open(pointing_output_file, 'rb') as f:
-                    transformed_pointing = pickle.load(f)
+                    transformed_pointing_dict = pickle.load(f)
+                
+                # Convert dictionaries back to SkyCoord objects
+                transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=self.source_position)
+                transformed_pointing = SkyCoord(ra=transformed_pointing_dict['ra']*u.deg, dec=transformed_pointing_dict['dec']*u.deg, frame=self.source_position)
             
             self.reco_directions.append(transformed_reco[cut_mask])
             self.pointings.append(transformed_pointing[cut_mask])
@@ -198,7 +242,7 @@ class DL2DataProcessor():
                                             np.float64(off_count_tot), 
                                             alpha=1/n_off)
         fig, ax = plt.subplots()
-        label = "$t_{eff}$ = "+f"{t_eff.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot} "+"\n$N_{off}$ = "+f"{(off_count_tot/n_off):.2f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.2f}"+" \n$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
+        label = "$t_{eff}$ = "+f"{t_eff.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot} "+"\n$\overline{N}_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}"+" \n$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
         props = dict(boxstyle='round', facecolor='none', alpha=0.95, edgecolor='k')
         txt = plt.text(0.12, 0.96, label, transform=ax.transAxes, fontsize=14,
                     verticalalignment='top', bbox=props, color="k")
@@ -246,7 +290,7 @@ class DL2DataProcessor():
     def compute_eff_time(self, events): 
         timestamp = np.array(events["time"].to_value('unix'))
         delta_t = np.array(events["delta_t"])
-        delta_t = [dt.to_value('sec') for dt in delta_t]
+        # delta_t = [dt.to_value('sec') for dt in delta_t]
 
         if not isinstance(timestamp, u.Quantity):
             timestamp *= u.s

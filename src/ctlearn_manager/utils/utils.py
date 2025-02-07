@@ -1,5 +1,10 @@
 import numpy as np
 import glob
+# from numba import njit
+# from astropy.coordinates import SkyCoord, AltAz
+# import astropy.units as u
+# from astropy.time import Time
+# from astropy.coordinates import EarthLocation
 
 
 def set_mpl_style():
@@ -123,6 +128,18 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
 #     print(f"💾 Testing script saved in {sbatch_file}")
 #     return sbatch_file
 
+# @njit
+# def transform_coordinates(alt, az, obstime_unix, location_lat, location_lon, location_height, pressure, temperature, relative_humidity, source_position_ra, source_position_dec):
+#     n = len(alt)
+#     transformed_ra = np.empty(n, dtype=np.float64)
+#     transformed_dec = np.empty(n, dtype=np.float64)
+#     for i in range(n):
+#         frame = AltAz(obstime=Time(obstime_unix[i], format='unix'), location=EarthLocation(lat=location_lat, lon=location_lon, height=location_height), pressure=pressure, temperature=temperature, relative_humidity=relative_humidity)
+#         reco_temp = SkyCoord(alt=alt[i]*u.deg, az=az[i]*u.deg, frame=frame)
+#         transformed_reco = reco_temp.transform_to(SkyCoord(ra=source_position_ra*u.deg, dec=source_position_dec*u.deg, frame='icrs'))
+#         transformed_ra[i] = transformed_reco.ra.deg
+#         transformed_dec[i] = transformed_reco.dec.deg
+#     return transformed_ra, transformed_dec
 
 
 class ClusterConfiguration():

@@ -532,17 +532,17 @@ class CTLearnTriModelManager():
             try:
                 output_cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
             except:
-                raise ValueError("A cuts file must be provided, at least the first time.")
+                raise ValueError("An output cuts file must be provided, at least the first time.")
         if output_irf_file is None:
             try:
                 output_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
             except:
-                raise ValueError("An IRF file must be provided, at least the first time.")
+                raise ValueError("An output IRF file must be provided, at least the first time.")
         if output_benchmark_file is None:
             try:
                 output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
             except:
-                raise ValueError("A benchmark file must be provided, at least the first time.")
+                raise ValueError("An output benchmark file must be provided, at least the first time.")
         
         self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
         self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)

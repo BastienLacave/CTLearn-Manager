@@ -3,6 +3,7 @@ from astropy.table import QTable
 import numpy as np
 import astropy.units as u
 from astropy.time import TimeDelta
+from numba import njit
 
 def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
     # models_table = QTable.read(MODEL_INDEX_FILE)
@@ -32,6 +33,16 @@ def load_true_shower_parameters(input_file):
     true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
     return true_shower_parameters
 
+
+@njit
+def compute_diff(arr):
+    n = len(arr)
+    diff = np.empty(n, dtype=arr.dtype)
+    diff[0] = 0  # Assuming the first difference is 0
+    for i in range(1, n):
+        diff[i] = arr[i] - arr[i - 1]
+    return diff
+
 def load_DL2_data(input_file, DL2DataProcessor):
     tel_id = DL2DataProcessor.telescope_id
     reco_method = DL2DataProcessor.reconstruction_method
@@ -50,8 +61,10 @@ def load_DL2_data(input_file, DL2DataProcessor):
     dl2 = hstack([dl2, pointing])
     dl2.sort('time')
     # times = np.array(dl2['time'])
-    t_diff = np.diff(dl2['time'])#.to_value('unix')
-    t_diff = np.insert(t_diff, 0, TimeDelta(0*u.s, format='jd', scale='tai'))  # Insert 0 at the beginning to align with the original times array
+    print("Computing time differences...")
+    # t_diff = np.diff(dl2['time'])#.to_value('unix')
+    # t_diff = np.insert(t_diff, 0, TimeDelta(0*u.s, format='jd', scale='tai'))  # Insert 0 at the beginning to align with the original times array
+    t_diff = compute_diff(dl2['time'].to_value('unix'))
     dl2['delta_t'] = t_diff
     print(f"Loaded {len(dl2)} events")
     return dl2

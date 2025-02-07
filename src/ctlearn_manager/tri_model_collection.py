@@ -41,3 +41,13 @@ class TriModelCollection():
         print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
         print(f"｜🧠 Using models {closest_model.direction_model.model_nickname}, {closest_model.energy_model.model_nickname} and {closest_model.type_model.model_nickname}")
         return closest_model
+
+
+    def plot_zenith_azimuth_ranges(self):
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+
+        for tri_model in self.tri_models:
+            tri_model.direction_model.plot_zenith_azimuth_ranges(ax)
+        plt.show()
