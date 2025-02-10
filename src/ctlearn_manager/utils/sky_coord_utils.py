@@ -306,8 +306,8 @@ class DL2DataProcessor():
     def compute_eff_time(self, events): 
         timestamp = np.array(events["time"].to_value('unix'))
 
-        # delta_t = np.array(events["delta_t"])
-        delta_t = np.diff(timestamp)
+        delta_t = np.array(events["delta_t"])
+        # delta_t = np.diff(timestamp)
         # delta_t = [dt.to_value('sec') for dt in delta_t]
 
         if not isinstance(timestamp, u.Quantity):
@@ -431,14 +431,16 @@ class DL2DataProcessor():
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
-        E_bins = np.logspace(-1, 2, 10) * u.TeV
+        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
         off_count = np.zeros(len(E_bins) - 1)
+        t_eff = 0 * u.h
+        t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
         for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
 
-            for E_min, E_max in zip(E_bins[:-1], E_bins[1:]):
+            for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 (
                     on_count_temp,
                     off_count_temp, 
@@ -457,8 +459,11 @@ class DL2DataProcessor():
                     I_min=None, 
                     I_max=None
                 )
-                on_count += on_count_temp
-                off_count += off_count_temp
+                on_count[i] += on_count_temp
+                off_count[i] += off_count_temp
+            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            t_eff += t_eff_temp
+            t_elapsed += t_elapsed_temp
             # on_count_RF += df['on_count_RF'].to_numpy()
             # off_count_RF += df['off_count_RF'].to_numpy()
         
@@ -473,17 +478,17 @@ class DL2DataProcessor():
                             # ignore the corresponding cut combination.
 
         backg_syst = 0.01
-        t_eff = 3.6268910929350775 * u.h
+        t_eff = 0.33 * u.h
         obs_time = 50. * u.h 
 
-        flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff)  
+        flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
         flux_minus, lima_signi_minus = calc_flux_for_N_sigma(5, nexcess + backg_syst * off_count + (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
         flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
 
 
         # Create a figure with subplots
         fig = plt.figure(figsize=(10, 8))
-        gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
+        # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
         mask = np.where(flux_factor >=0)
 
 
@@ -491,21 +496,21 @@ class DL2DataProcessor():
 
         # Create figure and GridSpec layout
         fig = plt.figure(figsize=(10, 8))
-        gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0)  # Adjust hspace to remove space between plots
+        # gs = GridSpec(1, 1, height_ratios=[1], hspace=0)  # Adjust hspace to remove space between plots
 
         # Top subplot
-        ax1 = fig.add_subplot(gs[0])
-        ax1.plot(E[mask], flux_factor[mask] * 100, marker='o', label=r"CTLearn", zorder=10, ls='--')
-        ax1.fill_between(E[mask], flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
-        ax1.set_xscale("log")
-        ax1.set_yscale("log")
-        ax1.set_xlabel("Reco Energy [TeV]")
-        ax1.set_ylabel("Differential sensitivity [% C.U.]")
-        ax1.set_xlim(0.03, 2)
-        ax1.set_ylim(2, 60)
-        ax1.set_yticks([2, 5, 10, 20, 50])
-        ax1.set_yticklabels(['2', '5', '10', '20', '50'])
-        ax1.set_title('LST-1 | Crab Nebula | 5$\sigma$ in 50h')
+        # ax1 = fig.add_subplot(gs[0])
+        plt.plot(E[mask], flux_factor[mask] * 100, marker='o', label=r"CTLearn", zorder=10, ls='--')
+        plt.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.xlabel("Reco Energy [TeV]")
+        plt.ylabel("Differential sensitivity [% C.U.]")
+        plt.xlim(0.03, 2)
+        plt.ylim(2, 60)
+        plt.yticks([2, 5, 10, 20, 50])
+        plt.gca().set_yticklabels(['2', '5', '10', '20', '50'])
+        plt.title('LST-1 | Crab Nebula | 5$\sigma$ in 50h')
 
         # LST_perf_data = np.loadtxt('/home/bastien.lacave/PhD/Analysis/Method_Comparison/sensitivity_src_indep_without_5percentbg.txt')
         # energy_med = LST_perf_data[:,0] 
@@ -514,7 +519,7 @@ class DL2DataProcessor():
         # sensitivity_error_up = LST_perf_data[:,5]
         # energy_init = 0.03
         # energy_cut = 15
-        ax1.legend()
+        plt.legend()
 
         plt.tight_layout()
         plt.show()
