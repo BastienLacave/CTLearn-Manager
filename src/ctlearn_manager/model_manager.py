@@ -672,6 +672,14 @@ class CTLearnModelManager():
             raise IndexError(f"No IRF data found for altitude {zenith} and azimuth {azimuth}")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
+    def get_closest_IRF_data(self, zenith, azimuth):
+        
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        
+        IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
+        match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
+        return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]
+
     def get_DL2_MC_files(self, zenith, azimuth):
     
         from astropy.io.misc.hdf5 import read_table_hdf5

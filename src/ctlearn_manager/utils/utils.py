@@ -197,3 +197,56 @@ class ClusterConfiguration():
 
         print(f"💾 Testing script saved in {sbatch_file}")
         return sbatch_file
+
+def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off, 
+                          min_signi, min_exc, min_off_events, alpha,
+                          target_obs_time, actual_obs_time, cond=True):
+    import astropy.units as u
+    from pyirf.statistics import li_ma_significance
+
+    time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
+
+    start_flux = 1
+    flux_factor = start_flux * np.ones_like(cumul_excess)
+
+    good_bin_mask = ((cumul_excess > min_exc*cumul_off) &
+                    (cumul_off > min_off_events) &
+                    (cumul_excess > 10))
+    # print(good_bin_mask)
+
+    if cond:
+        flux_factor = np.where(good_bin_mask, flux_factor, np.nan)
+    
+    # First calculate significance (with 1 off) of the excesses in the provided sample, with no scaling.
+    # We will only use the cut combinations where we have at least min_signi sigmas to begin with...
+    # NOTE!!! float64 precision is essential for the arguments of li_ma_significance!
+
+    lima_signi = li_ma_significance((flux_factor*cumul_excess + cumul_off).astype('float64'), 
+                                    cumul_off.astype('float64'), 
+                                    alpha=1)
+            
+    # Set nan in bins where we do not reach min_signi:
+    if cond:
+        flux_factor = np.where(lima_signi > min_signi, flux_factor, np.nan)
+
+    
+    # Now calculate the significance for the target observation time_
+    lima_signi = li_ma_significance((time_factor*(flux_factor*cumul_excess +
+                                                cumul_off)).astype('float64'), 
+                                    (time_factor*cumul_off/alpha).astype('float64'), 
+                                    alpha=alpha)
+
+    
+    # iterate to obtain the flux which gives exactly N_sigma:
+    for iter in range(10):
+        # print(iter)
+        tolerance_mask = np.abs(lima_signi-N_sigma)>0.001 # recalculate only what is needed
+        flux_factor[tolerance_mask] *= (N_sigma / lima_signi[tolerance_mask])
+        # NOTE!!! float64 precision is essential here!!!!
+        lima_signi[tolerance_mask] = li_ma_significance((time_factor*(flux_factor[tolerance_mask]*
+                                                                    cumul_excess[tolerance_mask]+
+                                                                    cumul_off[tolerance_mask])).astype('float64'), 
+                                                        (time_factor*cumul_off[tolerance_mask]/alpha).astype('float64'), 
+                                                        alpha=alpha)
+    # print(lima_signi)
+    return flux_factor, lima_signi

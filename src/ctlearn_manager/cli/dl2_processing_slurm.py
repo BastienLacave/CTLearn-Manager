@@ -77,6 +77,4 @@ def process_dl2_file():
 
 
 if __name__ == "__main__":
-    
-
     process_dl2_file()

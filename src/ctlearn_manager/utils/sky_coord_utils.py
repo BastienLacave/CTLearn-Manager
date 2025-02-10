@@ -1,6 +1,6 @@
 from ..tri_model import CTLearnTriModelManager
 from ..io.io import load_DL2_data
-from ..utils.utils import set_mpl_style
+from ..utils.utils import set_mpl_style, get_avg_pointing, calc_flux_for_N_sigma
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, concatenate
 import astropy.units as u
@@ -61,7 +61,7 @@ class DL2DataProcessor():
         Computes the on-source and off-source counts, as well as the Li & Ma significance.
     """
     
-    def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None):
+    def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None, pointing_table='dl1/monitoring/telescope/pointing'):
         
         self.DL2_files = DL2_files
         self.CTLearnTriModelManager = CTLearnTriModelManager
@@ -70,9 +70,11 @@ class DL2DataProcessor():
         self_telscope_names = CTLearnTriModelManager.telescope_names
         self.stereo = CTLearnTriModelManager.stereo
         self.gammaness_cut = gammaness_cut
+        self.pointing_table = pointing_table
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
+        # self.irfs = CTLearnTriModelManager.irfs
 
 
 
@@ -87,6 +89,7 @@ class DL2DataProcessor():
         
         self.process_DL2_data()
         self.load_processed_data()
+        set_mpl_style()
 
         
 
@@ -179,10 +182,7 @@ class DL2DataProcessor():
 
                 with open(dl2_output_file, 'rb') as f:
                         dl2 = pickle.load(f)
-                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-                cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
-                dl2_cuts = dl2[cut_mask]
-                print(f"{len(dl2_cuts)} events after cuts")
+                
 
                 print(f"Loading reco directions from {reco_output_file}")
                 with open(reco_output_file, 'rb') as f:
@@ -190,6 +190,14 @@ class DL2DataProcessor():
                 print(f"Loading pointings from {pointing_output_file}")
                 with open(pointing_output_file, 'rb') as f:
                     transformed_pointing_dict = pickle.load(f)
+
+                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+                # avg_data_ze, avg_data_az = get_avg_pointing(DL2_file, pointing_table=f"{self.pointing_table}/tel_{self.telescope_id:03d}")
+                # cuts_file = self.CTLearnTriModelManager.direction_model.get_closest_IRF_data(avg_data_ze, avg_data_az)[1]
+                # TODO use energy dependent cuts
+                cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+                dl2_cuts = dl2[cut_mask]
+                print(f"{len(dl2_cuts)} events after cuts")
                 
                 # Convert dictionaries back to SkyCoord objects
                 transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=self.source_position)
@@ -202,9 +210,9 @@ class DL2DataProcessor():
 
     def plot_theta2_distribution(self, bins, n_off=3):
         import matplotlib.pyplot as plt
-        set_mpl_style()
-        on_count_tot = 0 #np.zeros(len(gammaness_cuts_CTL))
-        off_count_tot = 0 #np.zeros(len(gammaness_cuts_CTL))
+        
+        on_count_tot = 0 #np.zeros(len(gammaness_cuts))
+        off_count_tot = 0 #np.zeros(len(gammaness_cuts))
         angle2_bins = np.linspace(0, 0.4, bins)
         angle2_center = (angle2_bins[:-1] + angle2_bins[1:])/2
         h_on = np.zeros(bins-1)
@@ -415,3 +423,99 @@ class DL2DataProcessor():
 
         plt.legend()
         plt.show()
+
+    
+
+
+    def plot_sensitivity(self, n_off=3):
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        E_bins = np.logspace(-1, 2, 10) * u.TeV
+        on_count = np.zeros(len(E_bins) - 1)
+        off_count = np.zeros(len(E_bins) - 1)
+        # on_count_RF = np.zeros(len(gammaness_cuts_RF))
+        # off_count_RF = np.zeros(len(gammaness_cuts_RF))
+        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+
+            for E_min, E_max in zip(E_bins[:-1], E_bins[1:]):
+                (
+                    on_count_temp,
+                    off_count_temp, 
+                    on_separation_temp, 
+                    all_off_separation_temp, 
+                    significance_lima_temp
+                    ) = self.compute_on_off_counts( 
+                    dl2, 
+                    reco_direction, 
+                    pointing_direction, 
+                    n_off=n_off, 
+                    theta2_cut=0.04*u.deg**2, 
+                    gcut=self.gammaness_cut, 
+                    E_min=E_min, 
+                    E_max=E_max, 
+                    I_min=None, 
+                    I_max=None
+                )
+                on_count += on_count_temp
+                off_count += off_count_temp
+            # on_count_RF += df['on_count_RF'].to_numpy()
+            # off_count_RF += df['off_count_RF'].to_numpy()
+        
+        nexcess = on_count-off_count
+
+        min_signi = 3   # below this value (significance of the test source, Crab, for the *actual* observation 
+                # time of the sample and obtained with 1 off region) we ignore the corresponding cut 
+                # combination
+
+        min_exc = 0.002 # in fraction of off. Below this we ignore the corresponding cut combination. 
+        min_off_events = 10 # minimum number of off events in the actual observation used. Below this we 
+                            # ignore the corresponding cut combination.
+
+        backg_syst = 0.01
+        t_eff = 3.6268910929350775 * u.h
+        obs_time = 50. * u.h 
+
+        flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff)  
+        flux_minus, lima_signi_minus = calc_flux_for_N_sigma(5, nexcess + backg_syst * off_count + (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
+        flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
+
+
+        # Create a figure with subplots
+        fig = plt.figure(figsize=(10, 8))
+        gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
+        mask = np.where(flux_factor >=0)
+
+
+        E = (E_bins[:-1] + E_bins[1:])/2
+
+        # Create figure and GridSpec layout
+        fig = plt.figure(figsize=(10, 8))
+        gs = GridSpec(2, 1, height_ratios=[3, 1], hspace=0)  # Adjust hspace to remove space between plots
+
+        # Top subplot
+        ax1 = fig.add_subplot(gs[0])
+        ax1.plot(E[mask], flux_factor[mask] * 100, marker='o', label=r"CTLearn", zorder=10, ls='--')
+        ax1.fill_between(E[mask], flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
+        ax1.set_xscale("log")
+        ax1.set_yscale("log")
+        ax1.set_xlabel("Reco Energy [TeV]")
+        ax1.set_ylabel("Differential sensitivity [% C.U.]")
+        ax1.set_xlim(0.03, 2)
+        ax1.set_ylim(2, 60)
+        ax1.set_yticks([2, 5, 10, 20, 50])
+        ax1.set_yticklabels(['2', '5', '10', '20', '50'])
+        ax1.set_title('LST-1 | Crab Nebula | 5$\sigma$ in 50h')
+
+        # LST_perf_data = np.loadtxt('/home/bastien.lacave/PhD/Analysis/Method_Comparison/sensitivity_src_indep_without_5percentbg.txt')
+        # energy_med = LST_perf_data[:,0] 
+        # sensitivity = LST_perf_data[:,1]
+        # sensitivity_error_down = LST_perf_data[:,4]
+        # sensitivity_error_up = LST_perf_data[:,5]
+        # energy_init = 0.03
+        # energy_cut = 15
+        ax1.legend()
+
+        plt.tight_layout()
+        plt.show()
+        
