@@ -1,6 +1,6 @@
 from ..tri_model import CTLearnTriModelManager
 from ..io.io import load_DL2_data
-from ..utils.utils import set_mpl_style, get_avg_pointing, calc_flux_for_N_sigma
+from ..utils.utils import set_mpl_style, get_avg_pointing, calc_flux_for_N_sigma, find_68_percent_range
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, concatenate
 import astropy.units as u
@@ -275,8 +275,8 @@ class DL2DataProcessor():
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color='black', linestyle='--')
         plt.text(0.1, 0.8, '0.2° radius', color='black', fontsize=14, rotation=90, transform=ax.transAxes, ha='right', va='center')
-        # plt.text(0.045, on_count_CTL[np.where(angle2_center < 0.04)[0][-1]], 'on source', color=colors[0], fontsize=14, ha='left', va='bottom')
-        # plt.text(0.045, off_count_CTL[np.where(angle2_center < 0.04)[0][-1]]/3 - 100, 'off source', color=colors[1], fontsize=14, ha='left', va='top')
+        # plt.text(0.045, on_count[np.where(angle2_center < 0.04)[0][-1]], 'on source', color=colors[0], fontsize=14, ha='left', va='bottom')
+        # plt.text(0.045, off_count[np.where(angle2_center < 0.04)[0][-1]]/3 - 100, 'off source', color=colors[1], fontsize=14, ha='left', va='top')
         plt.legend()
         plt.xlabel(r'Separation [deg$^2$]')
         plt.ylabel('Counts')
@@ -487,7 +487,7 @@ class DL2DataProcessor():
 
 
         # Create a figure with subplots
-        fig = plt.figure(figsize=(10, 8))
+        # fig = plt.figure(figsize=(10, 8))
         # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
         mask = np.where(flux_factor >=0)
 
@@ -495,7 +495,7 @@ class DL2DataProcessor():
         E = (E_bins[:-1] + E_bins[1:])/2
 
         # Create figure and GridSpec layout
-        fig = plt.figure(figsize=(10, 8))
+        # fig = plt.figure(figsize=(10, 8))
         # gs = GridSpec(1, 1, height_ratios=[1], hspace=0)  # Adjust hspace to remove space between plots
 
         # Top subplot
@@ -505,22 +505,97 @@ class DL2DataProcessor():
         plt.xscale("log")
         plt.yscale("log")
         plt.xlabel("Reco Energy [TeV]")
-        plt.ylabel("Differential sensitivity [% C.U.]")
+        plt.ylabel("Differential sensitivity [% Obs. Flux.]")
         plt.xlim(0.03, 2)
         plt.ylim(2, 60)
         plt.yticks([2, 5, 10, 20, 50])
         plt.gca().set_yticklabels(['2', '5', '10', '20', '50'])
         plt.title('LST-1 | Crab Nebula | 5$\sigma$ in 50h')
-
-        # LST_perf_data = np.loadtxt('/home/bastien.lacave/PhD/Analysis/Method_Comparison/sensitivity_src_indep_without_5percentbg.txt')
-        # energy_med = LST_perf_data[:,0] 
-        # sensitivity = LST_perf_data[:,1]
-        # sensitivity_error_down = LST_perf_data[:,4]
-        # sensitivity_error_up = LST_perf_data[:,5]
-        # energy_init = 0.03
-        # energy_cut = 15
         plt.legend()
-
         plt.tight_layout()
         plt.show()
+
+    def plot_PSF(self, n_off=3):
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        on_count = np.zeros(len(E_bins) - 1)
+        off_count = np.zeros(len(E_bins) - 1)
+        t_eff = 0 * u.h
+        t_elapsed = 0 * u.h
+        angle_bins = np.linspace(0, 0.4, 25)
+        h_on = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
+        h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
+        # on_count_RF = np.zeros(len(gammaness_cuts_RF))
+        # off_count_RF = np.zeros(len(gammaness_cuts_RF))
+        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+
+            for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                (
+                    on_count_temp,
+                    off_count_temp, 
+                    on_separation_temp, 
+                    all_off_separation_temp, 
+                    significance_lima_temp
+                    ) = self.compute_on_off_counts( 
+                    dl2, 
+                    reco_direction, 
+                    pointing_direction, 
+                    n_off=n_off, 
+                    theta2_cut=0.04*u.deg**2, 
+                    gcut=self.gammaness_cut, 
+                    E_min=E_min, 
+                    E_max=E_max, 
+                    I_min=None, 
+                    I_max=None
+                )
+                on_count[i] += on_count_temp
+                off_count[i] += off_count_temp
+                h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value**2, bins=angle_bins)
+                h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value**2, bins=angle_bins)
+                h_on[i] += h_on_temp
+                h_off[i] += h_off_temp / n_off # To plot the average off source counts
+            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            t_eff += t_eff_temp
+            t_elapsed += t_elapsed_temp
+
+        nexcess = h_on-h_off
+
+        psf = np.zeros(len(E_bins)-1)
+        psf_min = np.zeros(len(E_bins)-1)
+        psf_max = np.zeros(len(E_bins)-1)
+
+        # bkg_condition = [False,  False,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False]
+        # bkg_condition_RF = [False,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True , True, False, False, False, False, False]
+        for i, E_min, E_max in zip(range(len(E_bins)-1), E_bins[:-1], E_bins[1:]):
+            # print(nexcess[i])
+            # print(angle_bins)
+            # print( find_68_percent_range(nexcess[i], angle_bins))
+            psf[i] = find_68_percent_range(nexcess[i], angle_bins)**0.5
+            psf_max[i] = find_68_percent_range(nexcess[i] + 0.01*h_off[i] + np.sqrt(nexcess[i] + 2*h_off[i]), angle_bins)**0.5
+            psf_min[i] = find_68_percent_range(nexcess[i] - 0.01*h_off[i] - np.sqrt(nexcess[i] + 2*h_off[i]), angle_bins)**0.5
+
+        E = (E_bins[:-1] + E_bins[1:])/2
+
+        plt.plot(E.value, psf, marker='o', label=r"CTLearn", zorder=10, ls='--')
+        plt.fill_between(E.value, 
+                        psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
+                        psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
+                        alpha=0.3, zorder=0,)
+        plt.legend()
+        plt.ylabel('68% cont. [deg]')
+        plt.xlabel('Energy [TeV]')
+        plt.xscale('log')
+        # plt.yscale('log')
+        plt.legend()
+        plt.xlim(0.03, 2)
+        # plt.ylim(bottom=0.1, top=0.5)
+        plt.title('Point Spread Function')
+
+        plt.show()
+
+
+
+
         

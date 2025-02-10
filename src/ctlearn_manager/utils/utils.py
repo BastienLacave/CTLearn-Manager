@@ -250,3 +250,27 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
                                                         alpha=alpha)
     # print(lima_signi)
     return flux_factor, lima_signi
+
+def find_68_percent_range(bin_heights, bin_edges, a=0.68):
+    # data = np.random.exponential(scale=0.1, size=1000)  # Example positive-only data
+
+    # Create the histogram
+    # bin_heights, bin_edges = np.histogram(data, bins=30, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_widths = np.diff(bin_edges)
+    bin_heights = bin_heights / np.sum(bin_heights)
+
+    bin_heights[bin_heights < 0] = 0  # Remove any negative values
+
+    # Calculate the cumulative distribution function (CDF)
+    cdf = []
+    for i in range(len(bin_heights)):
+        cdf.append(np.sum(bin_heights[:i]))
+    # cdf = np.cumsum(bin_heights, axis=0)
+    # print(cdf)
+    # plt.plot(bin_centers, cdf/np.sum(bin_heights))
+    # plt.show()
+
+    # Find the value corresponding to 68% of the CDF
+    upper_bound = np.interp(a, cdf/np.sum(bin_heights), bin_centers)
+    return upper_bound
