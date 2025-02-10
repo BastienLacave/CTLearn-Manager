@@ -9,6 +9,7 @@ from pyirf.statistics import li_ma_significance
 from astropy.coordinates import Angle
 import pickle
 import os
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 class DL2DataProcessor():
@@ -76,7 +77,7 @@ class DL2DataProcessor():
 
 
         if any("LST" in name and "1" in name for name in self_telscope_names):
-            print("LST1 is in the telescope names")
+            # print("LST1 is in the telescope names")
             self.telescope_location = EarthLocation(
             lon=-17.89149701 * u.deg,
             lat=28.76152611 * u.deg,
@@ -85,12 +86,80 @@ class DL2DataProcessor():
             )
         
         self.process_DL2_data()
+        self.load_processed_data()
 
         
 
     def process_DL2_data(self):
         
         # print(f"Preprocessing DL2 data...")
+        
+
+        for DL2_file in self.DL2_files:
+            if self.dl2_processed_dir is None:
+                dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+                reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+                pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+            else:
+                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+
+
+            if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)):
+                if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
+                    processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
+                    with open(processor_file, 'wb') as f:
+                        pickle.dump(self, f)
+                    self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
+                    os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
+                else:
+                    print(f"[NOT USING SLURM] Processing {DL2_file}")
+
+                    processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
+                    with open(processor_file, 'wb') as f:
+                        pickle.dump(self, f)
+                    # self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
+                    # os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
+                    os.system(f"process_dl2_file {DL2_file} {processor_file}")
+
+
+
+                    # dl2 = load_DL2_data(DL2_file, self)
+                    # dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+                    # with open(dl2_output_file, 'wb') as f:
+                    #     pickle.dump(dl2, f)
+                    # print(f"Saved processed DL2 data to {dl2_output_file}")
+
+                    # dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+                    # cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+                    # dl2_cuts = dl2[cut_mask]
+                    # print(f"{len(dl2_cuts)} events after cuts")
+
+                    # print("Computing sky positions...")
+                    # times = dl2["time"]
+                    # # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
+
+                    # frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
+                    # reco_temp = SkyCoord(alt=dl2[f"{self.reco_field_suffix}_alt"], az=dl2[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
+                    # pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
+                    # transformed_reco = reco_temp.transform_to(self.source_position)
+                    # transformed_pointing = pointing_temp.transform_to(self.source_position)
+
+                    # # Convert SkyCoord objects to dictionaries
+                    # transformed_reco_dict = {'ra': transformed_reco.ra.deg, 'dec': transformed_reco.dec.deg}
+                    # transformed_pointing_dict = {'ra': transformed_pointing.ra.deg, 'dec': transformed_pointing.dec.deg}
+
+                    # with open(reco_output_file, 'wb') as f:
+                    #     pickle.dump(transformed_reco_dict, f)
+                    # with open(pointing_output_file, 'wb') as f:
+                    #     pickle.dump(transformed_pointing_dict, f)
+
+                    # print(f"Saved reco directions to {reco_output_file}")
+                    # print(f"Saved pointings to {pointing_output_file}")
+
+    
+    def load_processed_data(self):
         self.reco_directions = []
         self.pointings = []
         self.dl2s = []
@@ -106,76 +175,15 @@ class DL2DataProcessor():
                 reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
                 pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
 
-            if not os.path.exists(dl2_output_file):
-                print(f"Loading {DL2_file}")
-                dl2 = load_DL2_data(DL2_file, self)
-                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-                with open(dl2_output_file, 'wb') as f:
-                    pickle.dump(dl2, f)
-                print(f"Saved processed DL2 data to {dl2_output_file}")
-            else:
-                print(f"Loading processed DL2 data from {dl2_output_file}")
+            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
+
                 with open(dl2_output_file, 'rb') as f:
-                    dl2 = pickle.load(f)
-            dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-            cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
-            dl2_cuts = dl2[cut_mask]
-            print(f"{len(dl2_cuts)} events after cuts")
+                        dl2 = pickle.load(f)
+                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+                cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+                dl2_cuts = dl2[cut_mask]
+                print(f"{len(dl2_cuts)} events after cuts")
 
-            if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)): 
-                print("Computing sky positions...")
-
-                # ############################
-                times = dl2["time"]
-                # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
-
-                frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-                reco_temp = SkyCoord(alt=dl2[f"{self.reco_field_suffix}_alt"], az=dl2[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
-                pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
-                transformed_reco = reco_temp.transform_to(self.source_position)
-                transformed_pointing = pointing_temp.transform_to(self.source_position)
-
-                # Convert SkyCoord objects to dictionaries
-                transformed_reco_dict = {'ra': transformed_reco.ra.deg, 'dec': transformed_reco.dec.deg}
-                transformed_pointing_dict = {'ra': transformed_pointing.ra.deg, 'dec': transformed_pointing.dec.deg}
-                # ######################################
-
-                # times = dl2["time"]
-                # times_unix = times.to_value('unix')  # Convert times to Unix timestamps
-                # # frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-                # alt = dl2[f"{self.reco_field_suffix}_alt"]
-                # az = dl2[f"{self.reco_field_suffix}_az"]
-                # source_position_ra = self.source_position.ra.deg
-                # source_position_dec = self.source_position.dec.deg
-
-                # location_lat = self.telescope_location.lat.deg
-                # location_lon = self.telescope_location.lon.deg
-                # location_height = self.telescope_location.height.value
-
-                # transformed_reco_ra, transformed_reco_dec = transform_coordinates(alt, az, times_unix, location_lat, location_lon, location_height, 100, 20, 0.1, source_position_ra, source_position_dec)
-
-                # transformed_reco_dict = {'ra': transformed_reco_ra, 'dec': transformed_reco_dec}
-
-                # # Repeat for pointing_temp if needed
-                # alt_pointing = dl2["altitude"]
-                # az_pointing = dl2["azimuth"]
-
-                # transformed_pointing_ra, transformed_pointing_dec = transform_coordinates(alt_pointing, az_pointing, times_unix, location_lat, location_lon, location_height, 100, 20, 0.1, source_position_ra, source_position_dec)
-
-                # transformed_pointing_dict = {'ra': transformed_pointing_ra, 'dec': transformed_pointing_dec}
-
-                #######################################
-
-
-
-                with open(reco_output_file, 'wb') as f:
-                    pickle.dump(transformed_reco_dict, f)
-                with open(pointing_output_file, 'wb') as f:
-                    pickle.dump(transformed_pointing_dict, f)
-
-                print(f"Saved reco directions to {reco_output_file}")
-                print(f"Saved pointings to {pointing_output_file}")
-            else:
                 print(f"Loading reco directions from {reco_output_file}")
                 with open(reco_output_file, 'rb') as f:
                     transformed_reco_dict = pickle.load(f)
@@ -186,11 +194,11 @@ class DL2DataProcessor():
                 # Convert dictionaries back to SkyCoord objects
                 transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=self.source_position)
                 transformed_pointing = SkyCoord(ra=transformed_pointing_dict['ra']*u.deg, dec=transformed_pointing_dict['dec']*u.deg, frame=self.source_position)
-            
-            self.reco_directions.append(transformed_reco[cut_mask])
-            self.pointings.append(transformed_pointing[cut_mask])
-            self.dl2s.append(dl2)
-            self.dl2s_cuts.append(dl2_cuts)
+        
+                self.reco_directions.append(transformed_reco[cut_mask])
+                self.pointings.append(transformed_pointing[cut_mask])
+                self.dl2s.append(dl2)
+                self.dl2s_cuts.append(dl2_cuts)
 
     def plot_theta2_distribution(self, bins, n_off=3):
         import matplotlib.pyplot as plt
@@ -289,7 +297,9 @@ class DL2DataProcessor():
     
     def compute_eff_time(self, events): 
         timestamp = np.array(events["time"].to_value('unix'))
-        delta_t = np.array(events["delta_t"])
+
+        # delta_t = np.array(events["delta_t"])
+        delta_t = np.diff(timestamp)
         # delta_t = [dt.to_value('sec') for dt in delta_t]
 
         if not isinstance(timestamp, u.Quantity):
@@ -358,3 +368,50 @@ class DL2DataProcessor():
         # N_excess = on_count - alpha*off_count
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
+
+    def plot_skymap(self):
+
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(10, 8))
+        plt.xlabel('RA (deg)')
+        plt.ylabel('Dec (deg)')
+        plt.title('Sky Map')
+        
+        ra_values = []
+        dec_values = []
+        pointings_ra = []
+        pointings_dec = []
+
+        for reco in self.reco_directions:
+            ra_values.extend(reco.ra.deg)
+            dec_values.extend(reco.dec.deg)
+        
+        for pointing in self.pointings:
+            pointings_ra.extend(pointing.ra.deg)
+            pointings_dec.extend(pointing.dec.deg)
+
+        plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis')
+        # ax = plt.gca()
+        # divider = make_axes_locatable(ax)
+        # cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(label='Counts')
+
+        plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
+        plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
+
+
+        for pointing in self.pointings:
+            off_regions = self.compute_off_regions(pointing[0], n_off=3)
+            for off_region in off_regions:
+                # print(off_region)
+                off_circle = plt.Circle((off_region.ra.deg, off_region.dec.deg), radius=0.2, color='w', fill=False, lw=1, ls='--')
+                plt.gca().add_artist(off_circle)
+
+        on_circle = plt.Circle((self.source_position.ra.deg, self.source_position.dec.deg), radius=0.2, color='w', fill=False, lw=1)
+        plt.gca().add_artist(on_circle)
+
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        plt.legend()
+        plt.show()

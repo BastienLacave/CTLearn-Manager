@@ -58,11 +58,11 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition):
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
-#SBATCH --time=03:00:00
+#SBATCH --time={time}
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
 #SBATCH -e {sbatch_scripts_dir}/{job_name}%x.%j.err 
 #SBATCH -J {job_name}
@@ -75,7 +75,7 @@ srun {command}''',
 
     'cscs': f'''#!/bin/bash -l
 #SBATCH --job-name={job_name}
-#SBATCH --time=24:00:00
+#SBATCH --time={time}
 #SBATCH --nodes=1
 #SBATCH --constraint=gpu
 #SBATCH --gres=gpu:1
@@ -94,9 +94,9 @@ srun {command}
     'lst-cluster':f'''#!/bin/bash -l
 #
 #SBATCH --job-name={job_name}
-#SBATCH --account=aswg
-#SBATCH --partition=long
-#SBATCH --time=24:00:00
+#SBATCH --account={account}
+#SBATCH --partition={partition}
+#SBATCH --time={time}
 #SBATCH --nodes=1
 #SBATCH --mem=64000mb
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
@@ -140,14 +140,22 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
 #         transformed_ra[i] = transformed_reco.ra.deg
 #         transformed_dec[i] = transformed_reco.dec.deg
 #     return transformed_ra, transformed_dec
-
+def get_current_env():
+    import os
+    return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
 class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True):
+    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None):
+        
+
+        # self.current_env = 
         self.use_cluster = use_cluster
-        self.cluster = self.get_cluster()['cluster']
-        self.account = account if account!=None else self.get_cluster()['account']
-        self.python_env = python_env if python_env!=None else "ctlearn-cluster"
+        config = self.get_cluster()
+        self.cluster = config['cluster']
+        self.account = account if account!=None else config['account']
+        self.python_env = python_env if python_env!=None else get_current_env()
+        self.partition = partition if partition!=None else config['partition']
+        self.time = time if time!=None else config['time']
         if self.use_cluster:
             print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
 
@@ -159,20 +167,30 @@ class ClusterConfiguration():
             case "ui.cta.camk.edu.pl":
                 cluster = 'camk'
                 account = None
+                partition = None
+                time = '03:00:00'
             case "daint.alps.cscs.ch":
                 cluster = 'cscs'
                 account = 'cta04'
+                partition = 'gpu'
+                time = '24:00:00'
             case "cp02":
                 cluster = 'lst-cluster'
                 account = 'aswg'
+                partition = 'long'
+                time = '24:00:00'
             case _:
                 cluster = None
                 account = None
-        self.use_cluster = cluster!=None
-        return {"cluster": cluster, "account": account}
+                partition = None
+                time = None
+        # self.use_cluster = cluster!=None
+        return {"cluster": cluster, "account": account, "partition": partition, "time": time}
+
+    
 
     def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.env_name)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
