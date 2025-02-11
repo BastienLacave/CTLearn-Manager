@@ -75,6 +75,10 @@ class DL2DataProcessor():
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
         # self.irfs = CTLearnTriModelManager.irfs
+        self.CTLearn = True
+        self.set_keys()
+        
+
 
 
 
@@ -91,7 +95,15 @@ class DL2DataProcessor():
         self.load_processed_data()
         set_mpl_style()
 
-        
+    def set_keys(self):
+        self.gammaness_key = f"{self.reco_field_suffix}_prediction" #if self.CTLearn else "gammaness"
+        self.energy_key = f"{self.reco_field_suffix}_energy" #if self.CTLearn else "reco_energy"
+        self.intensity_key = "hillas_intensity" #if self.CTLearn else "intensity"
+        self.reco_alt_key = f"{self.reco_field_suffix}_alt" #if self.CTLearn else "reco_alt"
+        self.reco_az_key = f"{self.reco_field_suffix}_az" #if self.CTLearn else "reco_az"
+        self.pointing_alt_key = "altitude" #if self.CTLearn else "alt_tel"
+        self.pointing_az_key = "azimuth" #if self.CTLearn else "az_tel"
+        self.time_key = "time" #if self.CTLearn else "dragon_time"
 
     def process_DL2_data(self):
         
@@ -129,13 +141,13 @@ class DL2DataProcessor():
 
 
                     # dl2 = load_DL2_data(DL2_file, self)
-                    # dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+                    # dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
                     # with open(dl2_output_file, 'wb') as f:
                     #     pickle.dump(dl2, f)
                     # print(f"Saved processed DL2 data to {dl2_output_file}")
 
-                    # dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-                    # cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+                    # dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
+                    # cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
                     # dl2_cuts = dl2[cut_mask]
                     # print(f"{len(dl2_cuts)} events after cuts")
 
@@ -144,7 +156,7 @@ class DL2DataProcessor():
                     # # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
 
                     # frame = AltAz(obstime=times, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-                    # reco_temp = SkyCoord(alt=dl2[f"{self.reco_field_suffix}_alt"], az=dl2[f"{self.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
+                    # reco_temp = SkyCoord(alt=dl2[self.alt_key], az=dl2[self.az_key], frame=frame)#, obstime=dl2["time"])
                     # pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
                     # transformed_reco = reco_temp.transform_to(self.source_position)
                     # transformed_pointing = pointing_temp.transform_to(self.source_position)
@@ -161,7 +173,6 @@ class DL2DataProcessor():
                     # print(f"Saved reco directions to {reco_output_file}")
                     # print(f"Saved pointings to {pointing_output_file}")
 
-    
     def load_processed_data(self):
         from tqdm import tqdm
 
@@ -190,8 +201,8 @@ class DL2DataProcessor():
                 with open(pointing_output_file, 'rb') as f:
                     transformed_pointing_dict = pickle.load(f)
 
-                dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-                cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
+                dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
+                cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
                 dl2_cuts = dl2[cut_mask]
                 
                 # Convert dictionaries back to SkyCoord objects
@@ -279,8 +290,6 @@ class DL2DataProcessor():
         # plt.yscale('log')
         plt.show()
 
-
-
     def compute_off_regions(self, pointing, n_off):
         center = pointing # SkyCoord(ra=10*u.degree, dec=20*u.degree)
         # ra_axis = pointing.directional_offset_by(0, 0.5*u.deg)
@@ -299,7 +308,7 @@ class DL2DataProcessor():
         return off_regions
     
     def compute_eff_time(self, events): 
-        timestamp = np.array(events["time"].to_value('unix'))
+        timestamp = np.array(events[self.time_key].to_value('unix'))
 
         delta_t = np.array(events["delta_t"])
         # delta_t = np.diff(timestamp)
@@ -340,9 +349,9 @@ class DL2DataProcessor():
 
     def compute_on_off_counts(self, events, reco_coord, pointing_coord, n_off, theta2_cut=0.04*u.deg**2, gcut=0.5, E_min=0, E_max=100, I_min=None, I_max=None):
         if I_min == None or I_max == None:
-            mask = (events[f"{self.reco_field_suffix}_energy"] > E_min) & (events[f"{self.reco_field_suffix}_energy"] < E_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
+            mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max) & (events[self.gammaness_key] > gcut)
         else:
-            mask = (events['hillas_intensity'] > I_min) & (events['hillas_intensity'] < I_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
+            mask = (events['hillas_intensity'] > I_min) & (events['hillas_intensity'] < I_max) & (events[self.gammaness_key] > gcut)
 
 
         # ON
@@ -418,9 +427,6 @@ class DL2DataProcessor():
 
         plt.legend()
         plt.show()
-
-    
-
 
     def plot_sensitivity(self, n_off=3):
         import matplotlib.pyplot as plt
@@ -589,18 +595,17 @@ class DL2DataProcessor():
 
         plt.show()
 
-
     def get_gammaness_cuts_for_efficiencies(self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None):
         gammaness_cuts = []
         for efficiency in efficiencies:
             if E_min is not None and E_max is not None:
-                mask = (MC_dl2[f"{self.reco_field_suffix}_energy"] > E_min) & (MC_dl2[f"{self.reco_field_suffix}_energy"] < E_max)
+                mask = (MC_dl2[self.energy_key] > E_min) & (MC_dl2[self.energy_key] < E_max)
             elif I_min is not None and I_max is not None:
                 mask = (MC_dl2['hillas_intensity'] > I_min) & (MC_dl2['hillas_intensity'] < I_max)
             else:
                 mask = np.ones(len(MC_dl2), dtype=bool)
             
-            sorted_gammaness = np.sort(MC_dl2[f"{self.reco_field_suffix}_prediction"][mask])
+            sorted_gammaness = np.sort(MC_dl2[self.gammaness_key][mask])
             cut_index = int((1 - efficiency) * len(sorted_gammaness))
             gammaness_cut = sorted_gammaness[cut_index]
             gammaness_cuts.append(gammaness_cut)
@@ -644,7 +649,6 @@ class DL2DataProcessor():
         axs[0].set_ylabel('Excess Counts')
         plt.suptitle('Excess Counts vs Background Counts for Different Intensity Ranges')
         plt.show()
-
 
     def plot_excess_vs_background_rates(self, n_off=3):
         gammaness_cuts = np.arange(0, 1.05, 0.05)

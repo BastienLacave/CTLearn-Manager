@@ -3,7 +3,9 @@ import pickle
 from astropy.coordinates import SkyCoord, AltAz
 from astropy import units as u
 from ..utils.sky_coord_utils import DL2DataProcessor
-from ..io.io import load_DL2_data
+from ..io.io import load_DL2_data, load_DL2_data_RF
+from astropy.time import Time
+import numpy as np
 
 import argparse
 
@@ -36,8 +38,11 @@ def process_dl2_file():
 
     if not os.path.exists(dl2_output_file):
         print(f"Loading {DL2_file}", flush=True)
-        dl2 = load_DL2_data(DL2_file, processor)
-        dl2 = dl2[dl2[f"{processor.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
+        if processor.CTLearn:
+            dl2 = load_DL2_data(DL2_file, processor)
+        else:
+            dl2 = load_DL2_data_RF(DL2_file, processor)
+        dl2 = dl2[dl2[processor.gammaness_key] > 0] # Remove unpredicted events
         with open(dl2_output_file, 'wb') as f:
             pickle.dump(dl2, f)
         print(f"Saved processed DL2 data to {dl2_output_file}", flush=True)
@@ -45,19 +50,22 @@ def process_dl2_file():
         print(f"Loading processed DL2 data from {dl2_output_file}", flush=True)
         with open(dl2_output_file, 'rb') as f:
             dl2 = pickle.load(f)
-    dl2 = dl2[dl2[f"{processor.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-    cut_mask = dl2[f"{processor.reco_field_suffix}_prediction"] > processor.gammaness_cut
+    dl2 = dl2[dl2[processor.gammaness_key] > 0] # Remove unpredicted events
+    cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
     dl2_cuts = dl2[cut_mask]
     print(f"{len(dl2_cuts)} events after cuts", flush=True)
 
     if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)): 
         print("Computing sky positions...", flush=True)
-        times = dl2["time"]
+        if processor.CTLearn:
+            times = dl2[processor.time_key]
+        else:
+            times = Time(np.array(dl2[processor.time_key]), format='unix', scale='tai')
         # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
 
         frame = AltAz(obstime=times, location=processor.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-        reco_temp = SkyCoord(alt=dl2[f"{processor.reco_field_suffix}_alt"], az=dl2[f"{processor.reco_field_suffix}_az"], frame=frame)#, obstime=dl2["time"])
-        pointing_temp = SkyCoord(alt=dl2["altitude"], az=dl2["azimuth"], frame=frame)#, obstime=dl2["time"])
+        reco_temp = SkyCoord(alt=dl2[processor.reco_alt_key], az=dl2[processor.reco_az_key], frame=frame)#, obstime=dl2["time"])
+        pointing_temp = SkyCoord(alt=dl2[processor.pointing_alt_key], az=dl2[processor.pointing_az_key], frame=frame)#, obstime=dl2["time"])
         transformed_reco = reco_temp.transform_to(processor.source_position)
         transformed_pointing = pointing_temp.transform_to(processor.source_position)
 
