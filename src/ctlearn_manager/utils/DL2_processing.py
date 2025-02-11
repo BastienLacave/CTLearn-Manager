@@ -95,7 +95,7 @@ class DL2DataProcessor():
 
     def process_DL2_data(self):
         
-        # print(f"Preprocessing DL2 data...")
+        print(f"Preprocessing DL2 (~50min/run), only once")
         
 
         for DL2_file in self.DL2_files:
@@ -163,12 +163,14 @@ class DL2DataProcessor():
 
     
     def load_processed_data(self):
+        from tqdm import tqdm
+
         self.reco_directions = []
         self.pointings = []
         self.dl2s = []
         self.dl2s_cuts = []
 
-        for DL2_file in self.DL2_files:
+        for DL2_file in tqdm(self.DL2_files, desc="Loading processed data"):
             if self.dl2_processed_dir is None:
                 dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
                 reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
@@ -183,21 +185,14 @@ class DL2DataProcessor():
                 with open(dl2_output_file, 'rb') as f:
                         dl2 = pickle.load(f)
                 
-
-                print(f"Loading reco directions from {reco_output_file}")
                 with open(reco_output_file, 'rb') as f:
                     transformed_reco_dict = pickle.load(f)
-                print(f"Loading pointings from {pointing_output_file}")
                 with open(pointing_output_file, 'rb') as f:
                     transformed_pointing_dict = pickle.load(f)
 
                 dl2 = dl2[dl2[f"{self.reco_field_suffix}_prediction"] > 0] # Remove unpredicted events
-                # avg_data_ze, avg_data_az = get_avg_pointing(DL2_file, pointing_table=f"{self.pointing_table}/tel_{self.telescope_id:03d}")
-                # cuts_file = self.CTLearnTriModelManager.direction_model.get_closest_IRF_data(avg_data_ze, avg_data_az)[1]
-                # TODO use energy dependent cuts
                 cut_mask = dl2[f"{self.reco_field_suffix}_prediction"] > self.gammaness_cut
                 dl2_cuts = dl2[cut_mask]
-                print(f"{len(dl2_cuts)} events after cuts")
                 
                 # Convert dictionaries back to SkyCoord objects
                 transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=self.source_position)
@@ -226,7 +221,7 @@ class DL2DataProcessor():
                 off_count_temp, 
                 on_separation_temp, 
                 all_off_separation_temp, 
-                significance_lima_temp
+                _
                 ) = self.compute_on_off_counts( 
                 dl2, 
                 reco_direction, 
@@ -346,8 +341,8 @@ class DL2DataProcessor():
     def compute_on_off_counts(self, events, reco_coord, pointing_coord, n_off, theta2_cut=0.04*u.deg**2, gcut=0.5, E_min=0, E_max=100, I_min=None, I_max=None):
         if I_min == None or I_max == None:
             mask = (events[f"{self.reco_field_suffix}_energy"] > E_min) & (events[f"{self.reco_field_suffix}_energy"] < E_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
-        # else:
-        #     mask = (events['intensity'] > I_min) & (events['intensity'] < I_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
+        else:
+            mask = (events['hillas_intensity'] > I_min) & (events['hillas_intensity'] < I_max) & (events[f"{self.reco_field_suffix}_prediction"] > gcut)
 
 
         # ON
@@ -444,9 +439,7 @@ class DL2DataProcessor():
                 (
                     on_count_temp,
                     off_count_temp, 
-                    on_separation_temp, 
-                    all_off_separation_temp, 
-                    significance_lima_temp
+                    _, _, _
                     ) = self.compute_on_off_counts( 
                     dl2, 
                     reco_direction, 
@@ -460,7 +453,7 @@ class DL2DataProcessor():
                     I_max=None
                 )
                 on_count[i] += on_count_temp
-                off_count[i] += off_count_temp
+                off_count[i] += off_count_temp / n_off
             t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
@@ -519,6 +512,7 @@ class DL2DataProcessor():
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
+
         E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
         off_count = np.zeros(len(E_bins) - 1)
@@ -537,7 +531,7 @@ class DL2DataProcessor():
                     off_count_temp, 
                     on_separation_temp, 
                     all_off_separation_temp, 
-                    significance_lima_temp
+                    _
                     ) = self.compute_on_off_counts( 
                     dl2, 
                     reco_direction, 
@@ -594,6 +588,155 @@ class DL2DataProcessor():
         plt.title('Point Spread Function')
 
         plt.show()
+
+
+    def get_gammaness_cuts_for_efficiencies(self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None):
+        gammaness_cuts = []
+        for efficiency in efficiencies:
+            if E_min is not None and E_max is not None:
+                mask = (MC_dl2[f"{self.reco_field_suffix}_energy"] > E_min) & (MC_dl2[f"{self.reco_field_suffix}_energy"] < E_max)
+            elif I_min is not None and I_max is not None:
+                mask = (MC_dl2['hillas_intensity'] > I_min) & (MC_dl2['hillas_intensity'] < I_max)
+            else:
+                mask = np.ones(len(MC_dl2), dtype=bool)
+            
+            sorted_gammaness = np.sort(MC_dl2[f"{self.reco_field_suffix}_prediction"][mask])
+            cut_index = int((1 - efficiency) * len(sorted_gammaness))
+            gammaness_cut = sorted_gammaness[cut_index]
+            gammaness_cuts.append(gammaness_cut)
+        return gammaness_cuts
+
+    def plot_bkg_discrimination_capability(self, n_off=3):
+        gammaness_cuts = np.arange(0, 1.05, 0.05)
+        import matplotlib.pyplot as plt
+
+        fig, axs = plt.subplots(1, 4, figsize=(20, 5), sharey=True)
+        intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
+        for ax, (I_min, I_max) in zip(axs, intensity_ranges):
+            excess_counts = []
+            off_counts = []
+            for gcut in gammaness_cuts:
+                total_excess = 0
+                total_off = 0
+                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+                    on_count, off_count, _, _, _ = self.compute_on_off_counts(
+                        dl2, 
+                        reco_direction, 
+                        pointing_direction, 
+                        n_off=n_off, 
+                        theta2_cut=0.04 * u.deg ** 2, 
+                        gcut=gcut, 
+                        E_min=None, 
+                        E_max=None, 
+                        I_min=I_min, 
+                        I_max=I_max
+                    )
+                    total_excess += on_count - off_count / n_off
+                    total_off += off_count / n_off
+
+                excess_counts.append(total_excess)
+                off_counts.append(total_off)
+
+            ax.plot(off_counts, excess_counts, marker='o', linestyle='-',)
+            ax.set_xlabel('Background Counts')
+            ax.set_title(f'[{I_min} - {I_max}] p.e.')
+        
+        axs[0].set_ylabel('Excess Counts')
+        plt.suptitle('Excess Counts vs Background Counts for Different Intensity Ranges')
+        plt.show()
+
+
+    def plot_excess_vs_background_rates(self, n_off=3):
+        gammaness_cuts = np.arange(0, 1.05, 0.05)
+        import matplotlib.pyplot as plt
+
+        fig, axs = plt.subplots(1, 4, figsize=(20, 5), sharey=True)
+        intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
+        for ax, (I_min, I_max) in zip(axs, intensity_ranges):
+            excess_rates = []
+            background_rates = []
+            for gcut in gammaness_cuts:
+                total_excess = 0
+                total_off = 0
+                total_t_eff = 0 * u.h
+                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+                    on_count, off_count, _, _, _ = self.compute_on_off_counts(
+                        dl2, 
+                        reco_direction, 
+                        pointing_direction, 
+                        n_off=n_off, 
+                        theta2_cut=0.04 * u.deg ** 2, 
+                        gcut=gcut, 
+                        E_min=None, 
+                        E_max=None, 
+                        I_min=I_min, 
+                        I_max=I_max
+                    )
+                    t_eff, _ = self.compute_eff_time(dl2)
+                    total_excess += ((on_count - off_count / n_off) / t_eff.to(u.s)).value
+                    total_off += (off_count / n_off / t_eff.to(u.s)).value
+                    total_t_eff += t_eff
+
+                excess_rates.append(total_excess)
+                background_rates.append(total_off)
+            # print(excess_rates)
+            # print(background_rates)
+
+            ax.plot(background_rates, excess_rates, marker='o', linestyle='-')
+            ax.set_xlabel('Background Rate [Hz]')
+            ax.set_title(f'[{I_min} - {I_max}] p.e.')
+        
+        axs[0].set_ylabel('Excess Rate [Hz]')
+        plt.suptitle('Excess Rate vs Background Rate for Different Intensity Ranges')
+        plt.show()
+
+    def plot_excess_and_background_rates_vs_energy(self, n_off=3):
+        import matplotlib.pyplot as plt
+
+        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        excess_rates = np.zeros(len(E_bins) - 1)
+        background_rates = np.zeros(len(E_bins) - 1)
+        t_eff = 0 * u.h
+
+        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+            for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                on_count, off_count, _, _, _ = self.compute_on_off_counts(
+                    dl2, 
+                    reco_direction, 
+                    pointing_direction, 
+                    n_off=n_off, 
+                    theta2_cut=0.04 * u.deg ** 2, 
+                    gcut=self.gammaness_cut, 
+                    E_min=E_min, 
+                    E_max=E_max
+                )
+                t_eff_temp, _ = self.compute_eff_time(dl2)
+                excess_rates[i] += ((on_count - off_count / n_off) / t_eff_temp.to(u.s)).value
+                background_rates[i] += (off_count / n_off / t_eff_temp.to(u.s)).value
+                t_eff += t_eff_temp
+
+        E = (E_bins[:-1] + E_bins[1:]) / 2
+
+        fig, axs = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+        
+        axs[0].plot(E.value, excess_rates, marker='o', linestyle='-')
+        axs[0].set_ylabel('Excess Rate [Hz]')
+        axs[0].set_xscale('log')
+        axs[0].set_yscale('log')
+        # axs[0].set_title('Excess Rate vs Energy')
+
+        axs[1].plot(E.value, background_rates, marker='o', linestyle='-')
+        axs[1].set_xlabel('Reco Energy [TeV]')
+        axs[1].set_ylabel('Background Rate [Hz]')
+        axs[1].set_xscale('log')
+        axs[1].set_yscale('log')
+        # axs[1].set_title('Background Rate vs Energy')
+
+        plt.setp(axs[0].get_xticklabels(), visible=False)
+
+        plt.tight_layout()
+        plt.show()
+
 
 
 

@@ -55,8 +55,10 @@ def load_DL2_data(input_file, DL2DataProcessor):
     dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
     dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
     dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
+    dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[["obs_id", "event_id", "hillas_intensity"]]
     dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
     dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+    dl2 = join(dl2, dl1, keys=["obs_id", "event_id"])
     dl2.sort('event_id')
     dl2 = hstack([dl2, pointing])
     dl2.sort('time')
