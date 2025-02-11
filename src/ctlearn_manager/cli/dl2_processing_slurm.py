@@ -51,9 +51,10 @@ def process_dl2_file():
         with open(dl2_output_file, 'rb') as f:
             dl2 = pickle.load(f)
     dl2 = dl2[dl2[processor.gammaness_key] > 0] # Remove unpredicted events
-    cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
-    dl2_cuts = dl2[cut_mask]
-    print(f"{len(dl2_cuts)} events after cuts", flush=True)
+    print(f"Loaded {len(dl2)} events", flush=True)
+    # cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
+    # dl2_cuts = dl2[cut_mask]
+    # print(f"{len(dl2_cuts)} events after cuts", flush=True)
 
     if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)): 
         print("Computing sky positions...", flush=True)

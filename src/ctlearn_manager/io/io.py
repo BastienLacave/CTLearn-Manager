@@ -98,6 +98,8 @@ def load_DL2_data_RF(input_file, DL2DataProcessor):
     # print(dl2.columns)
 
     useful_cols = ['obs_id','event_id','intensity','alt_tel','az_tel','dragon_time','delta_t','reco_energy','reco_alt','reco_az','gammaness']
+    
+    dl2 = dl2[dl2['event_type'] == 32]
     dl2 = dl2[useful_cols]
     dl2.rename_column('intensity', 'hillas_intensity')
     dl2.rename_column('alt_tel', 'altitude')
@@ -114,4 +116,5 @@ def load_DL2_data_RF(input_file, DL2DataProcessor):
     dl2['RF_tel_alt'] = dl2['RF_tel_alt'] * u.rad
     dl2['RF_tel_az'] = dl2['RF_tel_az'] * u.rad
     dl2['delta_t'] = dl2['delta_t'] * u.s
+    dl2 = dl2[dl2['hillas_intensity'] > 50]
     return dl2

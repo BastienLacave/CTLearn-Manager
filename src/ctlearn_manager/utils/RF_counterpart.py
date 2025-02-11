@@ -61,7 +61,7 @@ class LazyRFCounterpart(DL2DataProcessor):
 
         runs = []
 
-        for dl2 in DL2DataProcessor.dl2s_cuts:
+        for dl2 in DL2DataProcessor.dl2s:
             for obs_id in dl2["obs_id"]:
                 run_temp = int(str(obs_id)[:4])
                 if run_temp not in runs:

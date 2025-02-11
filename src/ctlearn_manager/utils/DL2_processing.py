@@ -10,6 +10,7 @@ from astropy.coordinates import Angle
 import pickle
 import os
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from tqdm import tqdm
 
 
 class DL2DataProcessor():
@@ -179,7 +180,8 @@ class DL2DataProcessor():
         self.reco_directions = []
         self.pointings = []
         self.dl2s = []
-        self.dl2s_cuts = []
+        # self.dl2s_cuts = []
+        self.cuts_masks = []
 
         for DL2_file in tqdm(self.DL2_files, desc="Loading processed data"):
             if self.dl2_processed_dir is None:
@@ -203,16 +205,18 @@ class DL2DataProcessor():
 
                 dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
                 cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
-                dl2_cuts = dl2[cut_mask]
+                # dl2_cuts = dl2[cut_mask]
                 
                 # Convert dictionaries back to SkyCoord objects
                 transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=self.source_position)
                 transformed_pointing = SkyCoord(ra=transformed_pointing_dict['ra']*u.deg, dec=transformed_pointing_dict['dec']*u.deg, frame=self.source_position)
         
-                self.reco_directions.append(transformed_reco[cut_mask])
-                self.pointings.append(transformed_pointing[cut_mask])
+                self.reco_directions.append(transformed_reco)
+                self.pointings.append(transformed_pointing)
+                self.cuts_masks.append(cut_mask)
+
                 self.dl2s.append(dl2)
-                self.dl2s_cuts.append(dl2_cuts)
+                # self.dl2s_cuts.append(dl2_cuts)
 
     def plot_theta2_distribution(self, bins, n_off=3):
         import matplotlib.pyplot as plt
@@ -226,7 +230,10 @@ class DL2DataProcessor():
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         print("Computing on-off counts...")
-        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+            reco_direction = reco_direction[cuts_mask]
+            pointing_direction = pointing_direction[cuts_mask]
+            dl2 = dl2[cuts_mask]
             (
                 on_count_temp,
                 off_count_temp, 
@@ -308,7 +315,10 @@ class DL2DataProcessor():
         return off_regions
     
     def compute_eff_time(self, events): 
-        timestamp = np.array(events[self.time_key].to_value('unix'))
+        if self.CTLearn:
+            timestamp = np.array(events[self.time_key].to_value('unix'))
+        else:
+            timestamp = np.array(events[self.time_key])
 
         delta_t = np.array(events["delta_t"])
         # delta_t = np.diff(timestamp)
@@ -395,13 +405,13 @@ class DL2DataProcessor():
         pointings_ra = []
         pointings_dec = []
 
-        for reco in self.reco_directions:
-            ra_values.extend(reco.ra.deg)
-            dec_values.extend(reco.dec.deg)
+        for reco, cuts_mask in zip(self.reco_directions, self.cuts_masks):
+            ra_values.extend(reco[cuts_mask].ra.deg)
+            dec_values.extend(reco[cuts_mask].dec.deg)
         
-        for pointing in self.pointings:
-            pointings_ra.extend(pointing.ra.deg)
-            pointings_dec.extend(pointing.dec.deg)
+        for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
+            pointings_ra.extend(pointing[cuts_mask].ra.deg)
+            pointings_dec.extend(pointing[cuts_mask].dec.deg)
 
         plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis')
         # ax = plt.gca()
@@ -413,7 +423,8 @@ class DL2DataProcessor():
         plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
 
 
-        for pointing in self.pointings:
+        for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
+            pointing = pointing[cuts_mask]
             off_regions = self.compute_off_regions(pointing[0], n_off=3)
             for off_region in off_regions:
                 # print(off_region)
@@ -439,7 +450,10 @@ class DL2DataProcessor():
         t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+            reco_direction = reco_direction[cuts_mask]
+            pointing_direction = pointing_direction[cuts_mask]
+            dl2 = dl2[cuts_mask]
 
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 (
@@ -519,6 +533,7 @@ class DL2DataProcessor():
         from matplotlib.gridspec import GridSpec
 
 
+
         E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
         off_count = np.zeros(len(E_bins) - 1)
@@ -529,7 +544,10 @@ class DL2DataProcessor():
         h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+            reco_direction = reco_direction[cuts_mask]
+            pointing_direction = pointing_direction[cuts_mask]
+            dl2 = dl2[cuts_mask]
 
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 (
@@ -620,10 +638,10 @@ class DL2DataProcessor():
         for ax, (I_min, I_max) in zip(axs, intensity_ranges):
             excess_counts = []
             off_counts = []
-            for gcut in gammaness_cuts:
+            for gcut in tqdm(gammaness_cuts, desc=f"RComputing excesses for [{I_min} - {I_max}] p.e."):
                 total_excess = 0
                 total_off = 0
-                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
                     on_count, off_count, _, _, _ = self.compute_on_off_counts(
                         dl2, 
                         reco_direction, 
@@ -663,7 +681,7 @@ class DL2DataProcessor():
                 total_excess = 0
                 total_off = 0
                 total_t_eff = 0 * u.h
-                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
                     on_count, off_count, _, _, _ = self.compute_on_off_counts(
                         dl2, 
                         reco_direction, 
@@ -702,7 +720,7 @@ class DL2DataProcessor():
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
 
-        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s_cuts):
+        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 on_count, off_count, _, _, _ = self.compute_on_off_counts(
                     dl2, 
