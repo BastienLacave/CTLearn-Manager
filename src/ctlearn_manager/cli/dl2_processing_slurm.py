@@ -86,8 +86,7 @@ def process_dl2_file():
 
         print(f"Saved reco directions to {reco_output_file}", flush=True)
         print(f"Saved pointings to {pointing_output_file}", flush=True)
-        os.remove(args.processor)
-        print(f"Removed processor pickle file {args.processor}", flush=True)
+        
     else:
         print(f"Loading reco directions from {reco_output_file}", flush=True)
         with open(reco_output_file, 'rb') as f:
@@ -139,6 +138,9 @@ def process_dl2_file():
             pickle.dump(I_g_on_counts, f)
         with open(I_g_off_counts_output_file, 'wb') as f:
             pickle.dump(I_g_off_counts, f)
+
+    os.remove(args.processor)
+    print(f"Removed processor pickle file {args.processor}", flush=True)
 
 
 if __name__ == "__main__":
