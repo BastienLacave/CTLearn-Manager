@@ -1,23 +1,19 @@
-CTAO Python Project Template
-============================
+.. CTLearn Manager documentation master file, created by
+   sphinx-quickstart on Wed Feb 12 05:58:56 2025.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
 
-This is the python project template.
+CTLearn Manager documentation
+=============================
 
-**Version**: |version| **Date**: |today|
+Add your content using ``reStructuredText`` syntax. See the
+`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
+documentation for details.
+
 
 .. toctree::
-    :maxdepth: 1
-    :caption: Contents:
+   :maxdepth: 2
+   :caption: Contents:
 
-    installation
-    reference
-    changelog
+   modules
 
-
-
-Indices and tables
-------------------
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
