@@ -1,4 +1,4 @@
-IrfEventSelector:
+EventSelectionOptimizer:
   overwrite: True
 
 PointSourceSensitivityOptimizer:  
@@ -9,9 +9,9 @@ PointSourceSensitivityOptimizer:
   reco_energy_max: 500 TeV
   reco_energy_n_bins_per_decade: 5
 
-GhPercentileCutCalculator:  
-  target_percentile: 70
-  min_counts: 200
+# GhPercentileCutCalculator:  
+#   target_percentile: 70
+#   min_counts: 200
 
 ThetaPercentileCutCalculator:
   theta_max_angle: 0.3 deg
@@ -35,7 +35,7 @@ DefaultRecoEnergyBins:
 DefaultFoVOffsetBins:
   fov_offset_min: 0.0 deg
   fov_offset_max: 5.0 deg
-  fov_offset_n_bins: 1
+  fov_offset_n_bins: 5
 
 EffectiveArea2dMaker:
   # true_energy_min: 0.005 TeV
@@ -48,7 +48,7 @@ EnergyDispersion2dMaker:
   energy_migration_min: 0.0
   energy_migration_max: 3.0
   energy_migration_n_bins: 301
-  energy_migration_linear_bins: True
+  energy_migration_binning: "linear"
   true_energy_min: 0.05 TeV # 0.001 TeV
   true_energy_max: 500 TeV # 10000 TeV
   true_energy_n_bins_per_decade: 43
