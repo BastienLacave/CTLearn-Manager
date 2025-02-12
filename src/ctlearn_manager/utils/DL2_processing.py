@@ -105,6 +105,7 @@ class DL2DataProcessor():
         self.pointing_alt_key = "altitude" #if self.CTLearn else "alt_tel"
         self.pointing_az_key = "azimuth" #if self.CTLearn else "az_tel"
         self.time_key = "time" #if self.CTLearn else "dragon_time"
+    
 
     def process_DL2_data(self):
         
@@ -116,13 +117,17 @@ class DL2DataProcessor():
                 dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
                 reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
                 pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+                I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+                I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
             else:
                 dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
                 reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
                 pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
 
-            if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)):
+            if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
@@ -182,18 +187,24 @@ class DL2DataProcessor():
         self.dl2s = []
         # self.dl2s_cuts = []
         self.cuts_masks = []
+        self.I_g_on_counts = []
+        self.I_g_off_counts = []
 
         for DL2_file in tqdm(self.DL2_files, desc="Loading processed data"):
             if self.dl2_processed_dir is None:
                 dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
                 reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
                 pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+                I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+                I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
             else:
                 dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
                 reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
                 pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
-            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
+            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)) and (os.path.exists(I_g_on_counts_output_file)) and (os.path.exists(I_g_off_counts_output_file)):
 
                 with open(dl2_output_file, 'rb') as f:
                         dl2 = pickle.load(f)
@@ -217,6 +228,16 @@ class DL2DataProcessor():
 
                 self.dl2s.append(dl2)
                 # self.dl2s_cuts.append(dl2_cuts)
+
+                with open(I_g_on_counts_output_file, 'rb') as f:
+                    I_g_on_counts = pickle.load(f)
+                with open(I_g_off_counts_output_file, 'rb') as f:
+                    I_g_off_counts = pickle.load(f)
+                
+                self.I_g_on_counts.append(I_g_on_counts)
+                self.I_g_off_counts.append(I_g_off_counts)
+
+
 
     def plot_theta2_distribution(self, bins, n_off=3):
         import matplotlib.pyplot as plt
@@ -629,40 +650,66 @@ class DL2DataProcessor():
             gammaness_cuts.append(gammaness_cut)
         return gammaness_cuts
 
+    def get_efficiency_for_gamaness_cuts(self, MC_dl2, gammaness_cuts, E_min=None, E_max=None, I_min=None, I_max=None):
+        efficiencies = []
+        for gammaness_cut in gammaness_cuts:
+            if E_min is not None and E_max is not None:
+                mask = (MC_dl2[self.energy_key] > E_min) & (MC_dl2[self.energy_key] < E_max)
+            elif I_min is not None and I_max is not None:
+                mask = (MC_dl2['hillas_intensity'] > I_min) & (MC_dl2['hillas_intensity'] < I_max)
+            else:
+                mask = np.ones(len(MC_dl2), dtype=bool)
+            
+            mask &= MC_dl2[self.gammaness_key] > gammaness_cut
+            efficiency = len(MC_dl2[mask]) / len(MC_dl2)
+            efficiencies.append(efficiency)
+        return efficiencies
+
     def plot_bkg_discrimination_capability(self, n_off=3):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
-        fig, axs = plt.subplots(1, 4, figsize=(20, 5), sharey=True)
+        fig, axs = plt.subplots(1, 4, figsize=(20, 5))#, sharey=True)
         intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
-        for ax, (I_min, I_max) in zip(axs, intensity_ranges):
-            excess_counts = []
-            off_counts = []
-            for gcut in tqdm(gammaness_cuts, desc=f"RComputing excesses for [{I_min} - {I_max}] p.e."):
-                total_excess = 0
-                total_off = 0
-                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
-                    on_count, off_count, _, _, _ = self.compute_on_off_counts(
-                        dl2, 
-                        reco_direction, 
-                        pointing_direction, 
-                        n_off=n_off, 
-                        theta2_cut=0.04 * u.deg ** 2, 
-                        gcut=gcut, 
-                        E_min=None, 
-                        E_max=None, 
-                        I_min=I_min, 
-                        I_max=I_max
-                    )
-                    total_excess += on_count - off_count / n_off
-                    total_off += off_count / n_off
+        # for ax, (I_min, I_max) in zip(axs, intensity_ranges):
+        #     excess_counts = []
+        #     off_counts = []
+        #     for gcut in tqdm(gammaness_cuts, desc=f"RComputing excesses for [{I_min} - {I_max}] p.e."):
+        #         total_excess = 0
+        #         total_off = 0
+        #         for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
+        #             on_count, off_count, _, _, _ = self.compute_on_off_counts(
+        #                 dl2, 
+        #                 reco_direction, 
+        #                 pointing_direction, 
+        #                 n_off=n_off, 
+        #                 theta2_cut=0.04 * u.deg ** 2, 
+        #                 gcut=gcut, 
+        #                 E_min=None, 
+        #                 E_max=None, 
+        #                 I_min=I_min, 
+        #                 I_max=I_max
+        #             )
+        #             total_excess += on_count - off_count / n_off
+        #             total_off += off_count / n_off
 
-                excess_counts.append(total_excess)
-                off_counts.append(total_off)
+        #         excess_counts.append(total_excess)
+        #         off_counts.append(total_off)
 
-            ax.plot(off_counts, excess_counts, marker='o', linestyle='-',)
+        #     ax.plot(off_counts, excess_counts, marker='o', linestyle='-',)
+        #     ax.set_xlabel('Background Counts')
+        #     ax.set_title(f'[{I_min} - {I_max}] p.e.')
+        # print(self.I_g_on_counts)
+        I_g_on_counts_tot = np.sum(self.I_g_on_counts, axis=0)
+        I_g_off_counts_tot = np.sum(self.I_g_off_counts, axis=0)
+
+        for i, ax, (I_min, I_max) in zip(range(len(intensity_ranges)), axs, intensity_ranges):
+            ax.plot(I_g_off_counts_tot[i], I_g_on_counts_tot[i], marker='o', linestyle='-',)
             ax.set_xlabel('Background Counts')
             ax.set_title(f'[{I_min} - {I_max}] p.e.')
+            # ax.set_xscale('log')
+            # ax.set_xlim(left=0.1)
+           
         
         axs[0].set_ylabel('Excess Counts')
         plt.suptitle('Excess Counts vs Background Counts for Different Intensity Ranges')
@@ -672,41 +719,52 @@ class DL2DataProcessor():
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
-        fig, axs = plt.subplots(1, 4, figsize=(20, 5), sharey=True)
+        fig, axs = plt.subplots(1, 4, figsize=(20, 5))#, sharey=True)
         intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
-        for ax, (I_min, I_max) in zip(axs, intensity_ranges):
-            excess_rates = []
-            background_rates = []
-            for gcut in gammaness_cuts:
-                total_excess = 0
-                total_off = 0
-                total_t_eff = 0 * u.h
-                for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
-                    on_count, off_count, _, _, _ = self.compute_on_off_counts(
-                        dl2, 
-                        reco_direction, 
-                        pointing_direction, 
-                        n_off=n_off, 
-                        theta2_cut=0.04 * u.deg ** 2, 
-                        gcut=gcut, 
-                        E_min=None, 
-                        E_max=None, 
-                        I_min=I_min, 
-                        I_max=I_max
-                    )
-                    t_eff, _ = self.compute_eff_time(dl2)
-                    total_excess += ((on_count - off_count / n_off) / t_eff.to(u.s)).value
-                    total_off += (off_count / n_off / t_eff.to(u.s)).value
-                    total_t_eff += t_eff
+        total_t_eff = 0 * u.h
+        # for ax, (I_min, I_max) in zip(axs, intensity_ranges):
+        #     excess_rates = []
+        #     background_rates = []
+        #     for gcut in gammaness_cuts:
+        #         total_excess = 0
+        #         total_off = 0
+        #         total_t_eff = 0 * u.h
+        #         for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
+        #             on_count, off_count, _, _, _ = self.compute_on_off_counts(
+        #                 dl2, 
+        #                 reco_direction, 
+        #                 pointing_direction, 
+        #                 n_off=n_off, 
+        #                 theta2_cut=0.04 * u.deg ** 2, 
+        #                 gcut=gcut, 
+        #                 E_min=None, 
+        #                 E_max=None, 
+        #                 I_min=I_min, 
+        #                 I_max=I_max
+        #             )
+        for dl2 in self.dl2s:
+            t_eff, _ = self.compute_eff_time(dl2)
+            # total_excess += ((on_count - off_count / n_off) / t_eff.to(u.s)).value
+            # total_off += (off_count / n_off / t_eff.to(u.s)).value
+            total_t_eff += t_eff
 
-                excess_rates.append(total_excess)
-                background_rates.append(total_off)
+                # excess_rates.append(total_excess)
+                # background_rates.append(total_off)
             # print(excess_rates)
             # print(background_rates)
 
-            ax.plot(background_rates, excess_rates, marker='o', linestyle='-')
-            ax.set_xlabel('Background Rate [Hz]')
+            # ax.plot(background_rates, excess_rates, marker='o', linestyle='-')
+            # ax.set_xlabel('Background Rate [Hz]')
+            # ax.set_title(f'[{I_min} - {I_max}] p.e.')
+
+        I_g_on_counts_tot = np.sum(self.I_g_on_counts, axis=0)
+        I_g_off_counts_tot = np.sum(self.I_g_off_counts, axis=0)
+
+        for i, ax, (I_min, I_max) in zip(range(len(intensity_ranges)), axs, intensity_ranges):
+            ax.plot(I_g_off_counts_tot[i] / total_t_eff, I_g_on_counts_tot[i] / total_t_eff, marker='o', linestyle='-',)
+            ax.set_xlabel('Background Counts')
             ax.set_title(f'[{I_min} - {I_max}] p.e.')
+            ax.set_xscale('log')
         
         axs[0].set_ylabel('Excess Rate [Hz]')
         plt.suptitle('Excess Rate vs Background Rate for Different Intensity Ranges')

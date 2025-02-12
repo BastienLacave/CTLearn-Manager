@@ -6,6 +6,7 @@ from ..utils.sky_coord_utils import DL2DataProcessor
 from ..io.io import load_DL2_data, load_DL2_data_RF
 from astropy.time import Time
 import numpy as np
+import tqdm
 
 import argparse
 
@@ -31,10 +32,14 @@ def process_dl2_file():
         dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
         reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
         pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+        I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+        I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
     else:
         dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
         reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
         pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+        I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+        I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
     if not os.path.exists(dl2_output_file):
         print(f"Loading {DL2_file}", flush=True)
@@ -83,6 +88,57 @@ def process_dl2_file():
         print(f"Saved pointings to {pointing_output_file}", flush=True)
         os.remove(args.processor)
         print(f"Removed processor pickle file {args.processor}", flush=True)
+    else:
+        print(f"Loading reco directions from {reco_output_file}", flush=True)
+        with open(reco_output_file, 'rb') as f:
+            transformed_reco_dict = pickle.load(f)
+        print(f"Loading pointings from {pointing_output_file}", flush=True)
+        with open(pointing_output_file, 'rb') as f:
+            transformed_pointing_dict = pickle.load(f)
+        transformed_reco = SkyCoord(ra=transformed_reco_dict['ra']*u.deg, dec=transformed_reco_dict['dec']*u.deg, frame=processor.source_position)
+        transformed_pointing = SkyCoord(ra=transformed_pointing_dict['ra']*u.deg, dec=transformed_pointing_dict['dec']*u.deg, frame=processor.source_position)
+
+    if (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
+        gammaness_cuts = np.arange(0, 1.05, 0.05)
+        n_off=3
+
+        intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
+        I_g_on_counts = []
+        I_g_off_counts = []
+        for (I_min, I_max) in intensity_ranges:
+            excess_counts = []
+            off_counts = []
+            print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)
+            for gcut in gammaness_cuts:
+                print(f"Computing excesses for gammaness cut {gcut}", flush=True)
+                total_excess = 0
+                total_off = 0
+                # for reco_direction, pointing_direction, dl2 in zip(processor.reco_directions, processor.pointings, processor.dl2s):
+                on_count, off_count, _, _, _ = processor.compute_on_off_counts(
+                    dl2, 
+                    transformed_reco, 
+                    transformed_pointing, 
+                    n_off=n_off, 
+                    theta2_cut=0.04 * u.deg ** 2, 
+                    gcut=gcut, 
+                    E_min=None, 
+                    E_max=None, 
+                    I_min=I_min, 
+                    I_max=I_max
+                )
+                total_excess += on_count - off_count / n_off
+                total_off += off_count / n_off
+
+                excess_counts.append(total_excess)
+                off_counts.append(total_off)
+
+            I_g_on_counts.append(excess_counts)
+            I_g_off_counts.append(off_counts)
+        
+        with open(I_g_on_counts_output_file, 'wb') as f:
+            pickle.dump(I_g_on_counts, f)
+        with open(I_g_off_counts_output_file, 'wb') as f:
+            pickle.dump(I_g_off_counts, f)
 
 
 if __name__ == "__main__":
