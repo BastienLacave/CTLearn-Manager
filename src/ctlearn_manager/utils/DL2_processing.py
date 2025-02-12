@@ -460,7 +460,7 @@ class DL2DataProcessor():
         plt.legend()
         plt.show()
 
-    def plot_sensitivity(self, n_off=3):
+    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn"):
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
@@ -534,22 +534,26 @@ class DL2DataProcessor():
 
         # Top subplot
         # ax1 = fig.add_subplot(gs[0])
-        plt.plot(E[mask], flux_factor[mask] * 100, marker='o', label=r"CTLearn", zorder=10, ls='--')
-        plt.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
-        plt.xscale("log")
-        plt.yscale("log")
-        plt.xlabel("Reco Energy [TeV]")
-        plt.ylabel("Differential sensitivity [% Obs. Flux.]")
-        plt.xlim(0.03, 2)
-        plt.ylim(2, 60)
-        plt.yticks([2, 5, 10, 20, 50])
-        plt.gca().set_yticklabels(['2', '5', '10', '20', '50'])
-        plt.title('Differential sensitivity')
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
+        if ax is None:
+            fig, ax = plt.subplots()
+        ax.plot(E[mask], flux_factor[mask] * 100, marker='o', label=label, zorder=10, ls='--')
+        ax.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Reco Energy [TeV]")
+        ax.set_ylabel("Differential sensitivity [% Obs. Flux.]")
+        ax.set_xlim(0.03, 2)
+        # ax.set_ylim(2, 60)
+        ax.set_yticks([2, 5, 10, 20, 50])
+        ax.set_yticklabels(['2', '5', '10', '20', '50'])
+        ax.set_title('Differential sensitivity')
+        ax.legend()
 
-    def plot_PSF(self, n_off=3):
+        plt.tight_layout()
+        if ax is None:
+            plt.show()
+
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn"):
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
@@ -617,22 +621,27 @@ class DL2DataProcessor():
 
         E = (E_bins[:-1] + E_bins[1:])/2
 
-        plt.plot(E.value, psf, marker='o', label=r"CTLearn", zorder=10, ls='--')
-        plt.fill_between(E.value, 
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        ax.plot(E.value, psf, marker='o', label=label, zorder=10, ls='--')
+        ax.fill_between(E.value, 
                         psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
                         psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
                         alpha=0.3, zorder=0,)
-        plt.legend()
-        plt.ylabel('68% cont. [deg]')
-        plt.xlabel('Reco Energy [TeV]')
-        plt.xscale('log')
-        # plt.yscale('log')
-        plt.legend()
-        plt.xlim(0.03, 2)
-        # plt.ylim(bottom=0.1, top=0.5)
-        plt.title('Point Spread Function')
+        ax.legend()
+        ax.set_ylabel('68% cont. [deg]')
+        ax.set_xlabel('Reco Energy [TeV]')
+        ax.set_xscale('log')
+        # ax.yscale('log')
+        # ax.legend()
+        ax.set_xlim(0.03, 2)
+        # ax.ylim(bottom=0.1, top=0.5)
+        ax.set_title('Point Spread Function')
 
-        plt.show()
+        if ax is None:
+            plt.show()
+        # plt.show()
 
     def get_gammaness_cuts_for_efficiencies(self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None):
         gammaness_cuts = []
@@ -665,11 +674,12 @@ class DL2DataProcessor():
             efficiencies.append(efficiency)
         return efficiencies
 
-    def plot_bkg_discrimination_capability(self, n_off=3):
+    def plot_bkg_discrimination_capability(self, n_off=3, axs=None, label="CTLearn"):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
-        fig, axs = plt.subplots(1, 4, figsize=(20, 5))#, sharey=True)
+        if axs is None:
+            fig, axs = plt.subplots(1, 4, figsize=(20, 5))#, sharey=True)
         intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
         # for ax, (I_min, I_max) in zip(axs, intensity_ranges):
         #     excess_counts = []
@@ -704,7 +714,7 @@ class DL2DataProcessor():
         I_g_off_counts_tot = np.sum(self.I_g_off_counts, axis=0)
 
         for i, ax, (I_min, I_max) in zip(range(len(intensity_ranges)), axs, intensity_ranges):
-            ax.plot(I_g_off_counts_tot[i], I_g_on_counts_tot[i], marker='o', linestyle='-',)
+            ax.plot(I_g_off_counts_tot[i], I_g_on_counts_tot[i], marker='o', linestyle='-', label=label)
             ax.set_xlabel('Background Counts')
             ax.set_title(f'[{I_min} - {I_max}] p.e.')
             # ax.set_xscale('log')
@@ -712,8 +722,10 @@ class DL2DataProcessor():
            
         
         axs[0].set_ylabel('Excess Counts')
+        axs[0].legend()
         plt.suptitle('Excess Counts vs Background Counts for Different Intensity Ranges')
-        plt.show()
+        if axs is None:
+            plt.show()
 
     def plot_excess_vs_background_rates(self, n_off=3):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
