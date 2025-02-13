@@ -9,9 +9,9 @@ PointSourceSensitivityOptimizer:
   reco_energy_max: 500 TeV
   reco_energy_n_bins_per_decade: 5
 
-# GhPercentileCutCalculator:  
-#   target_percentile: 70
-#   min_counts: 200
+GhPercentileCutCalculator:  
+  target_percentile: 70
+  min_counts: 200
 
 ThetaPercentileCutCalculator:
   theta_max_angle: 0.3 deg

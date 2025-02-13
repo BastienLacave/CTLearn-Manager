@@ -555,21 +555,21 @@ class CTLearnTriModelManager():
         gamma_file = gamma_files[0]
         proton_file = proton_files[0]
         cmd = f"ctapipe-optimize-event-selection \
-            -c {config} \
-            --gamma-file {gamma_file} \
-            --proton-file {proton_file} \
-            --point-like \
-            --output {output_cuts_file} \
-            --overwrite True \
-            --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
+-c {config} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file} \
+--output {output_cuts_file} \
+--overwrite True"
+            # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
         os.system(cmd)
         cmd = f"ctapipe-compute-irf \
-            -c {config} --IrfTool.cuts_file {output_cuts_file} \
-            --gamma-file {gamma_file} \
-            --proton-file {proton_file}  \
-            --do-background --point-like \
-            --output {output_irf_file} \
-            --benchmark-output {output_benchmark_file}"
+-c {config} --IrfTool.cuts_file {output_cuts_file} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file}  \
+--do-background \
+--output {output_irf_file} \
+--benchmark-output {output_benchmark_file} \
+--no-spatial-selection-applied"
         os.system(cmd)
     
     def plot_benchmark(self, zenith, azimuth):
