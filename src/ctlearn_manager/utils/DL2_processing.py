@@ -425,16 +425,147 @@ class DL2DataProcessor():
         dec_values = []
         pointings_ra = []
         pointings_dec = []
+        rotation_angles = []
+        cartesian_pointing_x = []
+        cartesian_pointing_y = []
+        cartesian_pointing_z = []
 
-        for reco, cuts_mask in zip(self.reco_directions, self.cuts_masks):
+        cartesian_reco_x = []
+        cartesian_reco_y = []
+        cartesian_reco_z = []
+        sky_offsets = []
+
+        LST_EPOCH_pointings = []
+        new_recos = []
+
+
+
+        LST_EPOCH = Time("2018-10-01T00:00:00", scale="utc")
+
+        for reco, cuts_mask, dl2, pointing in zip(self.reco_directions, self.cuts_masks, self.dl2s, self.pointings):
+            # offsets = reco.spherical_offset_to(pointing)[cuts_mask]
+            dl2 = dl2[cuts_mask]
+
             ra_values.extend(reco[cuts_mask].ra.deg)
             dec_values.extend(reco[cuts_mask].dec.deg)
-        
-        for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
             pointings_ra.extend(pointing[cuts_mask].ra.deg)
             pointings_dec.extend(pointing[cuts_mask].dec.deg)
 
-        plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis')
+    
+
+            ################################
+            # frame = AltAz(obstime=LST_EPOCH, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
+            # reco_temp = SkyCoord(alt=dl2[self.reco_alt_key], az=dl2[self.reco_az_key], frame=frame)#, obstime=dl2["time"])
+            # pointing_temp = SkyCoord(alt=dl2[self.pointing_alt_key], az=dl2[self.pointing_az_key], frame=frame)#, obstime=dl2["time"])
+            # transformed_reco = reco_temp.transform_to(self.source_position)
+            # transformed_pointing = pointing_temp.transform_to(self.source_position)
+
+            # offsets = transformed_reco.spherical_offsets_to(transformed_pointing)
+            # new_recos.extend(pointing[cuts_mask].spherical_offsets_by(offsets[0], offsets[1]).transform_to(self.source_position))
+            ################################
+            # offsets = reco[cuts_mask].spherical_offsets_to(pointing[cuts_mask])
+            # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
+            # print(angles)
+
+            # offsets_x = np.cos(angles) * offsets[0] - np.sin(angles) * offsets[1]
+            # offsets_y = np.sin(angles) * offsets[0] + np.cos(angles) * offsets[1]
+
+            # new_recos.extend(pointing[cuts_mask].spherical_offsets_by(offsets_x, offsets_y).transform_to(self.source_position))
+            ################################
+            old_pointing = SkyCoord(
+                u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
+                u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
+                frame="altaz",
+                location=self.telescope_location,
+                obstime=LST_EPOCH,
+            )
+
+            reco_direction = SkyCoord(
+                u.Quantity(dl2[self.reco_az_key], unit=u.deg),
+                u.Quantity(dl2[self.reco_alt_key], unit=u.deg),
+                frame="altaz",
+                location=self.telescope_location,
+                obstime=LST_EPOCH,
+            )
+
+            new_pointing = SkyCoord(
+                u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
+                u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
+                frame="altaz",
+                location=self.telescope_location,
+                obstime=dl2[self.time_key],
+            )
+            sky_offset = old_pointing.spherical_offsets_to(reco_direction)
+            # better to make new object
+            reco_spherical_offset_az = u.Quantity(sky_offset[0], unit=u.deg)
+            reco_spherical_offset_alt = u.Quantity(sky_offset[1], unit=u.deg)
+
+            # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
+
+            # rotated_reco_spherical_offset_az = np.cos(angles) * reco_spherical_offset_az - np.sin(angles) * reco_spherical_offset_alt
+            # rotated_reco_spherical_offset_alt = np.sin(angles) * reco_spherical_offset_az + np.cos(angles) * reco_spherical_offset_alt
+            rotated_reco_spherical_offset_az = reco_spherical_offset_az
+            rotated_reco_spherical_offset_alt = reco_spherical_offset_alt
+
+            # new_pointing = SkyCoord(
+            #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
+            #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
+            #     frame="altaz",
+            #     location=self.telescope_location,
+            #     obstime=dl2[self.time_key],
+            # )
+            new_reco_direction = new_pointing.spherical_offsets_by(
+                rotated_reco_spherical_offset_az, rotated_reco_spherical_offset_alt
+            ).transform_to(self.source_position)
+            new_recos.extend(new_reco_direction)
+            ################################
+
+
+
+
+
+
+            # az_values.extend(dl2[self.reco_az_key])  # Assuming 'az' is the azimuth key in dl2
+            
+
+            
+            
+            # sky_offset = pointing[cuts_mask].spherical_offsets_to(reco[cuts_mask])
+            # print(sky_offset)
+            # sky_offsets.extend([sky_offset[0].degree, sky_offset[1].degree])
+            # # angular_separation = pointing.separation(reco)
+            # # table.add_column(sky_offset[0], name="spherical_offset_az")
+            # # table.add_column(sky_offset[1], name="spherical_offset_alt")
+            # # table.add_column(angular_separation, name="angular_separation")
+            # rotation_angles.extend((sky_offset[0].radian - (100.893 * u.deg).to(u.rad).value))
+        # print(rotation_angles.shape)
+        # print(sky_offsets.shape)
+        # sky_offsets = np.array(sky_offsets)
+        # new_sky_offset = [[np.cos(rotation_angles), -np.sin(rotation_angles)], [np.sin(rotation_angles), np.cos(rotation_angles)]] @ sky_offsets
+
+
+        # new_sky_offset_x = []
+        # new_sky_offset_y = []
+        # for rot_angle, sky_offset in zip(rotation_angles, sky_offsets):
+        #     new_sky_offset_x.append(np.cos(rot_angle) * sky_offset[0] - np.sin(rot_angle) * sky_offset[1])
+        #     new_sky_offset_y.append(np.sin(rot_angle) * sky_offset[0] + np.cos(rot_angle) * sky_offset[1])
+
+        #     # table.remove_columns(
+        #     #     [
+        #     #         "telescope_pointing_azimuth",
+        #     #         "telescope_pointing_altitude",
+        #     #     ]
+        #     # )
+
+        # new_pos = SkyCoord(ra=pointings_ra * u.deg, dec=pointings_dec * u.deg, frame='icrs').spherical_offsets_by(new_sky_offset_x * u.deg, new_sky_offset_y * u.deg)
+        new_recos_ra = [coord.ra.deg for coord in new_recos]
+        new_recos_dec = [coord.dec.deg for coord in new_recos]
+
+        plt.scatter(ra_values, new_recos_ra, s=1, label='Reconstructed', color='b')
+        plt.show()
+
+        plt.hist2d(new_recos_ra, new_recos_dec, bins=100, cmap='viridis', zorder=0)
+        # plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis', zorder=0)
         # ax = plt.gca()
         # divider = make_axes_locatable(ax)
         # cax = divider.append_axes("right", size="5%", pad=0.05)
