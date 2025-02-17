@@ -667,7 +667,7 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def plot_angular_resolution(self, zenith, azimuth):
+    def plot_angular_resolution_DL2(self, zenith, azimuth):
         set_mpl_style()
         import ctaplot
         import matplotlib.pyplot as plt
@@ -706,7 +706,7 @@ class CTLearnTriModelManager():
         plt.grid(False, which='both')
         plt.show()
         
-    def plot_energy_resolution(self, zenith, azimuth):
+    def plot_energy_resolution_DL2(self, zenith, azimuth):
         set_mpl_style()
         import ctaplot
         import matplotlib.pyplot as plt
@@ -746,22 +746,55 @@ class CTLearnTriModelManager():
         set_mpl_style()
         from astropy.io import fits
         import matplotlib.pyplot as plt
-        from . import resources
+        from .resources.irfs import SST1M
+        from astropy.coordinates import Angle
+        from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, PSF3D
 
         import importlib.resources as pkg_resources
-
-        # with pkg_resources.path(resources, 'train_ctlearn_config.json') as config_example:
-            
+        
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         hudl = fits.open(irf_file)
         
-        RF_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
-        plt.xscale('log')
-        plt.yscale('log')
-        plt.xlabel('Energy [TeV]')
-        plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        irfs = SST1M
+        
+        # with pkg_resources.path(irfs, f'SST1M_stereo_Zen{zenith}deg_gcutenergydep_irfs.fits') as RF_irf_file:
+        RF_irf_file = "/home/blacave/CTLearn/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/SST1M/SST1M_stereo_Zen20deg_gcutenergydep_irfs.fits"
+        aeff = EffectiveAreaTable2D.read(RF_irf_file, hdu="EFFECTIVE AREA")
+        bkg = Background2D.read(RF_irf_file, hdu="BACKGROUND")
+        edisp = EnergyDispersion2D.read(RF_irf_file, hdu="ENERGY DISPERSION")
+        psf = PSF3D.read(RF_irf_file, hdu="POINT SPREAD FUNCTION")
+        
+        
+        
+        # RF_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+        # energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+        # plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
+        # plt.xscale('log')
+        # plt.yscale('log')
+        # plt.xlabel('Energy [TeV]')
+        # plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        # plt.show()
+
+        
+        
+
+        aeff.plot_energy_dependence(offset=[Angle("0d")])
+        
+        
         plt.show()
+        psf.plot_containment_radius_vs_energy(fraction=[0.68], offset=[Angle("0d")], label="RF 68%")
+        energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='CTLearn 68%')
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
+        plt.xscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Angular resolution [deg]')
+        plt.legend()
+        plt.show()
+        plt.show()
+            
+        
         hudl.close()
         
