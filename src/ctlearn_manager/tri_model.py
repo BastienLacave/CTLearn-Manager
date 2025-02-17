@@ -569,7 +569,7 @@ class CTLearnTriModelManager():
 --do-background \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied"
+--no-spatial-selection-applied --overwrite"
         os.system(cmd)
     
     def plot_benchmark(self, zenith, azimuth):
@@ -595,10 +595,14 @@ class CTLearnTriModelManager():
         plt.show()
         
         energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION '].data['ANGULAR_RESOLUTION'][0,0,:])
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
+        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Angular resolution [deg]')
+        plt.legend()
         plt.show()
         
         energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
@@ -622,7 +626,7 @@ class CTLearnTriModelManager():
         import matplotlib.pyplot as plt
         from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, RadMax2D
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        rad_max = RadMax2D.read(irf_file, hdu="RAD_MAX")
+        # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
         bkg = Background2D.read(irf_file, hdu="BACKGROUND")
         edisp = EnergyDispersion2D.read(irf_file, hdu="ENERGY DISPERSION")
