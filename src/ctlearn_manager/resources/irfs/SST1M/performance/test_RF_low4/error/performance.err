@@ -1,0 +1,12 @@
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+mv: cannot stat '/tmp/*stereo.h5': No such file or directory
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+mv: cannot stat '/tmp/*tel_001.h5': No such file or directory
+mv: cannot stat '/tmp/*tel_002.h5': No such file or directory
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+mv: cannot stat '/tmp/*tel_001.h5': No such file or directory
+mv: cannot stat '/tmp/*tel_002.h5': No such file or directory
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+WARNING: table contains column(s) with defined 'unit', 'format', 'description', or 'meta' info attributes. These will be dropped since serialize_meta=False. [astropy.io.misc.hdf5]
+mv: cannot stat '/tmp/*stereo.h5': No such file or directory

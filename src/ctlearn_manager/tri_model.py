@@ -749,52 +749,65 @@ class CTLearnTriModelManager():
         from .resources.irfs import SST1M
         from astropy.coordinates import Angle
         from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, PSF3D
-
+        import importlib
+        from astropy.table import Table
         import importlib.resources as pkg_resources
+    
+        tel_path = "SST1M"
+        tel_string = "stereo" if self.stereo else "tel_001"
+        stereo_path = "stereo" if self.stereo else "mono"
         
+        module_name = f"ctlearn_manager.resources.irfs.{tel_path}.performance.{stereo_path}_performance_med4_{zenith}deg"
+        RF_bechmpark = importlib.import_module(module_name)
+        
+        with pkg_resources.path(RF_bechmpark, f'angular_resolution_{tel_string}.h5') as angular_resolution_file:
+            angular_resolution_table = Table.read(angular_resolution_file, format='hdf5', path='res')
+            angular_resolution_table_bins = Table.read(angular_resolution_file, format='hdf5', path='bins')
+            
+        with pkg_resources.path(RF_bechmpark, f'energy_resolution_{tel_string}.h5') as energy_resolution_file:
+            energy_resolution_table = Table.read(energy_resolution_file, format='hdf5', path='res')
+            energy_resolution_table_bins = Table.read(energy_resolution_file, format='hdf5', path='bins')
+            
+        with pkg_resources.path(RF_bechmpark, f'flux_sensitivity_{tel_string}.h5') as flux_sensitivity_file:
+            flux_sensitivity_table = Table.read(flux_sensitivity_file, format='hdf5', path='sensitivity')
+            
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         hudl = fits.open(irf_file)
-        
-        irfs = SST1M
-        
-        # with pkg_resources.path(irfs, f'SST1M_stereo_Zen{zenith}deg_gcutenergydep_irfs.fits') as RF_irf_file:
-        RF_irf_file = "/home/blacave/CTLearn/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/SST1M/SST1M_stereo_Zen20deg_gcutenergydep_irfs.fits"
-        aeff = EffectiveAreaTable2D.read(RF_irf_file, hdu="EFFECTIVE AREA")
-        bkg = Background2D.read(RF_irf_file, hdu="BACKGROUND")
-        edisp = EnergyDispersion2D.read(RF_irf_file, hdu="ENERGY DISPERSION")
-        psf = PSF3D.read(RF_irf_file, hdu="POINT SPREAD FUNCTION")
-        
-        
-        
-        # RF_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        # energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
-        # plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
-        # plt.xscale('log')
-        # plt.yscale('log')
-        # plt.xlabel('Energy [TeV]')
-        # plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
-        # plt.show()
 
-        
-        
-
-        aeff.plot_energy_dependence(offset=[Angle("0d")])
-        
-        
+        energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+        plt.plot(flux_sensitivity_table['energy'], flux_sensitivity_table['flux_sensitivity'], label='RF')
+        plt.fill_between(flux_sensitivity_table['energy'], flux_sensitivity_table['flux_sensitivity']-flux_sensitivity_table['flux_sensitivity_err_minus'], flux_sensitivity_table['flux_sensitivity']+flux_sensitivity_table['flux_sensitivity_err_plus'], alpha=0.5, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+        plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:], label='CTLearn')
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        plt.legend()
         plt.show()
-        psf.plot_containment_radius_vs_energy(fraction=[0.68], offset=[Angle("0d")], label="RF 68%")
+
         energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+        energy_center_RF = angular_resolution_table_bins['energy_bins'][1:] - 0.5 * np.diff(angular_resolution_table_bins['energy_bins'])
+        plt.plot(energy_center_RF, angular_resolution_table['angular_res'], label='RF 68%')
+        plt.fill_between(energy_center_RF, angular_resolution_table['angular_res_err_lo'], angular_resolution_table['angular_res_err_hi'], alpha=0.5, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
         plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='CTLearn 68%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Angular resolution [deg]')
         plt.legend()
         plt.show()
         plt.show()
-            
+        
+        energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
+        energy_center_RF = energy_resolution_table_bins['energy_bins'][1:] - 0.5 * np.diff(energy_resolution_table_bins['energy_bins'])
+        plt.plot(energy_center_RF, energy_resolution_table['energy_res'], label='RF')
+        plt.fill_between(energy_center_RF, energy_resolution_table['energy_res_err_lo'], energy_resolution_table['energy_res_err_hi'], alpha=0.5, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+        plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['RESOLUTION'][0,0,:], label='CTLearn')
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Energy [TeV]')
+        plt.ylabel('Energy resolution')
+        plt.legend()
+        plt.show()
         
         hudl.close()
         

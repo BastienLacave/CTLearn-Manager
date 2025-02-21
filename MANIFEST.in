@@ -1,3 +1,4 @@
 prune src/template/_dev_version
 prune .github
 include src/ctlearn_manager/resources/*
+recursive-include src/ctlearn_manager/resources *

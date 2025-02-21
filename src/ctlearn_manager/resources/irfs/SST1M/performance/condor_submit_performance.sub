@@ -1,0 +1,11 @@
+input_tab=/mnt/nfs27_auger3/jurysek/SST1M/MC/prod_oct_2024_84/v0.7.2//performance//input.tab
+executable=/mnt/nfs27_auger3/jurysek/SST1M/MC/prod_oct_2024_84/v0.7.2//performance//python_runner_performance_template_multi.sh
+arguments=$(dl2_protons) $(dl2_gammas) $(config) $(output_path) $(gcut) $(version)
+output=/mnt/nfs27_auger3/jurysek/SST1M/MC/prod_oct_2024_84/v0.7.2//performance//output/performance.out
+error=/mnt/nfs27_auger3/jurysek/SST1M/MC/prod_oct_2024_84/v0.7.2//performance//error/performance.err
+log=/mnt/nfs27_auger3/jurysek/SST1M/MC/prod_oct_2024_84/v0.7.2//performance//log/performance.log
+request_memory = 15G
+accounting_group = group_auger.user
+concurrency_limits = nfs27:4
++MaxRuntime = 60*60*4*1
+queue dl2_protons,dl2_gammas,config,output_path,gcut,version from $(input_tab)
