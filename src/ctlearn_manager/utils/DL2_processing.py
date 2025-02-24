@@ -142,6 +142,7 @@ class DL2DataProcessor():
                         pickle.dump(self, f)
                     # self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
                     # os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
+                    print(f"process_dl2_file {DL2_file} {processor_file}")
                     os.system(f"process_dl2_file {DL2_file} {processor_file}")
 
 
@@ -472,40 +473,21 @@ class DL2DataProcessor():
 
             # new_recos.extend(pointing[cuts_mask].spherical_offsets_by(offsets_x, offsets_y).transform_to(self.source_position))
             ################################
-            old_pointing = SkyCoord(
-                u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
-                u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
-                frame="altaz",
-                location=self.telescope_location,
-                obstime=LST_EPOCH,
-            )
+            # old_pointing = SkyCoord(
+            #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
+            #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
+            #     frame="altaz",
+            #     location=self.telescope_location,
+            #     obstime=LST_EPOCH,
+            # )
 
-            reco_direction = SkyCoord(
-                u.Quantity(dl2[self.reco_az_key], unit=u.deg),
-                u.Quantity(dl2[self.reco_alt_key], unit=u.deg),
-                frame="altaz",
-                location=self.telescope_location,
-                obstime=LST_EPOCH,
-            )
-
-            new_pointing = SkyCoord(
-                u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
-                u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
-                frame="altaz",
-                location=self.telescope_location,
-                obstime=dl2[self.time_key],
-            )
-            sky_offset = old_pointing.spherical_offsets_to(reco_direction)
-            # better to make new object
-            reco_spherical_offset_az = u.Quantity(sky_offset[0], unit=u.deg)
-            reco_spherical_offset_alt = u.Quantity(sky_offset[1], unit=u.deg)
-
-            # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
-
-            # rotated_reco_spherical_offset_az = np.cos(angles) * reco_spherical_offset_az - np.sin(angles) * reco_spherical_offset_alt
-            # rotated_reco_spherical_offset_alt = np.sin(angles) * reco_spherical_offset_az + np.cos(angles) * reco_spherical_offset_alt
-            rotated_reco_spherical_offset_az = reco_spherical_offset_az
-            rotated_reco_spherical_offset_alt = reco_spherical_offset_alt
+            # reco_direction = SkyCoord(
+            #     u.Quantity(dl2[self.reco_az_key], unit=u.deg),
+            #     u.Quantity(dl2[self.reco_alt_key], unit=u.deg),
+            #     frame="altaz",
+            #     location=self.telescope_location,
+            #     obstime=LST_EPOCH,
+            # )
 
             # new_pointing = SkyCoord(
             #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
@@ -514,10 +496,29 @@ class DL2DataProcessor():
             #     location=self.telescope_location,
             #     obstime=dl2[self.time_key],
             # )
-            new_reco_direction = new_pointing.spherical_offsets_by(
-                rotated_reco_spherical_offset_az, rotated_reco_spherical_offset_alt
-            ).transform_to(self.source_position)
-            new_recos.extend(new_reco_direction)
+            # sky_offset = old_pointing.spherical_offsets_to(reco_direction)
+            # # better to make new object
+            # reco_spherical_offset_az = u.Quantity(sky_offset[0], unit=u.deg)
+            # reco_spherical_offset_alt = u.Quantity(sky_offset[1], unit=u.deg)
+
+            # # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
+
+            # # rotated_reco_spherical_offset_az = np.cos(angles) * reco_spherical_offset_az - np.sin(angles) * reco_spherical_offset_alt
+            # # rotated_reco_spherical_offset_alt = np.sin(angles) * reco_spherical_offset_az + np.cos(angles) * reco_spherical_offset_alt
+            # rotated_reco_spherical_offset_az = reco_spherical_offset_az
+            # rotated_reco_spherical_offset_alt = reco_spherical_offset_alt
+
+            # # new_pointing = SkyCoord(
+            # #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
+            # #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
+            # #     frame="altaz",
+            # #     location=self.telescope_location,
+            # #     obstime=dl2[self.time_key],
+            # # )
+            # new_reco_direction = new_pointing.spherical_offsets_by(
+            #     rotated_reco_spherical_offset_az, rotated_reco_spherical_offset_alt
+            # ).transform_to(self.source_position)
+            # new_recos.extend(new_reco_direction)
             ################################
 
 
@@ -558,14 +559,14 @@ class DL2DataProcessor():
         #     # )
 
         # new_pos = SkyCoord(ra=pointings_ra * u.deg, dec=pointings_dec * u.deg, frame='icrs').spherical_offsets_by(new_sky_offset_x * u.deg, new_sky_offset_y * u.deg)
-        new_recos_ra = [coord.ra.deg for coord in new_recos]
-        new_recos_dec = [coord.dec.deg for coord in new_recos]
+        # new_recos_ra = [coord.ra.deg for coord in new_recos]
+        # new_recos_dec = [coord.dec.deg for coord in new_recos]
 
-        plt.scatter(ra_values, new_recos_ra, s=1, label='Reconstructed', color='b')
-        plt.show()
+        # plt.scatter(ra_values, new_recos_ra, s=1, label='Reconstructed', color='b')
+        # plt.show()
 
-        plt.hist2d(new_recos_ra, new_recos_dec, bins=100, cmap='viridis', zorder=0)
-        # plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis', zorder=0)
+        # plt.hist2d(new_recos_ra, new_recos_dec, bins=100, cmap='viridis', zorder=0)
+        plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis', zorder=0)
         # ax = plt.gca()
         # divider = make_axes_locatable(ax)
         # cax = divider.append_axes("right", size="5%", pad=0.05)
