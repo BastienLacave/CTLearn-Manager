@@ -50,26 +50,71 @@ def load_DL2_data(input_file, DL2DataProcessor):
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
     from ctapipe.io import read_table
     from astropy.table import (join, hstack)
+    
     pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort('time')
-    dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
-    dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
-    dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
+    
+    dl2 = None
+    
+    try:
+        dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
+        dl2 = dl2_classification
+    except:
+        print(f"Classification table not found for {reco_method}/{tel}")
+    
+    try:
+        dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
+        dl2 = join(dl2, dl2_energy, keys=["obs_id", "event_id"]) if dl2 is not None else dl2_energy
+    except:
+        print(f"Energy table not found for {reco_method}/{tel}")
+    
+    try:
+        dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
+        dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"]) if dl2 is not None else dl2_geometry
+    except:
+        print(f"Geometry table not found for {reco_method}/{tel}")
+    
     dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[["obs_id", "event_id", "hillas_intensity"]]
-    dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
-    dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
-    dl2 = join(dl2, dl1, keys=["obs_id", "event_id"])
+    dl2 = join(dl2, dl1, keys=["obs_id", "event_id"]) if dl2 is not None else dl1
+    
     dl2.sort('event_id')
     dl2 = hstack([dl2, pointing])
     dl2.sort('time')
-    # times = np.array(dl2['time'])
+    
     print("Computing time differences...")
-    # t_diff = np.diff(dl2['time'])#.to_value('unix')
-    # t_diff = np.insert(t_diff, 0, TimeDelta(0*u.s, format='jd', scale='tai'))  # Insert 0 at the beginning to align with the original times array
     t_diff = compute_diff(dl2['time'].to_value('unix'))
     dl2['delta_t'] = t_diff
+    
     print(f"Loaded {len(dl2)} events")
     return dl2
+
+# def load_DL2_data(input_file, DL2DataProcessor):
+#     tel_id = DL2DataProcessor.telescope_id
+#     reco_method = DL2DataProcessor.reconstruction_method
+#     path = "subarray" if DL2DataProcessor.stereo else "telescope"
+#     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
+#     from ctapipe.io import read_table
+#     from astropy.table import (join, hstack)
+#     pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
+#     pointing.sort('time')
+#     dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
+#     dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
+#     dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
+#     dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[["obs_id", "event_id", "hillas_intensity"]]
+#     dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
+#     dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+#     dl2 = join(dl2, dl1, keys=["obs_id", "event_id"])
+#     dl2.sort('event_id')
+#     dl2 = hstack([dl2, pointing])
+#     dl2.sort('time')
+#     # times = np.array(dl2['time'])
+#     print("Computing time differences...")
+#     # t_diff = np.diff(dl2['time'])#.to_value('unix')
+#     # t_diff = np.insert(t_diff, 0, TimeDelta(0*u.s, format='jd', scale='tai'))  # Insert 0 at the beginning to align with the original times array
+#     t_diff = compute_diff(dl2['time'].to_value('unix'))
+#     dl2['delta_t'] = t_diff
+#     print(f"Loaded {len(dl2)} events")
+#     return dl2
 
 def load_DL2_data_RF(input_file, DL2DataProcessor):
     # tel_id = DL2DataProcessor.telescope_id

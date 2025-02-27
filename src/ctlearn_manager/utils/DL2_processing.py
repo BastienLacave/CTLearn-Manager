@@ -68,7 +68,7 @@ class DL2DataProcessor():
         self.CTLearnTriModelManager = CTLearnTriModelManager
         self.source_position = source_position
         self.dl2_processed_dir = dl2_processed_dir
-        self_telscope_names = CTLearnTriModelManager.telescope_names
+        self.telscope_names = CTLearnTriModelManager.telescope_names
         self.stereo = CTLearnTriModelManager.stereo
         self.gammaness_cut = gammaness_cut
         self.pointing_table = pointing_table
@@ -83,7 +83,7 @@ class DL2DataProcessor():
 
 
 
-        if any("LST" in name and "1" in name for name in self_telscope_names):
+        if any("LST" in name and "1" in name for name in self.telscope_names):
             # print("LST1 is in the telescope names")
             self.telescope_location = EarthLocation(
             lon=-17.89149701 * u.deg,
@@ -128,6 +128,7 @@ class DL2DataProcessor():
 
 
             if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
+                self.CTLearnTriModelManager.cluster_configuration.info()
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
@@ -135,7 +136,7 @@ class DL2DataProcessor():
                     self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
                     os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
                 else:
-                    print(f"[NOT USING SLURM] Processing {DL2_file}")
+                    # print(f"[NOT USING SLURM] Processing {DL2_file}")
 
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
@@ -205,18 +206,25 @@ class DL2DataProcessor():
                 I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
                 I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
-            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)) and (os.path.exists(I_g_on_counts_output_file)) and (os.path.exists(I_g_off_counts_output_file)):
+            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
 
                 with open(dl2_output_file, 'rb') as f:
                         dl2 = pickle.load(f)
-                
+                if self.gammaness_key in dl2.colnames:
+                    dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
+                    cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
+                else:
+                    cut_mask = np.ones(len(dl2), dtype=bool)
+                self.cuts_masks.append(cut_mask)
+                self.dl2s.append(dl2)
+            
+            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
                 with open(reco_output_file, 'rb') as f:
                     transformed_reco_dict = pickle.load(f)
                 with open(pointing_output_file, 'rb') as f:
                     transformed_pointing_dict = pickle.load(f)
 
-                dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
-                cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
+                
                 # dl2_cuts = dl2[cut_mask]
                 
                 # Convert dictionaries back to SkyCoord objects
@@ -225,10 +233,11 @@ class DL2DataProcessor():
         
                 self.reco_directions.append(transformed_reco)
                 self.pointings.append(transformed_pointing)
-                self.cuts_masks.append(cut_mask)
+                
 
-                self.dl2s.append(dl2)
+                
                 # self.dl2s_cuts.append(dl2_cuts)
+            if (os.path.exists(I_g_on_counts_output_file)) and (os.path.exists(I_g_off_counts_output_file)):
 
                 with open(I_g_on_counts_output_file, 'rb') as f:
                     I_g_on_counts = pickle.load(f)
@@ -420,7 +429,10 @@ class DL2DataProcessor():
         plt.figure(figsize=(10, 8))
         plt.xlabel('RA (deg)')
         plt.ylabel('Dec (deg)')
-        plt.title('Sky Map')
+        if len(self.DL2_files) == 1:
+            plt.title(f'Sky Map for {self.DL2_files[0].split("/")[-1]}')
+        else:
+            plt.title('Sky Map')
         
         ra_values = []
         dec_values = []
@@ -572,22 +584,24 @@ class DL2DataProcessor():
         # cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(label='Counts')
 
-        plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
-        plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
+        # plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
+        # plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
 
 
         for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
             pointing = pointing[cuts_mask]
             off_regions = self.compute_off_regions(pointing[0], n_off=3)
             for off_region in off_regions:
-                # print(off_region)
+                print(off_region)
                 off_circle = plt.Circle((off_region.ra.deg, off_region.dec.deg), radius=0.2, color='w', fill=False, lw=1, ls='--')
-                plt.gca().add_artist(off_circle)
+                plt.scatter(off_region.ra.deg, off_region.dec.deg, s=50, label='Off', marker='x', color='w', linewidths=2)
+                # plt.gca().add_artist(off_circle)
 
         on_circle = plt.Circle((self.source_position.ra.deg, self.source_position.dec.deg), radius=0.2, color='w', fill=False, lw=1)
-        plt.gca().add_artist(on_circle)
+        plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
+        # plt.gca().add_artist(on_circle)
 
-        plt.gca().set_aspect('equal', adjustable='box')
+        # plt.gca().set_aspect('equal', adjustable='box')
 
         plt.legend()
         plt.show()

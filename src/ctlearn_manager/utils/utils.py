@@ -156,8 +156,14 @@ class ClusterConfiguration():
         self.python_env = python_env if python_env!=None else get_current_env()
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
+        # if self.use_cluster:
+        #     print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
+
+    def info(self):
         if self.use_cluster:
-            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
+            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}, partition {self.partition} and time limit {self.time}")
+        else:
+            print("🔧 Not using any cluster")
 
     def get_cluster(self):
         import socket
