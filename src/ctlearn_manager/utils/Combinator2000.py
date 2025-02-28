@@ -73,12 +73,13 @@ class Combinator2000(DL2DataProcessor):
             self.pointings.append(transformed_pointing)
         # cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
 
-    def set_keys(self):
-        self.gammaness_key = f"{self.type_processor.reco_field_suffix}_prediction" #if self.CTLearn else "gammaness"
-        self.energy_key = f"{self.energy_processor.reco_field_suffix}_energy" #if self.CTLearn else "reco_energy"
-        self.intensity_key = "hillas_intensity" #if self.CTLearn else "intensity"
-        self.reco_alt_key = f"{self.direction_processor.reco_field_suffix}_alt" #if self.CTLearn else "reco_alt"
-        self.reco_az_key = f"{self.direction_processor.reco_field_suffix}_az" #if self.CTLearn else "reco_az"
-        self.pointing_alt_key = "altitude" #if self.CTLearn else "alt_tel"
-        self.pointing_az_key = "azimuth" #if self.CTLearn else "az_tel"
-        self.time_key = "time" #if self.CTLearn else "dragon_time"
+    # def set_keys(self):
+    #     self.gammaness_key = f"{self.type_processor.reco_field_suffix}_prediction" #if self.CTLearn else "gammaness"
+    #     self.energy_key = f"{self.energy_processor.reco_field_suffix}_energy" #if self.CTLearn else "reco_energy"
+    #     self.intensity_key = "hillas_intensity" #if self.CTLearn else "intensity"
+    #     self.reco_alt_key = f"{self.direction_processor.reco_field_suffix}_alt" #if self.CTLearn else "reco_alt"
+    #     self.reco_az_key = f"{self.direction_processor.reco_field_suffix}_az" #if self.CTLearn else "reco_az"
+    #     self.pointing_alt_key = "altitude" #if self.CTLearn else "alt_tel"
+    #     self.pointing_az_key = "azimuth" #if self.CTLearn else "az_tel"
+    #     self.time_key = "time" #if self.CTLearn else "dragon_time"
+        
