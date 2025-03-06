@@ -74,6 +74,7 @@ class CTLearnModelManager():
         self.model_nickname = model_parameters.get('model_nickname', 'new_model')
         if not load:
             self.save_to_index(model_parameters)
+            print(f"🧠 Model name: {self.model_nickname}")
         self.model_parameters_table = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/parameters")
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
@@ -96,7 +97,7 @@ class CTLearnModelManager():
 
         self.cluster_configuration = cluster_configuration
         
-        print(f"🧠 Model name: {self.model_nickname}")
+        # 
         
     def save_to_index(self, model_parameters):
         """
@@ -684,15 +685,32 @@ class CTLearnModelManager():
     
         from astropy.io.misc.hdf5 import read_table_hdf5
         
-        DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-        DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-        match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
-        match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
-        if len(match_gamma) == 0:
-            raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
-        if len(match_proton) == 0:
-            raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
-        return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
+        try:
+            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+            match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
+            if len(match_gamma) == 0:
+                raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
+            DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][match_gamma]
+        except:
+            DL2_gamma_files = []
+        try:
+            DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+            match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
+            if len(match_proton) == 0:
+                raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
+            DL2_proton_files = DL2_proton_table['testing_DL2_proton_files'][match_proton]
+        except:
+            DL2_proton_files = []
+        return DL2_gamma_files, DL2_proton_files
+        # DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+        # DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+        # match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
+        # match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
+        # if len(match_gamma) == 0:
+        #     raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
+        # if len(match_proton) == 0:
+        #     raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
+        # return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
       
     def plot_zenith_azimuth_ranges(self, ax=None):
         """
