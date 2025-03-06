@@ -787,11 +787,12 @@ class CTLearnModelManager():
         ax.set_rlabel_position(-30)
         ax.set_ylim(0, 60)
         ax.set_yticks(np.arange(10, 61, 10))
-        ax.set_yticklabels(["", "", "30°", "", "", "60°", "", "", "90°"], fontsize=10)
+        ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel('Azimuth [deg]', fontsize=10)
         
         
-        ax.set_title('Zenith and Azimuth Ranges')
+        ax.set_title('Zenith and Azimuth Ranges', pad=30)
+        plt.tight_layout()
         if ax is None:
             plt.show()
         
@@ -831,14 +832,15 @@ class CTLearnModelManager():
         ax.set_rlabel_position(-30)
         ax.set_ylim(0, 60)
         ax.set_yticks(np.arange(10, 61, 10))
-        ax.set_yticklabels(["", "", "30°", "", "", "60°", "", "", "90°"], fontsize=10)
+        ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel('Azimuth [deg]', fontsize=10)
         handles, labels = ax.get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         ax.legend(by_label.values(), by_label.keys())
         
         
-        ax.set_title('Training nodes')
+        ax.set_title('Training nodes', pad=30)
+        plt.tight_layout()
         plt.show()
       
 
