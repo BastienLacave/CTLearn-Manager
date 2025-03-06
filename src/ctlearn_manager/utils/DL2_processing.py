@@ -585,7 +585,7 @@ class DL2DataProcessor():
         plt.colorbar(label='Counts')
 
         # plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
-        plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
+        # plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
 
 
         for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
@@ -594,11 +594,11 @@ class DL2DataProcessor():
             for off_region in off_regions:
                 # print(off_region)
                 off_circle = plt.Circle((off_region.ra.deg, off_region.dec.deg), radius=0.2, color='w', fill=False, lw=1, ls='--')
-                plt.scatter(off_region.ra.deg, off_region.dec.deg, s=50, label='Off', marker='x', color='r', linewidths=2)
+                # plt.scatter(off_region.ra.deg, off_region.dec.deg, s=50, label='Off', marker='x', color='r', linewidths=2)
                 plt.gca().add_artist(off_circle)
 
         on_circle = plt.Circle((self.source_position.ra.deg, self.source_position.dec.deg), radius=0.2, color='w', fill=False, lw=1)
-        plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='o', color='g', linewidths=2)
+        # plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='o', color='g', linewidths=2)
         plt.gca().add_artist(on_circle)
 
         plt.gca().set_aspect('equal', adjustable='box')

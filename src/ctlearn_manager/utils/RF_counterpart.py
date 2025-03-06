@@ -10,6 +10,7 @@ class RFCounterpart(DL2DataProcessor):
 
     def __init__(self, dl2_processed_dir, CTLearnTriModelManager: CTLearnTriModelManager, DL2_files=None, runs=None, cluster_configuration = ClusterConfiguration(), gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab")):
         self.cluster_configuration = cluster_configuration
+        
 
 
         if (self.cluster_configuration.cluster == 'lst-cluster') and (runs is not None) and (DL2_files is None):

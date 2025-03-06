@@ -67,6 +67,25 @@ class CTLearnTriModelManager():
         self.telescope_ids = self.direction_model.telescope_ids
         self.telescope_names = self.direction_model.telescope_names
         self.cluster_configuration = cluster_configuration
+        self.reconstruction_method = "CTLearn"
+        self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
+        self.set_keys()
+        print(f"🧠🧠🧠 CTLearnTriModelManager initialized with {self.direction_model.model_nickname}, {self.energy_model.model_nickname}, and {self.type_model.model_nickname}")
+        self.get_available_MC_directions()
+
+    def set_keys(self):
+        self.gammaness_key = f"{self.reco_field_suffix}_prediction" #if self.CTLearn else "gammaness"
+        self.reco_energy_key = f"{self.reco_field_suffix}_energy" #if self.CTLearn else "reco_energy"
+        self.intensity_key = "hillas_intensity" #if self.CTLearn else "intensity"
+        self.reco_alt_key = f"{self.reco_field_suffix}_alt" #if self.CTLearn else "reco_alt"
+        self.reco_az_key = f"{self.reco_field_suffix}_az" #if self.CTLearn else "reco_az"
+        self.true_alt_key = "true_alt" #if self.CTLearn else "alt"
+        self.true_az_key = "true_az" #if self.CTLearn else "az"
+        self.true_energy_key = "true_energy" #if self.CTLearn else "energy"
+        # self.true_type_key = "true_type" #if self.CTLearn else "type"
+        self.pointing_alt_key = "array_altitude" if self.stereo else "altitude" #if self.CTLearn else "alt_tel"
+        self.pointing_az_key = "array_azimuth" if self.stereo else "azimuth" #if self.CTLearn else "az_tel"
+        self.time_key = "time" #if self.CTLearn else "dragon_time"
             
     def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
         if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths) == len(testing_gamma_patterns)):
@@ -85,6 +104,17 @@ class CTLearnTriModelManager():
                 testing_gamma_patterns,
                 testing_proton_patterns
             )
+    
+    def set_DL2_MC_files(self, testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
+        for model in [self.direction_model, self.energy_model, self.type_model]:
+            model.update_model_manager_DL2_MC_files(
+                testing_DL2_gamma_files, 
+                testing_DL2_proton_files, 
+                testing_DL2_gamma_zenith_distances, 
+                testing_DL2_gamma_azimuths, 
+                testing_DL2_proton_zenith_distances, 
+                testing_DL2_proton_azimuths
+            )
 
     def get_available_testing_directions(self):
         from astropy.io.misc.hdf5 import read_table_hdf5
@@ -93,6 +123,40 @@ class CTLearnTriModelManager():
         gamma_azimuths = direction_testing_table['testing_gamma_azimuths']
         for zenith, azimuth in zip(gamma_zeniths, gamma_azimuths):
             print(f"(ZD, Az): ({zenith}, {azimuth})")
+
+    def get_available_MC_directions(self):
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        
+        try:
+            DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
+            gamma_zeniths = DL2_gamma_table['testing_DL2_gamma_zenith_distances']
+            gamma_azimuths = DL2_gamma_table['testing_DL2_gamma_azimuths']
+        except:
+            gamma_zeniths = []
+            gamma_azimuths = []
+
+        try:
+            DL2_proton_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/proton')
+            proton_zeniths = DL2_proton_table['testing_DL2_proton_zenith_distances']
+            proton_azimuths = DL2_proton_table['testing_DL2_proton_azimuths']
+        except:
+            proton_zeniths = []
+            proton_azimuths = []
+
+        coords = set(zip(gamma_zeniths, gamma_azimuths)).union(set(zip(proton_zeniths, proton_azimuths)))
+        if len(coords) > 0:
+            print("Available MC DL2 directions:")
+        for zenith, azimuth in coords:
+            gamma_available = (zenith, azimuth) in set(zip(gamma_zeniths, gamma_azimuths))
+            proton_available = (zenith, azimuth) in set(zip(proton_zeniths, proton_azimuths))
+            if gamma_available and proton_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma | proton")
+            elif gamma_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma |")
+            elif proton_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t       | proton")
+            else:
+                print(f"(ZD, Az): ({zenith}, {azimuth})")
         
     def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', ):
         import os
@@ -219,9 +283,7 @@ class CTLearnTriModelManager():
             else:
                 print(cmd)
                 os.system(cmd)
-            
-
-    
+        
     
     def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, config_dir=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
         import os
@@ -438,33 +500,40 @@ class CTLearnTriModelManager():
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
         testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
         testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        dl2_gamma = []
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
-        dl2_gamma = vstack(dl2_gamma)
+
+        tel_id = None if self.stereo else self.telescope_ids[0]
+
+        if len(testing_DL2_gamma_files) > 0:
+            dl2_gamma = []
+            for file in testing_DL2_gamma_files:
+                dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_gamma = vstack(dl2_gamma)
+
+            axs[0].scatter(dl2_gamma[self.pointing_alt_key][0]/np.pi*180, dl2_gamma[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+            axs[0].hist2d(dl2_gamma[self.reco_alt_key], dl2_gamma[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            axs[0].set_xlabel("Altitude [deg]")
+            axs[0].set_ylabel("Azimuth [deg]")
+            axs[0].legend()
+            axs[0].set_title("Gammas")
+            cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+            cbar.set_label("Counts")
         
-        dl2_protons = []
-        for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file))
-        dl2_proton = vstack(dl2_protons)
-        
-        axs[0].scatter(dl2_gamma['array_altitude'][0]/np.pi*180, dl2_gamma['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-        axs[0].hist2d(dl2_gamma["CTLearn_alt"], dl2_gamma["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        axs[0].set_xlabel("Altitude [deg]")
-        axs[0].set_ylabel("Azimuth [deg]")
-        axs[0].legend()
-        axs[0].set_title("Gammas")
-        cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
-        cbar.set_label("Counts")
-        
-        axs[1].scatter(dl2_proton['array_altitude'][0]/np.pi*180, dl2_proton['array_azimuth'][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-        axs[1].hist2d(dl2_proton["CTLearn_alt"], dl2_proton["CTLearn_az"], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        axs[1].set_xlabel("Altitude [deg]")
-        axs[1].set_ylabel("Azimuth [deg]")
-        axs[1].legend()
-        axs[1].set_title("Protons")
-        cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
-        cbar.set_label("Counts")
+        if len(testing_DL2_proton_files) > 0:
+            dl2_protons = []
+            for file in testing_DL2_proton_files:
+                dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_proton = vstack(dl2_protons)
+            
+            
+            
+            axs[1].scatter(dl2_proton[self.pointing_alt_key][0]/np.pi*180, dl2_proton[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+            axs[1].hist2d(dl2_proton[self.reco_alt_key], dl2_proton[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            axs[1].set_xlabel("Altitude [deg]")
+            axs[1].set_ylabel("Azimuth [deg]")
+            axs[1].legend()
+            axs[1].set_title("Protons")
+            cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
+            cbar.set_label("Counts")
         
         plt.tight_layout()
         plt.show()
@@ -678,19 +747,20 @@ class CTLearnTriModelManager():
         testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
         dl2_gamma = []
         shower_parameters_gamma = []
+        tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
+            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        reco_alt = dl2_gamma['CTLearn_alt'].to(u.deg)
-        reco_az = dl2_gamma['CTLearn_az'].to(u.deg)
-        true_alt = dl2_gamma['true_alt'].to(u.deg)
-        true_az = dl2_gamma['true_az'].to(u.deg)
-        reco_energy = dl2_gamma['CTLearn_energy']
-        true_energy = dl2_gamma['true_energy']
+        reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg)
+        reco_az = dl2_gamma[self.reco_az_key].to(u.deg)
+        true_alt = dl2_gamma[self.true_alt_key].to(u.deg)
+        true_az = dl2_gamma[self.true_az_key].to(u.deg)
+        reco_energy = dl2_gamma[self.reco_energy_key]
+        true_energy = dl2_gamma[self.true_energy_key]
         
         # Define the range of true energy values
         true_energy_min = np.min(true_energy)
@@ -717,15 +787,16 @@ class CTLearnTriModelManager():
         testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
         dl2_gamma = []
         shower_parameters_gamma = []
+        tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
+            dl2_gamma.append(load_DL2_data_MC(file, tel_id))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        reco_energy = dl2_gamma['CTLearn_energy']
-        true_energy = dl2_gamma['true_energy']
+        reco_energy = dl2_gamma[self.reco_energy_key]
+        true_energy = dl2_gamma[self.true_energy_key]
         
         # Define the range of true energy values
         true_energy_min = np.min(true_energy)
