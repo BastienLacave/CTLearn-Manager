@@ -812,6 +812,53 @@ class CTLearnTriModelManager():
         plt.grid(False, which='both')
         plt.show()
         
+
+    def plot_ROC_curve_DL2(self, zenith, azimuth):
+        set_mpl_style()
+        import ctaplot
+        import matplotlib.pyplot as plt
+        from astropy.table import vstack, join
+        import astropy.units as u
+        import numpy as np
+
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+
+
+        tel_id = None if self.stereo else self.telescope_ids[0]
+
+      
+        if len(testing_DL2_gamma_files) > 0:
+            dl2_gamma = []
+            for file in testing_DL2_gamma_files:
+                dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_gamma = vstack(dl2_gamma)
+        else:
+            dl2_gamma = []
+        mc_type_gamma = np.zeros(len(dl2_gamma))
+        
+        
+        if len(testing_DL2_proton_files) > 0:
+            dl2_protons = []
+            for file in testing_DL2_proton_files:
+                dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_proton = vstack(dl2_protons)
+        else:
+            dl2_proton = []
+        mc_type_proton = np.ones(len(dl2_proton))
+            
+        mc_type = np.concatenate((mc_type_gamma, mc_type_proton))
+        gammaness = np.concatenate((dl2_gamma[self.gammaness_key], dl2_proton[self.gammaness_key]))
+        mc_gamma_energies = np.concatenate((dl2_gamma[self.true_energy_key], dl2_proton[self.true_energy_key]))
+        plt.figure(figsize=(14,8))
+        ax = ctaplot.plot_roc_curve_gammaness_per_energy(mc_type, gammaness, mc_gamma_energies,
+                                                        energy_bins=u.Quantity([0.01,0.1,1,3,10], u.TeV),
+                                                        linestyle='--',
+                                                        alpha=0.8,
+                                                        linewidth=3,
+                                                        )
+        ax.legend()
+        plt.show()
         
     def compare_irfs_to_RF(self, zenith, azimuth=None):
         set_mpl_style()
