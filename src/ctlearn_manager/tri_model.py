@@ -859,19 +859,19 @@ class CTLearnTriModelManager():
         gammaness = np.concatenate((dl2_gamma[self.gammaness_key], dl2_proton[self.gammaness_key]))
         mc_gamma_energies = np.concatenate((dl2_gamma[self.true_energy_key], dl2_proton[self.true_energy_key])) * u.TeV
         # plt.figure(figsize=(14,8))
-        energy_bins = np.linspace(min(mc_gamma_energies), max(mc_gamma_energies), nbins)
+        energy_bins = np.linspace(min(mc_gamma_energies), max(mc_gamma_energies), nbins+1)
         ctaplot.plot_roc_curve_gammaness_per_energy(mc_type, gammaness, mc_gamma_energies,
                                                         energy_bins=energy_bins, #u.Quantity([0.01,0.1,1,3,10], u.TeV),
                                                         linestyle='--',
-                                                        alpha=0.8,
+                                                        alpha=1,
                                                         linewidth=2,
                                                         )
         # ax.legend()
         # ax.set_xlim(0, 1)
         # ax.set_ylim(0, 1)
         plt.legend()
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
+        plt.xlim(-0.05, 1.05)
+        plt.ylim(-0.05, 1.05)
         plt.show()
         
     def compare_irfs_to_RF(self, zenith, azimuth=None):
