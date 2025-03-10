@@ -5,7 +5,7 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
+import ctlearn_manager
 project = 'CTLearn Manager'
 copyright = '2025, Bastien Lacave'
 author = 'Bastien Lacave'
