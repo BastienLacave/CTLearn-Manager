@@ -813,7 +813,7 @@ class CTLearnTriModelManager():
         plt.show()
         
 
-    def plot_ROC_curve_DL2(self, zenith, azimuth):
+    def plot_ROC_curve_DL2(self, zenith, azimuth, nbins=10):
         set_mpl_style()
         import ctaplot
         import matplotlib.pyplot as plt
@@ -830,9 +830,13 @@ class CTLearnTriModelManager():
       
         if len(testing_DL2_gamma_files) > 0:
             dl2_gamma = []
+            shower_parameters_gamma = []
             for file in testing_DL2_gamma_files:
                 dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
+                shower_parameters_gamma.append(load_true_shower_parameters(file))
             dl2_gamma = vstack(dl2_gamma)
+            shower_parameters_gamma = vstack(shower_parameters_gamma)
+            dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
         else:
             dl2_gamma = []
         mc_type_gamma = np.zeros(len(dl2_gamma))
@@ -840,24 +844,34 @@ class CTLearnTriModelManager():
         
         if len(testing_DL2_proton_files) > 0:
             dl2_protons = []
+            shower_parameters_protons = []
             for file in testing_DL2_proton_files:
                 dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
+                shower_parameters_protons.append(load_true_shower_parameters(file))
             dl2_proton = vstack(dl2_protons)
+            shower_parameters_protons = vstack(shower_parameters_protons)
+            dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
         else:
             dl2_proton = []
         mc_type_proton = np.ones(len(dl2_proton))
             
         mc_type = np.concatenate((mc_type_gamma, mc_type_proton))
         gammaness = np.concatenate((dl2_gamma[self.gammaness_key], dl2_proton[self.gammaness_key]))
-        mc_gamma_energies = np.concatenate((dl2_gamma[self.true_energy_key], dl2_proton[self.true_energy_key]))
-        plt.figure(figsize=(14,8))
-        ax = ctaplot.plot_roc_curve_gammaness_per_energy(mc_type, gammaness, mc_gamma_energies,
-                                                        energy_bins=u.Quantity([0.01,0.1,1,3,10], u.TeV),
+        mc_gamma_energies = np.concatenate((dl2_gamma[self.true_energy_key], dl2_proton[self.true_energy_key])) * u.TeV
+        # plt.figure(figsize=(14,8))
+        energy_bins = np.linspace(min(mc_gamma_energies), max(mc_gamma_energies), nbins+1)
+        ctaplot.plot_roc_curve_gammaness_per_energy(mc_type, gammaness, mc_gamma_energies,
+                                                        energy_bins=energy_bins, #u.Quantity([0.01,0.1,1,3,10], u.TeV),
                                                         linestyle='--',
-                                                        alpha=0.8,
-                                                        linewidth=3,
+                                                        alpha=1,
+                                                        linewidth=2,
                                                         )
-        ax.legend()
+        # ax.legend()
+        # ax.set_xlim(0, 1)
+        # ax.set_ylim(0, 1)
+        plt.legend()
+        plt.xlim(-0.05, 1.05)
+        plt.ylim(-0.05, 1.05)
         plt.show()
         
     def compare_irfs_to_RF(self, zenith, azimuth=None):
