@@ -1,3 +1,2 @@
 sphinx-rtd-theme
 sphinx-material
-ctlearn_manager
