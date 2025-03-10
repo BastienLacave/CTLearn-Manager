@@ -1,4 +1,6 @@
-![CTLearn Manager Logo](CTLearnManager.png)
+<!-- ![CTLearn Manager Logo](CTLearnManager.png) -->
+
+<img src="CTLearnManager.png" alt="drawing" width="400"/>
 
 
 # CTLearn Manager
