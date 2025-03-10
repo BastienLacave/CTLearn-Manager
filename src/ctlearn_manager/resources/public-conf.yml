@@ -1,83 +1,97 @@
+# ======================================================================
+# ctapipe-optimize-event-selection config file
+# version: VERSION
+#
+# Configuration for calculating G/H and spatial selection ("theta") cuts
+# ======================================================================
+
 IrfEventSelector:
-  overwrite: True
+  gamma_target_spectrum: CRAB_HEGRA
+  proton_target_spectrum: IRFDOC_PROTON_SPECTRUM
+  electron_target_spectrum: IRFDOC_ELECTRON_SPECTRUM
+  obs_time: 50 hour
+  optimization_algorithm: "PercentileCuts"  # Alternative: "PercentileCuts" "PointSourceSensitivityOptimizer"
 
-PointSourceSensitivityOptimizer:  
-  max_gh_cut_efficiency: 1.0
-  gh_cut_efficiency_step: 0.01
-  initial_gh_cut_efficency: 0.4
-  reco_energy_min: 0.01 TeV
-  reco_energy_max: 500 TeV
-  reco_energy_n_bins_per_decade: 5
+EventPreprocessor:
+  energy_reconstructor: "CTLearn"
+  geometry_reconstructor: "CTLearn"
+  gammaness_classifier: "CTLearn"
 
-GhPercentileCutCalculator:  
-  target_percentile: 70
-  min_counts: 200
-
-ThetaPercentileCutCalculator:
-  theta_max_angle: 0.3 deg
-  theta_fill_value: 0.3 deg
-  min_counts: 20
-  smoothing: null
-
-IrfTool:
-  overwrite: True
-
-DefaultTrueEnergyBins:
-  true_energy_min: 0.05 TeV # 0.001 TeV
-  true_energy_max: 500 TeV # 10000 TeV
-  true_energy_n_bins_per_decade: 10
+  EventQualityQuery:
+    quality_criteria:
+      - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 2"]
+      - ["valid classifier", "CTLearn_is_valid"]
+      - ["valid geom reco", "CTLearn_is_valid"]
+      - ["valid energy reco", "CTLearn_is_valid"]
 
 DefaultRecoEnergyBins:
-  reco_energy_min: 0.05 TeV # 0.01259 TeV
-  reco_energy_max: 500 TeV # 199.526 TeV
+  reco_energy_min: 0.5 TeV #0.015 TeV
+  reco_energy_max: 1000 TeV #150 TeV
   reco_energy_n_bins_per_decade: 5
 
-DefaultFoVOffsetBins:
-  fov_offset_min: 0.0 deg
-  fov_offset_max: 5.0 deg
-  fov_offset_n_bins: 1
-
-EffectiveArea2dMaker:
-  # true_energy_min: 0.005 TeV
-  # true_energy_max: 199.06 TeV
-  true_energy_min: 0.05 TeV # 0.001 TeV
-  true_energy_max: 500 TeV # 10000 TeV
+DefaultTrueEnergyBins:
+  true_energy_min: 0.5 TeV #0.015 TeV
+  true_energy_max: 1000 TeV #150 TeV
   true_energy_n_bins_per_decade: 10
 
-EnergyDispersion2dMaker:
-  energy_migration_min: 0.0
-  energy_migration_max: 3.0
-  energy_migration_n_bins: 301
-  energy_migration_linear_bins: True
-  true_energy_min: 0.05 TeV # 0.001 TeV
-  true_energy_max: 500 TeV # 10000 TeV
-  true_energy_n_bins_per_decade: 43
+ThetaPercentileCutCalculator:
+  theta_min_angle: -1 deg
+  theta_max_angle: 0.32 deg
+  theta_fill_value: 0.32 deg
+  smoothing:
+  target_percentile: 68
+  min_counts: 10
+
+GhPercentileCutCalculator:
+  target_percentile: 70
+  min_counts: 10
+  # smoothing:
+
+PointSourceSensitivityOptimizer:
+  min_background_fov_offset: 0.0 deg
+  max_background_fov_offset: 5.0 deg
+  initial_gh_cut_efficency: 0.4
+  max_gh_cut_efficiency: 0.8
+  gh_cut_efficiency_step: 0.1
+  alpha: 0.2
 
 
-Psf3dMaker:
-  true_energy_min: 0.05 TeV
-  true_energy_max: 500 TeV
-  true_energy_n_bins_per_decade: 5
-  source_offset_min: 0 deg
-  source_offset_max: 6 deg
-  source_offset_n_bins: 1
+# ==============================================================================
+# ctapipe-compute-irf config file
+# version: VERSION
+#
+# Configuration for calculating IRF with or without applying a spatial selection
+# ==============================================================================
 
-BackgroundRate2dMaker:
-  reco_energy_min: 0.05 TeV
-  reco_energy_max: 500 TeV
-  reco_energy_n_bins_per_decade: 5
+IrfTool:
+  gamma_target_spectrum: CRAB_HEGRA
+  proton_target_spectrum: IRFDOC_PROTON_SPECTRUM
+  electron_target_spectrum: IRFDOC_ELECTRON_SPECTRUM
+  obs_time: 50 hour
+  energy_dispersion_maker_name: "EnergyDispersion2dMaker"
+  effective_area_maker_name: "EffectiveArea2dMaker"
+  psf_maker_name: "PSF3DMaker"
+  background_maker_name: "BackgroundRate2dMaker"
+  angular_resolution_maker_name: "AngularResolution2dMaker"
+  energy_bias_resolution_maker_name: "EnergyBiasResolution2dMaker"
+  sensitivity_maker_name: "Sensitivity2dMaker"
 
-Sensitivity2dMaker:
-  fov_offset_min: 0.0 deg
-  fov_offset_max: 5.0 deg
-  fov_offset_n_bins: 1
-
-EventPreProcessor:
+EventPreprocessor:
   energy_reconstructor: "CTLearn"
-  gammaness_classifier: "CTLearn"
   geometry_reconstructor: "CTLearn"
-  quality_criteria:
-    - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 2"]
-    - ["valid classifier", "CTLearn_is_valid"]
-    - ["valid geom reco", "CTLearn_is_valid"]
-    - ["valid energy reco", "CTLearn_is_valid"]
+  gammaness_classifier: "CTLearn"
+
+  EventQualityQuery:
+    quality_criteria:
+      - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 2"]
+      - ["valid classifier", "CTLearn_is_valid"]
+      - ["valid geom reco", "CTLearn_is_valid"]
+      - ["valid energy reco", "CTLearn_is_valid"]
+
+# DefaultRecoEnergyBins:
+  # reco_energy_min: 0.015 TeV
+  # reco_energy_max: 150 TeV
+  # reco_energy_n_bins_per_decade: 5
+
+
+

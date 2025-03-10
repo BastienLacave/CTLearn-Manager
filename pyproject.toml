@@ -11,7 +11,7 @@ authors = [
     {name = "Bastien Lacave", email = "bastien.lacave@unige.ch"},
 ]
 
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "ctapipe",
@@ -27,7 +27,7 @@ repository = "https://github.com/BastienLacave/CTLearn-Manager"
 
 # Command-line scripts mapping the name of the tool to the import and function to execute
 [project.scripts]
-# fibonacci = "ctlearn_manager.cli.fib:main"
+process_dl2_file = "ctlearn_manager.cli.dl2_processing_slurm:process_dl2_file"
 
 [tool.setuptools.packages.find]
 where = ["src"]
