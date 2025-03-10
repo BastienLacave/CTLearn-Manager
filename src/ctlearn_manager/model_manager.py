@@ -7,68 +7,85 @@ from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration
 __all__ = ['CTLearnModelManager']
 
 class CTLearnModelManager():
+
     """
-    A class to manage CTLearn models, including initialization, saving to index, launching training, and plotting loss.
-    Attributes:
-        model_index_file (str): Path to the model index file.
-        model_nickname (str): Nickname of the model.
-        notes (str): Notes about the model.
-        model_dir (str): Directory where the model is stored.
-        reco (str): Type of reconstruction.
-        telescope_names (list): Names of the telescopes.
-        telescope_ids (list): Ids of the telescopes.
-        training_gamma_dir (str): Directory of training gamma data.
-        training_proton_dir (str): Directory of training proton data.
-        training_gamma_patterns (list): Patterns of training gamma data.
-        training_proton_patterns (list): Patterns of training proton data.
-        training_gamma_zenith_distances (list): Zenith distances of training gamma data.
-        training_gamma_azimuths (list): Azimuths of training gamma data.
-        training_proton_zenith_distances (list): Zenith distances of training proton data.
-        training_proton_azimuths (list): Azimuths of training proton data.
-        testing_gamma_dirs (list): Directories of testing gamma data.
-        testing_proton_dirs (list): Directories of testing proton data.
-        testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
-        testing_gamma_azimuths (list): Azimuths of testing gamma data.
-        testing_proton_zenith_distances (list): Zenith distances of testing proton data.
-        testing_proton_azimuths (list): Azimuths of testing proton data.
-        testing_DL2_gamma_files (list): DL2 gamma files for testing.
-        testing_DL2_proton_files (list): DL2 proton files for testing.
-        channels (list): Channels used in the model.
-        max_training_epochs (int): Maximum number of training epochs.
-        stereo (bool): Whether the model is stereo or not.
-        zd_range (list): Zenith distance range.
-        az_range (list): Azimuth range.
-        model_name (str): Name of the model.
-        model_index (int): Index of the model.
-    Methods:
-        __init__(model_parameters, MODEL_INDEX_FILE, load=False):
-            Initializes the CTLearnModelManager with the given parameters.
-        save_to_index():
-            Saves the model parameters to the index file.
-        launch_training(n_epochs):
-            Launches the training process for the model.
-        get_n_epoch_trained():
-            Returns the number of epochs the model has been trained for.
-        plot_loss():
-            Plots the training and validation loss over epochs.
-        info():
-            Prints information about the model.
-        update_model_manager_parameters_in_index(parameters):
-            Updates the model parameters in the index file.
-        update_model_manager_training_data(training_gamma_dir, training_proton_dir, training_gamma_patterns, training_proton_patterns, training_gamma_zenith_distances, training_gamma_azimuths, training_proton_zenith_distances, training_proton_azimuths):
-            Updates the training data in the model manager.
-        update_model_manager_testing_data(testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths):
-            Updates the testing data in the model manager.
-        update_model_manager_DL2_MC_files(testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
-            Updates the DL2 MC files in the model manager.
-        update_model_manager_IRF_data(config, cuts_file, irf_file, zenith, azimuth):
-            Updates the IRF data in the model manager.
-        get_IRF_data(zenith, azimuth):
-            Retrieves the IRF data for the given zenith and azimuth.
-        get_DL2_MC_files(zenith, azimuth):
-            Retrieves the DL2 MC files for the given zenith and azimuth.
+    CTLearnModelManager class for managing CTLearn models.
+    This class provides methods for initializing, saving, loading, and training CTLearn models. It also includes methods for updating and retrieving model parameters, training data, testing data, DL2 data, and IRF data.
+
+    Attributes
+    ----------
+    model_index_file : str
+        Path to the model index file.
+    model_nickname : str
+        Nickname of the model.
+    model_parameters_table : astropy.table.Table
+        Table containing model parameters.
+    validity : ModelRangeOfValidity
+        Range of validity for the model.
+    stereo : bool
+        Indicates if the model uses stereo mode.
+    telescope_ids : list
+        List of telescope IDs used in the model.
+    telescope_names : list
+        List of telescope names used in the model.
+    cluster_configuration : ClusterConfiguration
+        Configuration for the cluster.
+
+    Methods
+    -------
+    __init__(model_parameters, MODEL_INDEX_FILE, load=False, cluster_configuration=ClusterConfiguration())
+        Initializes the ModelManager instance.
+    save_to_index(model_parameters)
+        Save model parameters and training samples to an HDF5 index file.
+    launch_training(n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False, config_file=None)
+        Launches the training process for the model.
+    get_n_epoch_trained()
+        Calculate the total number of epochs trained by summing the lengths of all training logs.
+    plot_loss()
+        Plots the training and validation loss over epochs.
+    update_model_manager_parameters_in_index(parameters)
+        Update the model manager parameters in the HDF5 index file.
+    update_model_manager_testing_data(testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns)
+        Update the model manager's testing data for gamma and proton events.
+    update_model_manager_DL2_MC_files(testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths)
+        Update the DL2 MC files for gamma and proton testing data in the model manager.
+    update_model_manager_DL2_data_files(DL2_files, DL2_zenith_distances, DL2_azimuths)
+        Update the DL2 data files for the model manager.
+    update_merged_DL2_MC_files(testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None)
+        Update the merged DL2 MC files for gamma and proton data.
+    update_model_manager_IRF_data(config, cuts_file, irf_file, bencmark_file, zenith, azimuth)
+        Update the IRF (Instrument Response Function) data for the model manager.
+    get_IRF_data(zenith, azimuth)
+        Retrieve the Instrument Response Function (IRF) data for a given zenith and azimuth.
+    get_closest_IRF_data(zenith, azimuth)
+        Retrieve the closest Instrument Response Function (IRF) data based on the given zenith and azimuth angles.
+    get_DL2_MC_files(zenith, azimuth)
+        Retrieve DL2 Monte Carlo (MC) files for given zenith and azimuth angles.
+    plot_zenith_azimuth_ranges(ax=None)
+        Plot the zenith and azimuth ranges on a polar plot.
+    plot_training_nodes()
+        Plot the training nodes for gamma and proton events on a polar plot.
     """
     def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False, cluster_configuration=ClusterConfiguration()):
+        """
+        Initializes the ModelManager instance.
+
+        :param model_parameters: Dictionary containing model parameters.
+        :type model_parameters: dict
+        :param MODEL_INDEX_FILE: Path to the model index file.
+        :type MODEL_INDEX_FILE: str
+        :param load: If True, loads an existing model. If False, initializes a new model and saves it to the index.
+        :type load: bool
+        :param cluster_configuration: Configuration for the cluster. Default is an instance of ClusterConfiguration.
+        :type cluster_configuration: ClusterConfiguration
+
+        :raises ValueError: If 'reco' type is 'type' and training_proton_patterns or training_gamma_patterns are missing.
+        :raises ValueError: If gamma related lists (training_gamma_patterns, training_gamma_zenith_distances, training_gamma_azimuths) are not the same length.
+        :raises ValueError: If proton related lists (training_proton_patterns, training_proton_zenith_distances, training_proton_azimuths) are not the same length.
+        """
+
+
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         self.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters.get('model_nickname', 'new_model')
@@ -101,20 +118,26 @@ class CTLearnModelManager():
         
     def save_to_index(self, model_parameters):
         """
-        Save the current model information to the index file.
-        This method attempts to read an existing model index file and append the current model's
-        information to it. If the index file does not exist, it creates a new one with the necessary
-        columns and data types. The model information is only added if the model nickname is not
-        already present in the index.
-        Raises:
-            Exception: If there is an error reading or writing the model index file.
-        Notes:
-            - The model index file is expected to be in the 'ascii.ecsv' format.
-            - The method ensures that the model nickname is unique in the index.
-            - The model information includes various attributes such as model nickname, name, directory,
-              reconstruction type, channels, telescope names and indices, training directories, zenith
-              distances, azimuths, notes, and maximum training epochs.
+        Save model parameters and training samples to an HDF5 index file.
+        This method saves the model parameters and training samples (gamma and proton) to an HDF5 file.
+        If the model nickname already exists in the index file, it prints a message and does not overwrite the existing entry.
+        :param model_parameters: Dictionary containing model parameters and training samples.
+            The dictionary should have the following keys:
+            - 'notes' (str): Notes about the model.
+            - 'model_dir' (str): Directory where the model is stored.
+            - 'reco' (str): Reconstruction method used by the model.
+            - 'telescope_names' (list): List of telescope names used in the model.
+            - 'telescope_ids' (list): List of telescope IDs used in the model.
+            - 'channels' (list): List of channels used in the model.
+            - 'max_training_epochs' (int): Maximum number of training epochs.
+            - 'gamma_training_samples' (list): List of gamma training samples.
+            - 'proton_training_samples' (list): List of proton training samples.
+        :raises: Exception if there is an error reading or writing to the HDF5 file.
+        :return: None
         """
+        
+
+        
         from astropy.io.misc.hdf5 import write_table_hdf5
         try:
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
@@ -169,24 +192,18 @@ class CTLearnModelManager():
     def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False, config_file=None):
         """
         Launches the training process for the model.
-        Parameters:
-        n_epochs (int, optional): The number of epochs to train the model. If not specified, the training will continue 
-                                  until the maximum number of training epochs is reached.
-        Returns:
-        None
-        This method performs the following steps:
-        1. Checks the number of epochs the model has already been trained for.
-        2. If the specified number of epochs exceeds the maximum allowed, updates the maximum training epochs.
-        3. If the model has already been trained for the maximum number of epochs, it stops further training.
-        4. Determines the number of epochs to train in this session.
-        5. Checks if a model already exists and determines whether to continue training the existing model or create a new one.
-        6. Constructs the command to launch the training process with the appropriate parameters.
-        7. Executes the training command.
-        Note:
-        - The method assumes that the model directory and nickname are already set.
-        - The method uses the `ctlearn-train-model` command to launch the training process.
-        - The method prints the constructed command and executes it using `os.system`.
+        :param n_epochs: Number of epochs to train the model.
+        :type n_epochs: int
+        :param transfer_learning_model_cpk: Path to the checkpoint file for transfer learning, defaults to None.
+        :type transfer_learning_model_cpk: str, optional
+        :param frozen_backbone: Whether to freeze the backbone of the model during training, defaults to False.
+        :type frozen_backbone: bool, optional
+        :param config_file: Path to the configuration file, defaults to None.
+        :type config_file: str, optional
+        :return: None
         """
+
+        
         import json
         from astropy.io.misc.hdf5 import read_table_hdf5
         import glob
@@ -322,12 +339,13 @@ class CTLearnModelManager():
         
     def get_n_epoch_trained(self):
         """
-        Calculate the total number of epochs trained across all training logs.
-        This method searches for all training log files in the model directory,
-        reads each log file, and sums the number of epochs recorded in each log.
+        Calculate the total number of epochs trained by summing the lengths of all training logs.
+        This method searches for all training log files in the model directory that match the model nickname pattern,
+        reads each log file as a pandas DataFrame, and sums the number of rows (epochs) in each DataFrame.
         Returns:
             int: The total number of epochs trained.
         """
+        
         
         import glob
         import pandas as pd
@@ -341,20 +359,24 @@ class CTLearnModelManager():
     def plot_loss(self):
         """
         Plots the training and validation loss over epochs.
-        This method reads training logs from CSV files located in the model directory,
-        concatenates the loss values, and plots them using matplotlib. The plot includes
-        both training and validation loss curves.
-        Dependencies:
-            - matplotlib.pyplot
-            - pandas
+        This method reads training logs from CSV files, concatenates the loss values,
+        and plots the training and validation loss over the epochs using Matplotlib.
+        The training logs are expected to be located in the directory specified by
+        `self.model_parameters_table['model_dir'][0]` and should follow the naming
+        convention `{self.model_nickname}*/training_log.csv`.
+        The plot will display the training loss with a solid line and the validation
+        loss with a dashed line. The x-axis represents the epochs, and the y-axis
+        represents the loss values.
+        Imports:
+            - matplotlib.pyplot as plt
+            - pandas as pd
             - glob
-            - numpy
+            - numpy as np
         Raises:
             FileNotFoundError: If no training log files are found in the specified directory.
-        Example:
-            self.plot_loss()
         """
-        
+
+       
         import matplotlib.pyplot as plt
         import pandas as pd
         import glob
@@ -378,15 +400,16 @@ class CTLearnModelManager():
         
     def update_model_manager_parameters_in_index(self, parameters: dict):
         """
-        Updates the model manager parameters in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the specified parameters in the index.
-        The updated parameters are also reflected in the instance's attributes.
-        Args:
-            parameters (dict): A dictionary containing the parameters to update and their new values.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
+        Update the model manager parameters in the HDF5 index file.
+        This method reads the model parameters from the HDF5 file, updates them with the provided parameters,
+        and writes the updated parameters back to the HDF5 file. It also updates the instance attributes with
+        the new parameter values.
+        :param parameters: Dictionary containing the parameters to update. The keys should match the parameter
+                           names in the HDF5 file, and the values are the new values to set.
+        :type parameters: dict
         """
+
+        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         model_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/parameters')
@@ -438,20 +461,30 @@ class CTLearnModelManager():
 
     def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns):
         """
-        Updates the model manager testing data in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the testing data in the index.
-        The updated testing data are also reflected in the instance's attributes.
-        Args:
-            testing_gamma_dirs (list): Directories of testing gamma data.
-            testing_proton_dirs (list): Directories of testing proton data.
-            testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
-            testing_gamma_azimuths (list): Azimuths of testing gamma data.
-            testing_proton_zenith_distances (list): Zenith distances of testing proton data.
-            testing_proton_azimuths (list): Azimuths of testing proton data.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
+        Update the model manager's testing data for gamma and proton events.
+        This method reads the existing testing data from an HDF5 file, updates it with the provided
+        testing data, and writes the updated data back to the HDF5 file. If no existing data is found,
+        new tables are created.
+        :param testing_gamma_dirs: List of directories containing gamma testing data.
+        :type testing_gamma_dirs: list of str
+        :param testing_proton_dirs: List of directories containing proton testing data.
+        :type testing_proton_dirs: list of str
+        :param testing_gamma_zenith_distances: List of zenith distances for gamma testing data.
+        :type testing_gamma_zenith_distances: list of float
+        :param testing_gamma_azimuths: List of azimuths for gamma testing data.
+        :type testing_gamma_azimuths: list of float
+        :param testing_proton_zenith_distances: List of zenith distances for proton testing data.
+        :type testing_proton_zenith_distances: list of float
+        :param testing_proton_azimuths: List of azimuths for proton testing data.
+        :type testing_proton_azimuths: list of float
+        :param testing_gamma_patterns: List of patterns for gamma testing data.
+        :type testing_gamma_patterns: list of str
+        :param testing_proton_patterns: List of patterns for proton testing data.
+        :type testing_proton_patterns: list of str
+        :raises IOError: If there is an error reading or writing the HDF5 file.
+        :return: None
         """
+
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         try:
@@ -499,20 +532,26 @@ class CTLearnModelManager():
        
     def update_model_manager_DL2_MC_files(self, testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
         """
-        Updates the model manager testing data in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the testing data in the index.
-        The updated testing data are also reflected in the instance's attributes.
-        Args:
-            testing_gamma_dirs (list): Directories of testing gamma data.
-            testing_proton_dirs (list): Directories of testing proton data.
-            testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
-            testing_gamma_azimuths (list): Azimuths of testing gamma data.
-            testing_proton_zenith_distances (list): Zenith distances of testing proton data.
-            testing_proton_azimuths (list): Azimuths of testing proton data.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
+        Update the DL2 MC files for gamma and proton testing data in the model manager.
+        This method reads the existing DL2 MC tables for gamma and proton data from the HDF5 file,
+        updates them with the provided testing data, and writes the updated tables back to the HDF5 file.
+        :param testing_DL2_gamma_files: List of file paths for testing DL2 gamma data.
+        :type testing_DL2_gamma_files: list of str
+        :param testing_DL2_proton_files: List of file paths for testing DL2 proton data.
+        :type testing_DL2_proton_files: list of str
+        :param testing_DL2_gamma_zenith_distances: List of zenith distances for testing DL2 gamma data.
+        :type testing_DL2_gamma_zenith_distances: list of float
+        :param testing_DL2_gamma_azimuths: List of azimuths for testing DL2 gamma data.
+        :type testing_DL2_gamma_azimuths: list of float
+        :param testing_DL2_proton_zenith_distances: List of zenith distances for testing DL2 proton data.
+        :type testing_DL2_proton_zenith_distances: list of float
+        :param testing_DL2_proton_azimuths: List of azimuths for testing DL2 proton data.
+        :type testing_DL2_proton_azimuths: list of float
+        :raises IOError: If there is an error reading or writing the HDF5 file.
+        :return: None
         """
+
+        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         try:
@@ -555,6 +594,22 @@ class CTLearnModelManager():
             print(f"\t➡️ Testing DL2 proton data updated")
         
     def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
+        
+        """
+        Update the DL2 data files for the model manager.
+        This method reads the existing DL2 data from an HDF5 file, updates it with the provided
+        DL2 files, zenith distances, and azimuths, and writes the updated data back to the HDF5 file.
+        :param DL2_files: List of DL2 file paths to be added or updated.
+        :type DL2_files: list of str
+        :param DL2_zenith_distances: List of zenith distances corresponding to the DL2 files.
+        :type DL2_zenith_distances: list of float
+        :param DL2_azimuths: List of azimuths corresponding to the DL2 files.
+        :type DL2_azimuths: list of float
+        :raises IOError: If there is an issue reading or writing the HDF5 file.
+        :returns: None
+        """
+        
+
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
 
@@ -586,20 +641,23 @@ class CTLearnModelManager():
     
     def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
         """
-        Updates the model manager testing data in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the testing data in the index.
-        The updated testing data are also reflected in the instance's attributes.
-        Args:
-            testing_gamma_dirs (list): Directories of testing gamma data.
-            testing_proton_dirs (list): Directories of testing proton data.
-            testing_gamma_zenith_distances (list): Zenith distances of testing gamma data.
-            testing_gamma_azimuths (list): Azimuths of testing gamma data.
-            testing_proton_zenith_distances (list): Zenith distances of testing proton data.
-            testing_proton_azimuths (list): Azimuths of testing proton data.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
+        Update the merged DL2 MC files for gamma and proton data.
+        This method updates the DL2 merged data for gamma and proton events in the model index file.
+        It reads the existing data, removes any matching rows based on the provided zenith distance and azimuth,
+        and then adds the new data.
+        :param testing_DL2_zenith_distance: The zenith distance of the testing DL2 data.
+        :type testing_DL2_zenith_distance: float
+        :param testing_DL2_azimuth: The azimuth of the testing DL2 data.
+        :type testing_DL2_azimuth: float
+        :param testing_DL2_gamma_merged_file: The file path of the merged DL2 gamma data, defaults to None.
+        :type testing_DL2_gamma_merged_file: str, optional
+        :param testing_DL2_proton_merged_file: The file path of the merged DL2 proton data, defaults to None.
+        :type testing_DL2_proton_merged_file: str, optional
+        :return: None
         """
+
+
+       
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         print(f"💾 Model {self.model_nickname} DL2 merged data update:")
         if testing_DL2_gamma_merged_file is not None:
@@ -624,17 +682,29 @@ class CTLearnModelManager():
         
     def update_model_manager_IRF_data(self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth):
         """
-        Updates the model manager IRF data in the index file.
-        This method reads the model index file, finds the entry corresponding to the
-        current model nickname, and updates the IRF data in the index.
-        The updated IRF data are also reflected in the instance's attributes.
-        Args:
-            config (str): Configuration file for IRF data.
-            cuts_file (str): Cuts file for IRF data.
-            irf_file (str): IRF file for IRF data.
-        Raises:
-            IndexError: If the model nickname is not found in the model index file.
+        Update the IRF (Instrument Response Function) data for the model manager.
+        This method reads the existing IRF data from an HDF5 file, checks if the provided
+        IRF data already exists, and updates the table accordingly. If the data does not
+        exist, it adds a new row with the provided data. If the data exists, it removes
+        the existing row and adds the new data.
+        :param config: Configuration identifier for the IRF data.
+        :type config: str
+        :param cuts_file: Path to the cuts file.
+        :type cuts_file: str
+        :param irf_file: Path to the IRF file.
+        :type irf_file: str
+        :param bencmark_file: Path to the benchmark file.
+        :type bencmark_file: str
+        :param zenith: Zenith angle for the IRF data.
+        :type zenith: float
+        :param azimuth: Azimuth angle for the IRF data.
+        :type azimuth: float
+        :raises IOError: If there is an error reading or writing the HDF5 file.
+        :return: None
         """
+
+
+        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         try:
@@ -664,6 +734,18 @@ class CTLearnModelManager():
         print(f"\t➡️ IRF data updated")
         
     def get_IRF_data(self, zenith, azimuth):
+        """
+        Retrieve the Instrument Response Function (IRF) data for a given zenith and azimuth.
+        :param zenith: The zenith angle for which to retrieve the IRF data.
+        :type zenith: float
+        :param azimuth: The azimuth angle for which to retrieve the IRF data.
+        :type azimuth: float
+        :returns: A tuple containing the configuration, cuts file, IRF file, and benchmark file.
+        :rtype: tuple
+        :raises IndexError: If no IRF data is found for the specified zenith and azimuth.
+        """
+
+
         
         from astropy.io.misc.hdf5 import read_table_hdf5
         
@@ -674,6 +756,17 @@ class CTLearnModelManager():
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     def get_closest_IRF_data(self, zenith, azimuth):
+        """
+        Retrieve the closest Instrument Response Function (IRF) data based on the given zenith and azimuth angles.
+        This function reads an HDF5 table containing IRF data and finds the entry with the closest matching zenith and azimuth angles to the provided values. It then returns the configuration, cuts file, IRF file, and benchmark file associated with the closest match.
+        :param zenith: The zenith angle to match.
+        :type zenith: float
+        :param azimuth: The azimuth angle to match.
+        :type azimuth: float
+        :return: A tuple containing the configuration, cuts file, IRF file, and benchmark file of the closest matching IRF data.
+        :rtype: tuple
+        """
+
         
         from astropy.io.misc.hdf5 import read_table_hdf5
         
@@ -682,6 +775,19 @@ class CTLearnModelManager():
         return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]
 
     def get_DL2_MC_files(self, zenith, azimuth):
+        """
+        Retrieve DL2 Monte Carlo (MC) files for given zenith and azimuth angles.
+        This method reads HDF5 tables containing DL2 MC data for gamma and proton particles,
+        and filters the files based on the provided zenith and azimuth angles.
+        :param zenith: Zenith angle to filter the DL2 MC files.
+        :type zenith: float
+        :param azimuth: Azimuth angle to filter the DL2 MC files.
+        :type azimuth: float
+        :return: A tuple containing two lists: DL2 gamma MC files and DL2 proton MC files.
+        :rtype: tuple(list, list)
+        :raises IndexError: If no matching DL2 gamma or proton MC files are found for the given zenith and azimuth.
+        """
+
     
         from astropy.io.misc.hdf5 import read_table_hdf5
         
@@ -714,12 +820,24 @@ class CTLearnModelManager():
       
     def plot_zenith_azimuth_ranges(self, ax=None):
         """
-        Plots the area or line or point covered by the zenith and azimuth ranges in a polar projection.
-        
-        Args:
-            zenith_range (tuple): A tuple containing the minimum and maximum zenith angles.
-            azimuth_range (tuple, optional): A tuple containing the minimum and maximum azimuth angles. If None, the plot will cover all azimuth angles.
+        Plot the zenith and azimuth ranges on a polar plot.
+        This method visualizes the zenith and azimuth ranges defined in the 
+        `self.validity` attribute. It can plot circles, points, or areas 
+        depending on the ranges provided. If no azimuth range is specified, 
+        it defaults to a full circle.
+        Parameters
+        ----------
+        ax : matplotlib.axes._subplots.PolarAxesSubplot, optional
+            A polar subplot axis to plot on. If None, a new subplot will be created.
+        Notes
+        -----
+        - The method uses `astropy.units` for unit conversions.
+        - The method reads training gamma data from an HDF5 file specified by 
+          `self.model_index_file` and `self.model_nickname`.
+        - The plot style is set using `set_mpl_style()`.
         """
+
+        
         set_mpl_style()
         import matplotlib.pyplot as plt
         import astropy.units as u
@@ -797,6 +915,26 @@ class CTLearnModelManager():
             plt.show()
         
     def plot_training_nodes(self):
+        """
+        Plot the training nodes for gamma and proton events on a polar plot.
+        This method reads the training data for gamma and proton events from HDF5 files,
+        extracts the zenith and azimuth angles, and plots them on a polar plot. The gamma
+        events are plotted as filled circles, and the proton events are plotted as circles
+        with white faces.
+        The plot is customized with specific settings for the theta zero location, theta
+        direction, radial label position, and y-ticks. A legend is added to distinguish
+        between gamma and proton events.
+        If no valid zenith or azimuth values are found for either gamma or proton events,
+        a message is printed indicating that the training nodes cannot be shown.
+        Raises
+        ------
+        FileNotFoundError
+            If the specified HDF5 file does not exist.
+        KeyError
+            If the specified path within the HDF5 file does not exist.
+        """
+
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         import matplotlib.pyplot as plt
         import astropy.units as u
@@ -845,9 +983,41 @@ class CTLearnModelManager():
       
 
 class TrainingSample:
+    """
+    A class to represent a training sample for CTLearn.
+    :param directory: The directory where training data is stored.
+    :type directory: str
+    :param pattern: The pattern to match training files.
+    :type pattern: str
+    :param zenith_distance: The zenith distance of the training sample.
+    :type zenith_distance: astropy.units.Quantity
+    :param azimuth: The azimuth of the training sample.
+    :type azimuth: astropy.units.Quantity
+    :param energy_range: The energy range of the training sample.
+    :type energy_range: list of astropy.units.Quantity
+    :param nsb_range: The NSB (Night Sky Background) range of the training sample.
+    :type nsb_range: list of astropy.units.Quantity
+    """
+
     import astropy.units as u
     @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
     def __init__(self, directory, pattern, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
+        """
+        Initialize the ModelManager.
+        :param directory: The directory where training data is stored.
+        :type directory: str
+        :param pattern: The pattern to match training files.
+        :type pattern: str
+        :param zenith_distance: The zenith distance for training data, defaults to NaN degrees.
+        :type zenith_distance: astropy.units.Quantity
+        :param azimuth: The azimuth for training data, defaults to NaN degrees.
+        :type azimuth: astropy.units.Quantity
+        :param energy_range: The energy range for training data, defaults to [NaN, NaN] TeV.
+        :type energy_range: list of astropy.units.Quantity
+        :param nsb_range: The NSB range for training data, defaults to [NaN, NaN] Hz.
+        :type nsb_range: list of astropy.units.Quantity
+        """
+
         self.training_directory = directory
         self.training_pattern = pattern
         self.training_zenith_distance = zenith_distance
@@ -857,7 +1027,44 @@ class TrainingSample:
         
 
 class ModelRangeOfValidity:
+    """
+    A class to determine the range of validity for a given model based on its training data.
+    :param model_manager: An instance of CTLearnModelManager containing model information.
+    :type model_manager: CTLearnModelManager
+    Attributes
+    ----------
+    zenith_range : astropy.units.Quantity
+        The range of zenith distances covered by the training data.
+    azimuth_range : astropy.units.Quantity
+        The range of azimuth angles covered by the training data.
+    energy_range : astropy.units.Quantity
+        The range of energies covered by the training data.
+    nsb_range : astropy.units.Quantity
+        The range of night sky background (NSB) levels covered by the training data.
+    Methods
+    -------
+    matches(**kwargs)
+        Checks if the given parameters fall within the ranges of validity.
+    """
+
     def __init__(self, model_manager: CTLearnModelManager):
+        """
+        Initialize the ModelManager with the given CTLearnModelManager instance.
+        This method reads the training gamma data from an HDF5 file and extracts
+        the zenith, azimuth, energy, and NSB ranges for the model.
+        :param model_manager: An instance of CTLearnModelManager containing the
+                              model index file and model nickname.
+        :type model_manager: CTLearnModelManager
+        :ivar zenith_range: The range of zenith distances in the training gamma data.
+        :vartype zenith_range: astropy.units.Quantity
+        :ivar azimuth_range: The range of azimuths in the training gamma data.
+        :vartype azimuth_range: astropy.units.Quantity
+        :ivar energy_range: The range of energies in the training gamma data.
+        :vartype energy_range: astropy.units.Quantity
+        :ivar nsb_range: The range of NSB values in the training gamma data.
+        :vartype nsb_range: astropy.units.Quantity
+        """
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma')
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
