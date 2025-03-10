@@ -302,7 +302,7 @@ class DL2DataProcessor():
                                             np.float64(off_count_tot), 
                                             alpha=1/n_off)
         fig, ax = plt.subplots()
-        label = "$t_{eff}$ = "+f"{t_eff.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot} "+"\n$\overline{N}_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}"+" \n$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
+        label = "$t_{eff}$ = "+f"{t_eff.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot} "+"\n$N_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}"+" \n$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
         props = dict(boxstyle='round', facecolor='none', alpha=0.95, edgecolor='k')
         txt = plt.text(0.12, 0.96, label, transform=ax.transAxes, fontsize=14,
                     verticalalignment='top', bbox=props, color="k")
