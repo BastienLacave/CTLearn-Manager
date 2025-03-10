@@ -101,7 +101,7 @@ jobs:
       - name: Install doc dependencies
         run: |
           pip install -e .[doc]
-          git describe --tags
+          git describe --tags --always
           python -c 'import template; print(template.__version__)'
 
       - name: Build docs
