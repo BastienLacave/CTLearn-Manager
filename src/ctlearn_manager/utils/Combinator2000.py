@@ -8,12 +8,12 @@ import astropy.units as u
 class Combinator2000(DL2DataProcessor):
 
 
-    def __init__(self, dl2_processors, direction_index, energy_index, type_index, gammaness_cut=0.9):
+    def __init__(self, direction_processor, energy_processor, type_processor, gammaness_cut=0.9):
 
         self.gammaness_cut = gammaness_cut
-        self.direction_processor = dl2_processors[direction_index]
-        self.energy_processor = dl2_processors[energy_index]
-        self.type_processor = dl2_processors[type_index]
+        self.direction_processor = direction_processor
+        self.energy_processor = energy_processor
+        self.type_processor = type_processor
         # self.cluster_configuration = self.direction_processor.cluster_configuration
         self.telscope_names = self.direction_processor.telscope_names
         self.source_position = self.direction_processor.source_position
