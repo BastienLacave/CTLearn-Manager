@@ -33,24 +33,21 @@ A series of notebooks allows the user to go through the full range of functional
    7DataDL2
    
 
-.. Getting Started
-.. ---------------
 
-.. Explain how to install and use your package.
+API Reference
+=============
 
-.. .. code-block:: bash
+.. currentmodule:: ctlearn_manager
 
-..     pip install your_package_name
+.. autosummary::
+   :toctree: _autosummary
+   :template: custom-module-template.rst
+
+   model_manager
+   tri_model
+   tri_model_collection
+   utils.DL2_processing
+   utils.RF_counterpart
+   utils.utils
 
 
-.. Example Usage
-.. -------------
-
-.. Show a simple example of how to use your package.
-
-.. .. code-block:: python
-
-..     from your_package_name import my_function
-
-..     result = my_function(5, "hello")
-..     print(result)

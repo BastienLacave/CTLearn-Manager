@@ -21,6 +21,8 @@ extensions = [
     'sphinx.ext.todo', # Support for .. todo:: directives
     'sphinx.ext.coverage', # Measure documentation coverage
     'sphinx.ext.mathjax', # Render math equations
+    'sphinx.ext.autosummary',  # Create neat summary tables
+
 ]
 
 templates_path = ['_templates']
