@@ -16,6 +16,7 @@ dependencies = [
     "numpy",
     "ctapipe",
     "gammapy",
+    "pyirf",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
