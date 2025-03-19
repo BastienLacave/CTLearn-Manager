@@ -55,8 +55,9 @@ class RFCounterpart(DL2DataProcessor):
 
 class LazyRFCounterpart(DL2DataProcessor):
 
-    def __init__(self, DL2DataProcessor: DL2DataProcessor, dl2_processed_dir, gammaness_cut=0.9):
+    def __init__(self, DL2DataProcessor: DL2DataProcessor, dl2_processed_dir, gammaness_cut=0.9, lstchain_version="0.10"):
         self.cluster_configuration = DL2DataProcessor.CTLearnTriModelManager.cluster_configuration
+        self.lstchain_version = lstchain_version
 
 
 
@@ -74,7 +75,10 @@ class LazyRFCounterpart(DL2DataProcessor):
         if (self.cluster_configuration.cluster == 'lst-cluster') and (runs is not None):
             self.DL2_files = []
             for run in runs:
-                DL2_file_run = glob.glob(f"/fefs/aswg/data/real/DL2/*/v0.*/tailcut*/nsb_tuning_*/dl2_LST-1.Run{run:05d}.h5")[0]
+                # try:
+                DL2_file_run = glob.glob(f"/fefs/aswg/data/real/DL2/*/v{self.lstchain_version}/tailcut*/nsb_tuning_*/dl2_LST-1.Run{run:05d}.h5")[0]
+                # except:
+                #     DL2_file_run = glob.glob(f"/fefs/aswg/data/real/DL2/*/v0.9/tailcut*/nsb_tuning_*/dl2_LST-1.Run{run:05d}.h5")[0]
                 self.DL2_files.append(DL2_file_run)
                 # self.DL2_files.append(f"/fefs/aswg/data/real/DL2/20220331/v0.10/tailcut84/nsb_tuning_0.14/dl2_LST-1.Run{run}.h5")
         else:

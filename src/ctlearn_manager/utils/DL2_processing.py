@@ -109,7 +109,7 @@ class DL2DataProcessor():
 
     def process_DL2_data(self):
         
-        print(f"Preprocessing DL2 (~50min/run), only once")
+        
         
 
         for DL2_file in self.DL2_files:
@@ -128,6 +128,8 @@ class DL2DataProcessor():
 
 
             if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
+                if self.DL2_files.index(DL2_file) == 0:
+                    print(f"Preprocessing DL2 (~50min/run), only once")
                 self.CTLearnTriModelManager.cluster_configuration.info()
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
@@ -260,7 +262,7 @@ class DL2DataProcessor():
         h_off = np.zeros(bins-1)
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
-        print("Computing on-off counts...")
+        # print("Computing on-off counts...")
         for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
@@ -302,29 +304,31 @@ class DL2DataProcessor():
                                             np.float64(off_count_tot), 
                                             alpha=1/n_off)
         fig, ax = plt.subplots()
-        label = "$t_{eff}$ = "+f"{t_eff.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot} "+r"\n$\overline{N}_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}"+r" \n$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
+        label = "$t_{eff}$ = "+f"{t_elapsed.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot}\t"+r"$\overline{N}_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}\t"+r"$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
         props = dict(boxstyle='round', facecolor='none', alpha=0.95, edgecolor='k')
-        txt = plt.text(0.12, 0.96, label, transform=ax.transAxes, fontsize=14,
+        txt = plt.text(0.12, 0.96, label, transform=ax.transAxes, fontsize=12,
                     verticalalignment='top', bbox=props, color="k")
-        plt.plot(angle2_center, h_on, label='on source')
+        
         plt.plot(angle2_center, h_off, label='off source', zorder=0)
-        plt.fill_between(angle2_center, 
-                        h_on - np.sqrt(h_on), 
-                        h_on + np.sqrt(h_on), 
-                        alpha=0.3, zorder=1)
         plt.fill_between(angle2_center,
                             h_off - np.sqrt(h_off),
                             h_off + np.sqrt(h_off),
                             alpha=0.3, zorder=1)
+        plt.fill_between(angle2_center, 
+                        h_on - np.sqrt(h_on), 
+                        h_on + np.sqrt(h_on), 
+                        alpha=0.3, zorder=1)
+        plt.plot(angle2_center, h_on, label='on source')
+        
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color='black', linestyle='--')
-        plt.text(0.1, 0.8, '0.2° radius', color='black', fontsize=14, rotation=90, transform=ax.transAxes, ha='right', va='center')
+        plt.text(0.1, 0.8, '0.2° radius', color='black', fontsize=12, rotation=90, transform=ax.transAxes, ha='right', va='center')
         # plt.text(0.045, on_count[np.where(angle2_center < 0.04)[0][-1]], 'on source', color=colors[0], fontsize=14, ha='left', va='bottom')
         # plt.text(0.045, off_count[np.where(angle2_center < 0.04)[0][-1]]/3 - 100, 'off source', color=colors[1], fontsize=14, ha='left', va='top')
         plt.legend()
         plt.xlabel(r'Separation [deg$^2$]')
         plt.ylabel('Counts')
-        plt.title('LST-1 Crab Nebula with CTLearn')
+        plt.title(f'{self.telscope_names[0]} Crab Nebula with {self.reconstruction_method}')
         # plt.yscale('log')
         plt.show()
 
@@ -603,7 +607,7 @@ class DL2DataProcessor():
 
         plt.gca().set_aspect('equal', adjustable='box')
 
-        plt.legend()
+        # plt.legend()
         plt.show()
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn"):

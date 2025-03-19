@@ -105,4 +105,4 @@ WhoIsBetter
 
 .. code-block:: python
 
-    WhoIsBetter = WhoIsBetter([DL2Processor, RFDL2Processor, Combinator2000], labels=["DL2", "RF", "Combinator2000"])
+    WhoIsBetter = WhoIsBetter([DL2Processor, RFDL2Processor, Combinator2000], labels=["CTLearn", "RF", "Combinator2000"])

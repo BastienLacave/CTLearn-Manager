@@ -10,8 +10,12 @@
 CTLearn Manager documentation
 =============================
 
-The CTLearn Manager is a companion python package to the `CTLearn <https://github.com/ctlearn-project/ctlearn>`_ deep learning IACT event reconstruction package. It is designed to guide users from creating a CTLearn model, training, testing, and DL2 analysis to benchmark the model. It also offers a variety of tools to compare models between each other as well as with the standard RF DL2 files. I was developed thanks to the stereo system of SST-1M and the LST-1.
-The basic principle of the Manager revolves around a ctlearn_model_index file, that stores all the relevant data for you, such as characteristics of your models, IRFs, range of validity etc. This enables for a user-friendly interface to IACT event reconstruction and benchmarking with CTLearn.
+The CTLearn Manager is a companion python package to the `CTLearn <https://github.com/ctlearn-project/ctlearn>`_ deep learning IACT event reconstruction package. 
+It is designed to guide users from creating a CTLearn model, training, testing, and DL2 analysis to benchmark the model. 
+It also offers a variety of tools to compare models between each other as well as with the standard RF DL2 files. 
+I was developed thanks to the stereo system of SST-1M and the LST-1.
+The basic principle of the Manager revolves around a ctlearn_model_index file, that stores all the relevant data for you, 
+such as characteristics of your models, IRFs, range of validity etc. This enables for a user-friendly interface to IACT event reconstruction and benchmarking with CTLearn.
 A series of notebooks allows the user to go through the full range of functionalities of the manager.
 
 
