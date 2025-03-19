@@ -189,7 +189,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, frozen_backbone=False, config_file=None):
+    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, config_file=None):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
