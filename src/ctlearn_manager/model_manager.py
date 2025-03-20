@@ -266,9 +266,9 @@ class CTLearnModelManager():
         signal_patterns = ""
         for pattern in training_gamma_table['training_gamma_patterns']:
             signal_patterns += f'--pattern-signal "{pattern}" '
-        print(signal_patterns)
+        # print(signal_patterns)
         # signal_patterns = list(training_gamma_table['training_gamma_patterns'])
-        print(signal_patterns)
+        # print(signal_patterns)
         background_patterns = ""
         if self.model_parameters_table['reco'][0] == 'type':
             for pattern in training_proton_table['training_proton_patterns']:

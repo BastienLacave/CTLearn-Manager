@@ -1,15 +1,21 @@
 from ..model_manager import CTLearnModelManager
+from ..utils.utils import ClusterConfiguration
 from astropy.table import QTable
 import numpy as np
 import astropy.units as u
 from astropy.time import TimeDelta
 from numba import njit
 
-def load_model_from_index(model_nickname, MODEL_INDEX_FILE):
+def load_model_from_index(model_nickname, MODEL_INDEX_FILE, cluser_config=ClusterConfiguration()):
     # models_table = QTable.read(MODEL_INDEX_FILE)
     # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
     model_parameters = {'model_nickname': model_nickname}
-    model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE, load=True)
+    from astropy.io.misc.hdf5 import read_table_hdf5
+    try:
+        read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
+    except:
+        raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
+    model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE, load=True, cluster_configuration=cluser_config)
     return model
 
 

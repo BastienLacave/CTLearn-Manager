@@ -170,9 +170,9 @@ class ClusterConfiguration():
                 account = None
                 partition = None
                 time = '03:00:00'
-            case "daint.alps.cscs.ch":
+            case "daint-ln004":
                 cluster = 'cscs'
-                account = 'cta04'
+                account = 'cta03'
                 partition = 'gpu'
                 time = '24:00:00'
             case "cp02":
