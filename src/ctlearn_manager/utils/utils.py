@@ -84,12 +84,7 @@ srun {command}''',
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
 #SBATCH --account={account}
 
-source ~/.bashrc
-conda activate {env_name}
-echo $CONDA_DEFAULT_ENV
-echo $SLURM_ARRAY_TASK_ID
-
-srun {command}
+srun --environment={env_name} {command}
 ''',
     'lst-cluster':f'''#!/bin/bash -l
 #
