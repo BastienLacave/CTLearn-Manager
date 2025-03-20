@@ -46,7 +46,7 @@ def get_dates_from_runs(runs):
 
 def get_files(run, DL1_data_dir):
     date = get_dates_from_runs([run])[1][0]
-    testing_files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.9/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
+    testing_files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.10/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
     print(f"{len(testing_files)} files found for run {run:05d}")
     return testing_files
 
