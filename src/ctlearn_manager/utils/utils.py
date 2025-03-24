@@ -167,6 +167,8 @@ class ClusterConfiguration():
         host_name = socket.gethostname()
 
         #TODO fix ln001 etc for diff login nodes
+        if host_name.startswith("daint-ln"):
+            host_name = "daint"
 
         match host_name:
             case "ui.cta.camk.edu.pl":
@@ -174,7 +176,7 @@ class ClusterConfiguration():
                 account = None
                 partition = None
                 time = '03:00:00'
-            case "daint-ln001":
+            case "daint":
                 cluster = 'cscs'
                 account = 'cta03'
                 partition = 'gpu'
