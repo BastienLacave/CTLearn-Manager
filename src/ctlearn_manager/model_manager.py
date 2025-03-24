@@ -389,8 +389,12 @@ class CTLearnModelManager():
             losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
             losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
         epochs = np.arange(1, len(losses_train)+1)
-        plt.plot(epochs, losses_train, label=f"Training", lw=2)
-        plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+        if len(epochs) > 1:
+            plt.plot(epochs, losses_train, label=f"Training", lw=2)
+            plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+        else:
+            plt.scatter(epochs, losses_train, label=f"Training", lw=2)
+            plt.scatter(epochs, losses_val, label=f"Validation", ls='--')
         plt.title(f"{self.model_parameters_table['reco'][0]} training".title())
         plt.xlabel('Epoch')
         plt.ylabel('Loss')

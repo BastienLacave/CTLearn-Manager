@@ -1058,8 +1058,12 @@ class CTLearnTriModelManager():
                 losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
             epochs = np.arange(1, len(losses_train)+1)
             df = pd.read_csv(training_log)
-            ax.plot(epochs, losses_train, label=f"Training", lw=2)
-            ax.plot(epochs, losses_val, label=f"Validation", ls='--')
+            if len(epochs) > 1:
+                ax.plot(epochs, losses_train, label=f"Training", lw=2)
+                ax.plot(epochs, losses_val, label=f"Validation", ls='--')
+            else:
+                ax.scatter(epochs, losses_train, label=f"Training", lw=2)
+                ax.scatter(epochs, losses_val, label=f"Validation", ls='--')
             # ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
             # ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
             ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
