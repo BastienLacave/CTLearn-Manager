@@ -224,7 +224,7 @@ class CTLearnModelManager():
         n_epochs = max_training_epochs - n_epoch_training
         print(f"🚀 Launching training for {n_epochs} epochs")
         
-        models_dir = np.sort(glob.glob(f"{model_dir}/{self.model_nickname}*"))
+        models_dir = np.sort(glob.glob(f"{model_dir}/{self.model_nickname}_v*"))
         load_model = False
         if len(models_dir) > 0 :
             last_model_dir = Path(models_dir[-1])
