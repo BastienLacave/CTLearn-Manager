@@ -106,6 +106,8 @@ srun {command}
 ''',
                     
     }
+    if cluster not in sbatch_predict_data_configs:
+        raise ValueError(f"Cluster {cluster} not supported. Supported clusters are: {sbatch_predict_data_configs.keys()}\nIf you wish not to use any slurm job managment system, set use_cluster=False in the ClusterConfiguration object")
     return sbatch_predict_data_configs[cluster]
 
 def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
@@ -164,13 +166,15 @@ class ClusterConfiguration():
         import socket
         host_name = socket.gethostname()
 
+        #TODO fix ln001 etc for diff login nodes
+
         match host_name:
             case "ui.cta.camk.edu.pl":
                 cluster = 'camk'
                 account = None
                 partition = None
                 time = '03:00:00'
-            case "daint-ln004":
+            case "daint-ln001":
                 cluster = 'cscs'
                 account = 'cta03'
                 partition = 'gpu'
@@ -185,7 +189,7 @@ class ClusterConfiguration():
                 account = None
                 partition = None
                 time = None
-        # self.use_cluster = cluster!=None
+        self.use_cluster = cluster!=None
         return {"cluster": cluster, "account": account, "partition": partition, "time": time}
 
     
