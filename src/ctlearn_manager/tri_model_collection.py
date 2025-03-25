@@ -9,7 +9,6 @@ class TriModelCollection():
         self.cluster_configuration = cluster_configuration
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
-        # self.cluster_configuration.__init__()
 
     def predict_lstchain_run(self, run, output_dir, DL1_data_dir="/fefs/aswg/data/real/DL1/", overwrite=False,):
         input_files = get_files(run, DL1_data_dir)

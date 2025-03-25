@@ -73,11 +73,6 @@ class CTLearnTriModelManager():
             raise ValueError('All models must have the same channels')
         else:
             self.channels = direction_channels
-            
-        # if not (self.direction_model.zd_range == self.energy_model.zd_range == self.type_model.zd_range):
-        #     raise ValueError('All models must have the same zenith distance range')
-        # if not (self.direction_model.az_range == self.energy_model.az_range == self.type_model.az_range):
-        #     raise ValueError('All models must have the same azimuth range')
         
         if not (self.direction_model.stereo == self.energy_model.stereo == self.type_model.stereo):
             raise ValueError('All models must have the same stereo value')
@@ -364,21 +359,6 @@ class CTLearnTriModelManager():
             proton_output_dir = output_dirs[1]
         else:
             raise ValueError("output_dirs must have length 1 or 2, to store all in the same directory, or gammas in the first and protons in the second")
-        # gamma_files = np.sort(glob.glob(f"{gamma_dir}/{gamma_pattern}"))
-        # proton_files = np.sort(glob.glob(f"{proton_dir}/{proton_pattern}"))
-        # testing_files = np.concatenate([gamma_files, proton_files])
-        # gamma_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
-        # proton_output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in proton_files]
-        # output_files = [f"{output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in testing_files]
-        # for model in [self.direction_model, self.energy_model, self.type_model]:
-        #     model.update_model_manager_DL2_MC_files(
-        #         gamma_output_files, 
-        #         proton_output_files, 
-        #         [zenith] * len(gamma_output_files), 
-        #         [azimuth] * len(gamma_output_files), 
-        #         [zenith] * len(proton_output_files), 
-        #         [azimuth] * len(proton_output_files)
-        #     )
         if launch_particle_type in ['gamma', 'both']:
             gamma_files = np.sort(glob.glob(f"{gamma_dir}/{gamma_pattern}"))
             gamma_output_files = [f"{gamma_output_dir}/{Path(file).stem.replace('dl1', 'dl2')}.h5" for file in gamma_files]
@@ -515,7 +495,6 @@ class CTLearnTriModelManager():
 -v"
             
         if self.cluster_configuration.use_cluster:
-            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
             sbatch_file = self.cluster_configuration.write_sbatch_script(Path(input_file).stem, cmd, config_dir)
             import os
             os.system(f"sbatch {sbatch_file}")
@@ -598,13 +577,11 @@ class CTLearnTriModelManager():
 --PredictCTLearnModel.overwrite_tables True -v"
             
         if self.cluster_configuration.use_cluster:
-            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
             sbatch_file = self.cluster_configuration.write_sbatch_script(Path(input_file).stem, cmd, config_dir)
             os.system(f"sbatch {sbatch_file}")
         else:
             print(cmd)
             os.system(cmd)
-            # os.system(cmd)
 
         print("")
     
@@ -953,13 +930,6 @@ class CTLearnTriModelManager():
         import matplotlib.pyplot as plt
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         hudl = fits.open(irf_file)
-        # energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
-        # plt.plot(energy_center[0], hudl['SENSITIVITY'].data['FLUX_SENSITIVITY'][0,0,:])
-        # plt.xscale('log')
-        # plt.yscale('log')
-        # plt.xlabel('Energy [TeV]')
-        # plt.ylabel('Sensitivity [erg$^{-1}$ s$^{-1}$ cm$^{-2}$]')
-        # plt.show()
         
         energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
         plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
@@ -1043,10 +1013,6 @@ class CTLearnTriModelManager():
         import pandas as pd
         import glob
         
-        
-        # direction_training_log = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*/training_log.csv"))[-1]
-        # energy_training_log = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*/training_log.csv"))[-1]
-        # type_training_log = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*/training_log.csv"))[-1]
         fig, axs = plt.subplots(1, 3, figsize=(15, 4))
         for ax, model in zip(axs, [self.direction_model, self.energy_model, self.type_model]):
             training_logs = np.sort(glob.glob(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}*/training_log.csv"))
@@ -1064,8 +1030,6 @@ class CTLearnTriModelManager():
             else:
                 ax.scatter(epochs, losses_train, label=f"Training", lw=2)
                 ax.scatter(epochs, losses_val, label=f"Validation", ls='--')
-            # ax.plot(df['epoch'] + 1, df['loss'], label=f"Training")
-            # ax.plot(df['epoch'] + 1, df['val_loss'], label=f"Validation", ls='--')
             ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
             ax.set_xlabel('Epoch')
             ax.set_ylabel('Loss')
@@ -1256,9 +1220,6 @@ class CTLearnTriModelManager():
                                                         alpha=1,
                                                         linewidth=2,
                                                         )
-        # ax.legend()
-        # ax.set_xlim(0, 1)
-        # ax.set_ylim(0, 1)
         plt.legend()
         plt.xlim(-0.05, 1.05)
         plt.ylim(-0.05, 1.05)
