@@ -230,10 +230,8 @@ class CTLearnModelManager():
         trained_spaces = " " * (n_epoch_trained-1)
         remaining_string = "·" * (max_training_epochs - n_epoch_trained)
         to_train_string = "―" * (n_epochs- len(str(n_epoch_trained)))
-        print(f"{trained_spaces}{n_epoch_trained}{to_train_string}>")
         print(f"{trained_string}o{remaining_string} | {n_epoch_trained}/{max_training_epochs} epochs")
-        print(f"🚀 Launching training for {n_epochs} epochs")
-    
+        print(f"{trained_spaces}{n_epoch_trained}{to_train_string}> 🚀 Training for {n_epochs} epochs")
         
         models_dir = np.sort(glob.glob(f"{base_model_dir}/{self.model_nickname}_v*"))
         load_model = False

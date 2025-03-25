@@ -58,7 +58,7 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1):
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
@@ -76,9 +76,11 @@ srun {command}''',
     'cscs': f'''#!/bin/bash -l
 #SBATCH --job-name={job_name}
 #SBATCH --time={time}
-#SBATCH --nodes=1
+#SBATCH --partition={partition}
 #SBATCH --constraint=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:{nodes}
 #SBATCH --mem=64000mb
 #SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
@@ -92,7 +94,6 @@ srun --environment={env_name} {command}
 #SBATCH --account={account}
 #SBATCH --partition={partition}
 #SBATCH --time={time}
-#SBATCH --nodes=1
 #SBATCH --mem=64000mb
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
 #SBATCH -e {sbatch_scripts_dir}/{job_name}%x.%j.err 
@@ -142,7 +143,7 @@ def get_current_env():
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
 class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None):
+    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1):
         
 
         # self.current_env = 
@@ -153,6 +154,7 @@ class ClusterConfiguration():
         self.python_env = python_env if python_env!=None else get_current_env()
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
+        self.nodes = nodes
         # if self.use_cluster:
         #     print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
 
@@ -179,7 +181,7 @@ class ClusterConfiguration():
             case "daint":
                 cluster = 'cscs'
                 account = 'cta03'
-                partition = 'gpu'
+                partition = 'normal'
                 time = '24:00:00'
             case "cp02":
                 cluster = 'lst-cluster'
@@ -198,7 +200,7 @@ class ClusterConfiguration():
     
 
     def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
