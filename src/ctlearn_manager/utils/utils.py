@@ -191,7 +191,8 @@ class ClusterConfiguration():
                 account = None
                 partition = None
                 time = None
-        self.use_cluster = cluster!=None
+        if self.use_cluster:
+            self.use_cluster = cluster!=None
         return {"cluster": cluster, "account": account, "partition": partition, "time": time}
 
     
@@ -202,7 +203,7 @@ class ClusterConfiguration():
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
 
-        print(f"💾 Testing script saved in {sbatch_file}")
+        print(f"💾 SBATCH script saved in {sbatch_file}")
         return sbatch_file
 
 def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off, 

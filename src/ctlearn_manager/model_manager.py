@@ -151,7 +151,7 @@ class CTLearnModelManager():
                             dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             
             notes = model_parameters.get('notes', '')
-            model_dir = model_parameters.get('model_dir', '')
+            model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
             telescope_names = model_parameters.get('telescope_names', [])
             telescope_ids = model_parameters.get('telescope_ids', [])
@@ -212,7 +212,7 @@ class CTLearnModelManager():
         n_epoch_training = self.get_n_epoch_trained()
         print(f"📊 Model trained for {n_epoch_training} epochs")
         max_training_epochs = self.model_parameters_table['max_training_epochs'][0]
-        model_dir = self.model_parameters_table['model_dir'][0]
+        base_model_dir = self.model_parameters_table['model_dir'][0]
         if n_epochs > max_training_epochs:
             print(f"⚠️ Number of epochs increased from {max_training_epochs} to {n_epochs}")
             self.update_model_manager_parameters_in_index({'max_training_epochs': n_epochs})
@@ -224,7 +224,7 @@ class CTLearnModelManager():
         n_epochs = max_training_epochs - n_epoch_training
         print(f"🚀 Launching training for {n_epochs} epochs")
         
-        models_dir = np.sort(glob.glob(f"{model_dir}/{self.model_nickname}_v*"))
+        models_dir = np.sort(glob.glob(f"{base_model_dir}/{self.model_nickname}_v*"))
         load_model = False
         if len(models_dir) > 0 :
             last_model_dir = Path(models_dir[-1])
@@ -232,26 +232,26 @@ class CTLearnModelManager():
             model_version = int(models_dir[-1].split("_v")[-1])
             if size > 1e6:
                 model_version += 1
-                print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
+                model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
+                print(f"➡️ Model already exists: will continue training and create {model_dir}")
                 save_best_validation_only = True
-                model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
-                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
+                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
                 os.system(f"mkdir -p {model_dir}")
             else :
+                model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                     load_model = True
-                    print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
+                    print(f"➡️ Model already exists: will continue training and create {model_dir}")
                     save_best_validation_only = True
                 else:
-                    print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
+                    print(f"🆕 Model does not exist: will create {model_dir}")
                     save_best_validation_only = False
-                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
         else:
             model_version = 0
-            print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
-            model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
+            model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
+            print(f"🆕 Model does not exist: will create {model_dir}")
             os.system(f"mkdir -p {model_dir}")
             save_best_validation_only = False
 
@@ -311,7 +311,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
             
-            config_file = f"{model_dir}/train_config.json"
+            config_file = f"{base_model_dir}/train_config.json"
             with open(config_file, 'w') as file:
                 json.dump(config, file)
             print(f"Configuration saved to {config_file}")
@@ -327,7 +327,7 @@ class CTLearnModelManager():
 
         if self.cluster_configuration.use_cluster:
             # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
-            sbatch_file = self.cluster_configuration.write_sbatch_script(self.model_nickname, cmd, model_dir)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(self.model_nickname, cmd, base_model_dir)
             os.system(f"sbatch {sbatch_file}")
         else:
             print(cmd)

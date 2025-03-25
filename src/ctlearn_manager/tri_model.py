@@ -287,29 +287,29 @@ class CTLearnTriModelManager():
                 print(f"(ZD, Az): ({zenith}, {azimuth})")
         
     def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', ):
-        def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
-            """
-            Launch testing for the given zenith and azimuth angles.
-            This function checks the testing files for gamma and proton particles, ensures they match across models,
-            and launches the testing process using the specified models.
-            :param zenith: Zenith angle for the testing.
-            :type zenith: float
-            :param azimuth: Azimuth angle for the testing.
-            :type azimuth: float
-            :param output_dirs: List of directories to store the output files. If length is 1, both gamma and proton outputs
-                                will be stored in the same directory. If length is 2, the first directory will be used for
-                                gamma outputs and the second for proton outputs.
-            :type output_dirs: list
-            :param config_dir: Directory for configuration files, defaults to None.
-            :type config_dir: str, optional
-            :param launch_particle_type: Type of particles to launch testing for. Must be 'gamma', 'proton', or 'both'.
-                                         Defaults to 'both'.
-            :type launch_particle_type: str
-            :raises ValueError: If `launch_particle_type` is not 'gamma', 'proton', or 'both'.
-            :raises ValueError: If the testing directories for gamma or proton particles do not match across models.
-            :raises ValueError: If no matching directory is found for the given zenith and azimuth angles.
-            :raises ValueError: If `output_dirs` does not have length 1 or 2.
-            """
+        # def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
+        """
+        Launch testing for the given zenith and azimuth angles.
+        This function checks the testing files for gamma and proton particles, ensures they match across models,
+        and launches the testing process using the specified models.
+        :param zenith: Zenith angle for the testing.
+        :type zenith: float
+        :param azimuth: Azimuth angle for the testing.
+        :type azimuth: float
+        :param output_dirs: List of directories to store the output files. If length is 1, both gamma and proton outputs
+                            will be stored in the same directory. If length is 2, the first directory will be used for
+                            gamma outputs and the second for proton outputs.
+        :type output_dirs: list
+        :param config_dir: Directory for configuration files, defaults to None.
+        :type config_dir: str, optional
+        :param launch_particle_type: Type of particles to launch testing for. Must be 'gamma', 'proton', or 'both'.
+                                        Defaults to 'both'.
+        :type launch_particle_type: str
+        :raises ValueError: If `launch_particle_type` is not 'gamma', 'proton', or 'both'.
+        :raises ValueError: If the testing directories for gamma or proton particles do not match across models.
+        :raises ValueError: If no matching directory is found for the given zenith and azimuth angles.
+        :raises ValueError: If `output_dirs` does not have length 1 or 2.
+        """
 
 
 
