@@ -203,7 +203,7 @@ class ClusterConfiguration():
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
 
-        print(f"💾 SBATCH script saved in {sbatch_file}")
+        print(f"SBATCH script saved in {sbatch_file}")
         return sbatch_file
 
 def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off, 

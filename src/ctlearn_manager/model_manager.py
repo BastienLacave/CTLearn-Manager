@@ -209,20 +209,31 @@ class CTLearnModelManager():
         import glob
         import os
         import numpy as np
-        n_epoch_training = self.get_n_epoch_trained()
-        print(f"📊 Model trained for {n_epoch_training} epochs")
+        if n_epochs == 0:
+            print("🛑 Number of epochs set to 0. Will not train the model.")
+            return
+        n_epoch_trained = self.get_n_epoch_trained()
+        # print(f"📊 Model trained for {n_epoch_training} epochs")
         max_training_epochs = self.model_parameters_table['max_training_epochs'][0]
         base_model_dir = self.model_parameters_table['model_dir'][0]
-        if n_epochs > max_training_epochs:
+        if n_epochs > max_training_epochs - n_epoch_trained:
             print(f"⚠️ Number of epochs increased from {max_training_epochs} to {n_epochs}")
             self.update_model_manager_parameters_in_index({'max_training_epochs': n_epochs})
             max_training_epochs = n_epochs
-        if n_epoch_training >= max_training_epochs:
-            print(f"🛑 Model already trained for {n_epoch_training} epochs. Will not train further.")
+            n_epochs = max_training_epochs - n_epoch_trained
+        if n_epoch_trained >= max_training_epochs:
+            print(f"🛑 Model already trained for {n_epoch_trained} epochs. Will not train further.")
             self.plot_loss()
             return
-        n_epochs = max_training_epochs - n_epoch_training
+            
+        trained_string = "―" * (n_epoch_trained-1)
+        trained_spaces = " " * (n_epoch_trained-1)
+        remaining_string = "·" * (max_training_epochs - n_epoch_trained)
+        to_train_string = "―" * (n_epochs- len(str(n_epoch_trained)))
+        print(f"{trained_spaces}{n_epoch_trained}{to_train_string}>")
+        print(f"{trained_string}o{remaining_string} | {n_epoch_trained}/{max_training_epochs} epochs")
         print(f"🚀 Launching training for {n_epochs} epochs")
+    
         
         models_dir = np.sort(glob.glob(f"{base_model_dir}/{self.model_nickname}_v*"))
         load_model = False
