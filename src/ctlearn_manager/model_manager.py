@@ -322,7 +322,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
             
-            config_file = f"{base_model_dir}/train_config.json"
+            config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
             with open(config_file, 'w') as file:
                 json.dump(config, file)
             print(f"Configuration saved to {config_file}")
@@ -338,7 +338,7 @@ class CTLearnModelManager():
 
         if self.cluster_configuration.use_cluster:
             # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
-            sbatch_file = self.cluster_configuration.write_sbatch_script(self.model_nickname, cmd, base_model_dir)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(f"train_{self.model_nickname}_v{model_version}", cmd, base_model_dir)
             os.system(f"sbatch {sbatch_file}")
         else:
             print(cmd)
