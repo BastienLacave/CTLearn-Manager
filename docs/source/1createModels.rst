@@ -42,6 +42,11 @@ Then, create a series of ``TrainingSamples`` for your model. Each ``TrainingSamp
 
 Finally, create the ``CTLearnModelManager`` object with the general parameters of your model.
 
+.. note::
+
+    The model_dir is the parent directory. A new dirctory will be created inside, with your 
+    model nickname. Inside this directory, new directories will be created for each versions of your model, if you train in multiple times.
+
 .. code-block:: python
 
     # General parameters
