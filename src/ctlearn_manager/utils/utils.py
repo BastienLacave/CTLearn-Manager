@@ -204,6 +204,9 @@ class ClusterConfiguration():
     
 
     def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
+        import os
+        if not os.path.exists(sbatch_scripts_dir):
+            os.system(f"mkdir {sbatch_scripts_dir}")
         sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:

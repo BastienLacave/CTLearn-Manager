@@ -166,8 +166,8 @@ class CTLearnTriModelManager():
         testing_gamma_patterns = []
         for sample in gamma_testing_samples:
             testing_gamma_dirs.append(sample.directory)
-            testing_gamma_zenith_distances.append(sample.zenith_distance)
-            testing_gamma_azimuths.append(sample.azimuth)
+            testing_gamma_zenith_distances.append(sample.zenith_distance.value)
+            testing_gamma_azimuths.append(sample.azimuth.value)
             testing_gamma_patterns.append(sample.pattern)
         testing_proton_dirs = []
         testing_proton_zenith_distances = []
@@ -175,8 +175,8 @@ class CTLearnTriModelManager():
         testing_proton_patterns = []
         for sample in proton_testing_samples:
             testing_proton_dirs.append(sample.directory)
-            testing_proton_zenith_distances.append(sample.zenith_distance)
-            testing_proton_azimuths.append(sample.azimuth)
+            testing_proton_zenith_distances.append(sample.zenith_distance.value)
+            testing_proton_azimuths.append(sample.azimuth.value)
             testing_proton_patterns.append(sample.pattern)
 
         
@@ -346,7 +346,7 @@ class CTLearnTriModelManager():
         """
 
 
-
+        self.cluster_configuration.info()
         import os
         import glob
         from astropy.io.misc.hdf5 import read_table_hdf5
@@ -359,9 +359,9 @@ class CTLearnTriModelManager():
             direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/gamma')
             energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/gamma')
             type_testing_table =  read_table_hdf5(self.type_model.model_index_file, path=f'{self.type_model.model_nickname}/testing/gamma')
-            if not (direction_testing_table['testing_gamma_dirs'] == energy_testing_table['testing_gamma_dirs'] == type_testing_table['testing_gamma_dirs']):
+            if not (direction_testing_table['testing_gamma_dirs'] == energy_testing_table['testing_gamma_dirs']).all() and (direction_testing_table['testing_gamma_dirs'] == type_testing_table['testing_gamma_dirs']).all():
                 raise ValueError("All models must have the same testing gamma directories, use set_testing_files to set them")
-            if not direction_testing_table['testing_gamma_dirs'] or not energy_testing_table['testing_gamma_dirs'] or not type_testing_table['testing_gamma_dirs']:
+            if len(direction_testing_table['testing_gamma_dirs']) == 0:
                 raise ValueError("Testing gamma directories cannot be empty")
             gamma_dirs = direction_testing_table['testing_gamma_dirs']
             gamma_zeniths = direction_testing_table['testing_gamma_zenith_distances']
@@ -376,9 +376,9 @@ class CTLearnTriModelManager():
             direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/proton')
             energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/proton')
             type_testing_table =  read_table_hdf5(self.type_model.model_index_file, path=f'{self.type_model.model_nickname}/testing/proton')
-            if not (direction_testing_table['testing_proton_dirs'] == energy_testing_table['testing_proton_dirs'] == type_testing_table['testing_proton_dirs']):
+            if not (direction_testing_table['testing_proton_dirs'] == energy_testing_table['testing_proton_dirs']).all() and (direction_testing_table['testing_proton_dirs'] == type_testing_table['testing_proton_dirs']).all():
                 raise ValueError("All models must have the same testing proton directories, use set_testing_files to set them")
-            if not direction_testing_table['testing_proton_dirs'] or not energy_testing_table['testing_proton_dirs'] or not type_testing_table['testing_proton_dirs']:
+            if len(direction_testing_table['testing_proton_dirs']) == 0:
                 raise ValueError("Testing proton directories cannot be empty")
             proton_dirs = direction_testing_table['testing_proton_dirs']
             proton_zeniths = direction_testing_table['testing_proton_zenith_distances']
@@ -429,8 +429,7 @@ class CTLearnTriModelManager():
         type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}*"))[-1]
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}*"))[-1]
-        
-            
+         
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
                 cmd = f"ctlearn-predict-model --input_url {input_file} \

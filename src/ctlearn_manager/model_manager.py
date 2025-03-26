@@ -499,6 +499,7 @@ class CTLearnModelManager():
         except:
             testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
                                         dtype=['S256', float, float, 'S256'])
+            
         print(f"💾 Model {self.model_nickname} testing data update:")
         if len(testing_gamma_table)==0:
             testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
