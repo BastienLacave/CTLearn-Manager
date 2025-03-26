@@ -86,7 +86,7 @@ class CTLearnTriModelManager():
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.set_keys()
-        print(f"🧠🧠🧠 CTLearnTriModelManager initialized with {self.direction_model.model_nickname}, {self.energy_model.model_nickname}, and {self.type_model.model_nickname}")
+        print(f"🧠🧠🧠 CTLearnTriModelManager initialized with ▮ {self.direction_model.model_nickname} ▮ {self.energy_model.model_nickname} ▮ {self.type_model.model_nickname} ▮")
         self.get_available_MC_directions()
 
     def set_keys(self):
@@ -1015,7 +1015,12 @@ class CTLearnTriModelManager():
         
         fig, axs = plt.subplots(1, 3, figsize=(15, 4))
         for ax, model in zip(axs, [self.direction_model, self.energy_model, self.type_model]):
+            # print(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}*/training_log.csv")
             training_logs = np.sort(glob.glob(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}*/training_log.csv"))
+            if len(training_logs) == 0:
+                # print(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}/{model.model_nickname}*/training_log.csv")
+                training_logs = np.sort(glob.glob(f"{model.model_parameters_table['model_dir'][0]}/{model.model_nickname}/{model.model_nickname}*/training_log.csv"))
+            # print(training_logs)
             losses_train = []
             losses_val = []
             for training_log in training_logs:
@@ -1023,7 +1028,6 @@ class CTLearnTriModelManager():
                 losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
                 losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
             epochs = np.arange(1, len(losses_train)+1)
-            df = pd.read_csv(training_log)
             if len(epochs) > 1:
                 ax.plot(epochs, losses_train, label=f"Training", lw=2)
                 ax.plot(epochs, losses_val, label=f"Validation", ls='--')

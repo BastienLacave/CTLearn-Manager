@@ -139,16 +139,17 @@ class CTLearnModelManager():
 
         
         from astropy.io.misc.hdf5 import write_table_hdf5
+        
         try:
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
             model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs'],
-                        dtype=[str, str, str, str, str, str, str, int])
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int])
             training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
-                            dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
+                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             training_table_proton = QTable(names=['training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths', 'training_proton_energy_min', 'training_proton_energy_max', 'training_proton_nsb_min', 'training_proton_nsb_max'],
-                            dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
+                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             
             notes = model_parameters.get('notes', '')
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
@@ -164,19 +165,19 @@ class CTLearnModelManager():
             model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs])
             for sample in gamma_training_samples:
                 training_table_gamma.add_row([sample.training_directory, 
-                                              sample.training_pattern, 
-                                              sample.training_zenith_distance, 
-                                              sample.training_azimuth,
-                                              min(sample.training_energy_range),
-                                              max(sample.training_energy_range),
-                                              min(sample.training_nsb_range),
-                                              max(sample.training_nsb_range)])
+                                                sample.training_pattern, 
+                                                sample.training_zenith_distance, 
+                                                sample.training_azimuth,
+                                                min(sample.training_energy_range),
+                                                max(sample.training_energy_range),
+                                                min(sample.training_nsb_range),
+                                                max(sample.training_nsb_range)])
             for sample in proton_training_samples:
                 training_table_proton.add_row([sample.training_directory, 
-                                               sample.training_pattern, 
-                                               sample.training_zenith_distance, 
-                                               sample.training_azimuth,
-                                               min(sample.training_energy_range),
+                                                sample.training_pattern, 
+                                                sample.training_zenith_distance, 
+                                                sample.training_azimuth,
+                                                min(sample.training_energy_range),
                                                 max(sample.training_energy_range),
                                                 min(sample.training_nsb_range),
                                                 max(sample.training_nsb_range)])
@@ -405,6 +406,8 @@ class CTLearnModelManager():
         # model_index = np.where(model_table['model_nickname'] == self.model_nickname)[0][0]
         print(f"💾 Model {self.model_nickname} index update:")
         for key, value in parameters.items():
+            if model_table[key].dtype.kind == 'U':  # Check if the dtype is Unicode string
+                model_table[key] = model_table[key].astype('S256')  # Convert to 'S256' for long strings
             model_table[key][0] = value
             self.__dict__[key] = value
             print(f"\t➡️ {key} updated to {value}")
@@ -480,20 +483,20 @@ class CTLearnModelManager():
             testing_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma')
         except:
             testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
             
         try:
             testing_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/proton')
         except:
             testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
         print(f"💾 Model {self.model_nickname} testing data update:")
         if len(testing_gamma_table)==0:
             testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
         if len(testing_proton_table)==0:
             testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
         
         if len(testing_gamma_dirs) > 0:
             for i in range(len(testing_gamma_dirs)):
@@ -547,20 +550,20 @@ class CTLearnModelManager():
             DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
         except:
             DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
-                                     dtype=[ str, float, float])
+                                     dtype=[ 'S256', float, float])
         try:
             DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
         except:
             DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=[ str, float, float])
+                                      dtype=[ 'S256', float, float])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
             DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
-                                     dtype=[str, float, float])
+                                     dtype=['S256', float, float])
         if len(DL2_proton_table)==0:
             DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=[str, float, float])
+                                      dtype=['S256', float, float])
         
         if len(testing_DL2_gamma_files) > 0:
             for i in range(len(testing_DL2_gamma_files)):
@@ -607,12 +610,12 @@ class CTLearnModelManager():
             DL2_data_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/Data')
         except:
             DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
-                                     dtype=[ str, float, float])
+                                     dtype=[ 'S256', float, float])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_data_table)==0:
             DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
-                                     dtype=[str, float, float])
+                                     dtype=['S256', float, float])
         
         if len(DL2_files) > 0:
             for i in range(len(DL2_files)):
@@ -699,11 +702,11 @@ class CTLearnModelManager():
             IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         except:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=[str, str, str, str, float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
         print(f"💾 Model {self.model_nickname} IRF data update:")
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=[str, str, str, str, float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
         
         match = np.where((IRF_table['config'] == config) or 
                 (IRF_table['cuts_file'] == cuts_file) or 
