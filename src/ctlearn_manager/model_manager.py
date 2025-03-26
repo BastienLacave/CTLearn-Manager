@@ -189,7 +189,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, config_file=None):
+    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, config_file=None, batch_size=64):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
@@ -304,7 +304,7 @@ class CTLearnModelManager():
             print(f"Configuration saved to {config_file}")
         
         cmd = f"ctlearn-train-model {load_model_string} \
---TrainCTLearnModel.batch_size=64 \
+--TrainCTLearnModel.batch_size={batch_size} \
 --signal {training_gamma_table['training_gamma_dir'][0]} {signal_patterns}\
 {background_string} {background_patterns}\
 --output {model_dir} \

@@ -114,7 +114,11 @@ srun {command}
 def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
     import h5py
     with h5py.File(MODEL_INDEX_FILE, 'a') as f:
-        del f[model_nickname]
+        try:
+            del f[model_nickname]
+            print(f"Model {model_nickname} removed from index")
+        except:
+            print(f"Model {model_nickname} not found in index")
 
 
 # def write_sbatch_script(cluster_configuration: ClusterConfiguration, job_name, cmd, sbatch_scripts_dir):
