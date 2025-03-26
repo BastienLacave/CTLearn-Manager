@@ -113,8 +113,17 @@ class CTLearnModelManager():
             raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
-        
-        
+
+        current_model_dir = self.model_parameters_table['model_dir'][0]
+        if f"/{self.model_nickname}" not in current_model_dir:
+            print("⚠️ Updating model directories for compatibility with the new version of CTLearnManager")
+            import os
+            import glob
+            os.system(f"mkdir {current_model_dir}/{self.model_nickname}")
+            model_dirs = glob.glob(f"{current_model_dir}/{self.model_nickname}_v*")
+            for model_dir in model_dirs:
+                print(f"➡️ Moving {model_dir} to {model_dir}/{self.model_nickname}")
+                os.system(f"mv {model_dir} {model_dir}/{self.model_nickname}/")
         
     def save_to_index(self, model_parameters):
         """
