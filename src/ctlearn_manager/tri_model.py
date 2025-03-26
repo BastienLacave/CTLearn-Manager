@@ -196,6 +196,7 @@ class CTLearnTriModelManager():
                 testing_gamma_patterns,
                 testing_proton_patterns
             )
+        self.get_available_testing_directions()
     
     def set_DL2_MC_files(self, testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
         """
