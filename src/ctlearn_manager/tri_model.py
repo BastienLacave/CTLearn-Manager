@@ -243,8 +243,26 @@ class CTLearnTriModelManager():
         direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/gamma')
         gamma_zeniths = direction_testing_table['testing_gamma_zenith_distances']
         gamma_azimuths = direction_testing_table['testing_gamma_azimuths']
-        for zenith, azimuth in zip(gamma_zeniths, gamma_azimuths):
-            print(f"(ZD, Az): ({zenith}, {azimuth})")
+        direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/proton')
+        proton_zeniths = direction_testing_table['testing_proton_zenith_distances']
+        proton_azimuths = direction_testing_table['testing_proton_azimuths']
+        # for zenith, azimuth in zip(gamma_zeniths, gamma_azimuths):
+        #     print(f"(ZD, Az): ({zenith}, {azimuth})")
+
+        coords = set(zip(gamma_zeniths, gamma_azimuths)).union(set(zip(proton_zeniths, proton_azimuths)))
+        if len(coords) > 0:
+            print("Available testing directions:")
+        for zenith, azimuth in coords:
+            gamma_available = (zenith, azimuth) in set(zip(gamma_zeniths, gamma_azimuths))
+            proton_available = (zenith, azimuth) in set(zip(proton_zeniths, proton_azimuths))
+            if gamma_available and proton_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma | proton")
+            elif gamma_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma |")
+            elif proton_available:
+                print(f"(ZD, Az): ({zenith}, {azimuth}) \t       | proton")
+            else:
+                print(f"(ZD, Az): ({zenith}, {azimuth})")
 
     def get_available_MC_directions(self):
         """
