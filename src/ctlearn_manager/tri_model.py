@@ -53,7 +53,7 @@ class CTLearnTriModelManager():
 
 
 
-        if direction_model.model_parameters_table['reco'][0] == 'direction':
+        if direction_model.model_parameters_table['reco'][0] in ['direction', 'cameradirection', 'skydirection']:
             self.direction_model = direction_model
         else:
             raise ValueError('direction_model must be a direction model')
