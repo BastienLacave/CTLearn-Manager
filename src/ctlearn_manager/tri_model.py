@@ -86,7 +86,7 @@ class CTLearnTriModelManager():
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.set_keys()
-        print(f"🧠🧠🧠 CTLearnTriModelManager initialized with ▮ {self.direction_model.model_nickname} ▮ {self.energy_model.model_nickname} ▮ {self.type_model.model_nickname} ▮")
+        print(f"🧠🧠🧠 CTLearnTriModelManager ▮ {self.direction_model.model_nickname} ▮ {self.energy_model.model_nickname} ▮ {self.type_model.model_nickname} ▮")
         self.get_available_MC_directions()
 
     def set_keys(self):
