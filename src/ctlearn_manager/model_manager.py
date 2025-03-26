@@ -173,23 +173,23 @@ class CTLearnModelManager():
             
             model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs])
             for sample in gamma_training_samples:
-                training_table_gamma.add_row([sample.training_directory, 
-                                                sample.training_pattern, 
-                                                sample.training_zenith_distance, 
-                                                sample.training_azimuth,
-                                                min(sample.training_energy_range),
-                                                max(sample.training_energy_range),
-                                                min(sample.training_nsb_range),
-                                                max(sample.training_nsb_range)])
+                training_table_gamma.add_row([sample.directory, 
+                                                sample.pattern, 
+                                                sample.zenith_distance, 
+                                                sample.azimuth,
+                                                min(sample.energy_range),
+                                                max(sample.energy_range),
+                                                min(sample.nsb_range),
+                                                max(sample.nsb_range)])
             for sample in proton_training_samples:
-                training_table_proton.add_row([sample.training_directory, 
-                                                sample.training_pattern, 
-                                                sample.training_zenith_distance, 
-                                                sample.training_azimuth,
-                                                min(sample.training_energy_range),
-                                                max(sample.training_energy_range),
-                                                min(sample.training_nsb_range),
-                                                max(sample.training_nsb_range)])
+                training_table_proton.add_row([sample.directory, 
+                                                sample.pattern, 
+                                                sample.zenith_distance, 
+                                                sample.azimuth,
+                                                min(sample.energy_range),
+                                                max(sample.energy_range),
+                                                min(sample.nsb_range),
+                                                max(sample.nsb_range)])
 
             
             write_table_hdf5(training_table_gamma, self.model_index_file, path=f'{self.model_nickname}/training/gamma', append=True, overwrite=True, serialize_meta=True)
@@ -973,7 +973,7 @@ class CTLearnModelManager():
         plt.show()
       
 
-class TrainingSample:
+class DataSample:
     """
     A class to represent a training sample for CTLearn.
     :param directory: The directory where training data is stored.
@@ -1009,12 +1009,12 @@ class TrainingSample:
         :type nsb_range: list of astropy.units.Quantity
         """
 
-        self.training_directory = directory
-        self.training_pattern = pattern
-        self.training_zenith_distance = zenith_distance
-        self.training_azimuth = azimuth
-        self.training_energy_range = energy_range
-        self.training_nsb_range = nsb_range
+        self.directory = directory
+        self.pattern = pattern
+        self.zenith_distance = zenith_distance
+        self.azimuth = azimuth
+        self.energy_range = energy_range
+        self.nsb_range = nsb_range
         
 
 class ModelRangeOfValidity:

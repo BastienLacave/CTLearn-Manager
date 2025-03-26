@@ -1,7 +1,7 @@
 from astropy.table import QTable
 import numpy as np
 from pathlib import Path
-from .model_manager import CTLearnModelManager
+from .model_manager import CTLearnModelManager, DataSample
 from .utils.utils import set_mpl_style, ClusterConfiguration
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 
@@ -134,8 +134,9 @@ class CTLearnTriModelManager():
         self.pointing_az_key = "array_azimuth" if self.stereo else "azimuth" #if self.CTLearn else "az_tel"
         self.time_key = "time" #if self.CTLearn else "dragon_time"
             
-    def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
-        
+    # def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
+    def  set_testing_data(self, gamma_testing_samples = [], proton_testing_samples = []):
+      
         """
         Set the directories and associated parameters for testing data.
         This method updates the testing data for the direction, energy, and type models
@@ -159,6 +160,25 @@ class CTLearnTriModelManager():
         :raises ValueError: If the lengths of the gamma lists are not equal.
         :raises ValueError: If the lengths of the proton lists are not equal.
         """
+        testing_gamma_dirs = []
+        testing_gamma_zenith_distances = []
+        testing_gamma_azimuths = []
+        testing_gamma_patterns = []
+        for sample in gamma_testing_samples:
+            testing_gamma_dirs.append(sample.directory)
+            testing_gamma_zenith_distances.append(sample.zenith_distance)
+            testing_gamma_azimuths.append(sample.azimuth)
+            testing_gamma_patterns.append(sample.pattern)
+        testing_proton_dirs = []
+        testing_proton_zenith_distances = []
+        testing_proton_azimuths = []
+        testing_proton_patterns = []
+        for sample in proton_testing_samples:
+            testing_proton_dirs.append(sample.directory)
+            testing_proton_zenith_distances.append(sample.zenith_distance)
+            testing_proton_azimuths.append(sample.azimuth)
+            testing_proton_patterns.append(sample.pattern)
+
         
         if not (len(testing_gamma_dirs) == len(testing_gamma_zenith_distances) == len(testing_gamma_azimuths) == len(testing_gamma_patterns)):
             raise ValueError("All testing gamma lists must be the same length")
