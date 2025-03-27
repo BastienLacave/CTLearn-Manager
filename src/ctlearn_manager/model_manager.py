@@ -4,7 +4,11 @@ from pathlib import Path
 import ast
 from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration
 
-__all__ = ['CTLearnModelManager']
+__all__ = [
+    'CTLearnModelManager',
+    'DataSample',
+    'ModelRangeOfValidity',
+    ]
 
 class CTLearnModelManager():
 

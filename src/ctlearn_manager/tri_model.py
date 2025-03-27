@@ -320,7 +320,7 @@ class CTLearnTriModelManager():
             else:
                 print(f"(ZD, Az): ({zenith}, {azimuth})")
         
-    def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', ):
+    def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', batch_size=64):
         # def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
         """
         Launch testing for the given zenith and azimuth angles.
@@ -432,20 +432,24 @@ class CTLearnTriModelManager():
          
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
-                cmd = f"ctlearn-predict-model --input_url {input_file} \
+                cmd = f"ctlearn-predict-stereo-model --input_url {input_file} \
+--PredictCTLearnModel.batch_size={batch_size} \
 --type_model={type_model_dir}/ctlearn_model.cpk \
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --direction_model={direction_model_dir}/ctlearn_model.cpk \
+--use-HDF5Merger \
 --no-dl1-images --no-true-images --output {output_file} \
 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
-                cmd = f"ctlearn-predict-model --input_url {input_file} \
+                cmd = f"ctlearn-predict-mono-model --input_url {input_file} \
+--PredictCTLearnModel.batch_size={batch_size} \
 --type_model={type_model_dir}/ctlearn_model.cpk \
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --direction_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
+--use-HDF5Merger \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
             if self.cluster_configuration.use_cluster:

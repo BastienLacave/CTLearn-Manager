@@ -1,6 +1,7 @@
 import numpy as np
 from .utils.utils import angular_distance, get_avg_pointing, get_files, ClusterConfiguration
 
+__all__ = ['TriModelCollection']
 
 class TriModelCollection():
     

@@ -6,6 +6,8 @@ import glob
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
+__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration']
+
 
 def set_mpl_style():
     import matplotlib.pyplot as plt
@@ -58,7 +60,9 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None):
+    if memory_mb==None:
+        memory_mb = 64000
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
@@ -81,7 +85,7 @@ srun {command}''',
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:{nodes}
-#SBATCH --mem=64000mb
+#SBATCH --mem={memory_mb}0mb
 #SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
 #SBATCH --account={account}
@@ -94,7 +98,7 @@ srun --environment={env_name} {command}
 #SBATCH --account={account}
 #SBATCH --partition={partition}
 #SBATCH --time={time}
-#SBATCH --mem=64000mb
+#SBATCH --mem={memory_mb}mb
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
 #SBATCH -e {sbatch_scripts_dir}/{job_name}%x.%j.err 
 
@@ -147,7 +151,7 @@ def get_current_env():
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
 class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1):
+    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
         
 
         # self.current_env = 
@@ -159,6 +163,7 @@ class ClusterConfiguration():
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
         self.nodes = nodes
+        self.memory_mb = memory_mb
         # if self.use_cluster:
         #     print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
 
@@ -207,7 +212,7 @@ class ClusterConfiguration():
         import os
         if not os.path.exists(sbatch_scripts_dir):
             os.system(f"mkdir {sbatch_scripts_dir}")
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes, self.memory_mb)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
