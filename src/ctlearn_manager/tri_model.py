@@ -521,18 +521,18 @@ class CTLearnTriModelManager():
             json.dump(config, file)
         print(f"🪛 Configuration saved to {config_file}")
 
-        avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
-        for model in [self.direction_model, self.energy_model, self.type_model]:
-            model.update_model_manager_DL2_data_files(
-                [output_file], 
-                [avg_data_ze],
-                [avg_data_az],
-            )
+        # avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        # for model in [self.direction_model, self.energy_model, self.type_model]:
+        #     model.update_model_manager_DL2_data_files(
+        #         [output_file], 
+        #         [avg_data_ze],
+        #         [avg_data_az],
+        #     )
         
         cmd = f"ctlearn-predict-LST1 --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
 --energy_model {energy_model_dir}/ctlearn_model.cpk \
---direction_model {direction_model_dir}/ctlearn_model.cpk \
+--cameradirection_model {direction_model_dir}/ctlearn_model.cpk \
 --config '{config_file}' \
 -v"
             
@@ -602,12 +602,12 @@ class CTLearnTriModelManager():
         print(f"🪛 Configuration saved to {config_file}")
 
         avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
-        for model in [self.direction_model, self.energy_model, self.type_model]:
-            model.update_model_manager_DL2_data_files(
-                [output_file], 
-                [avg_data_ze],
-                [avg_data_az],
-            )
+        # for model in [self.direction_model, self.energy_model, self.type_model]:
+        #     model.update_model_manager_DL2_data_files(
+        #         [output_file], 
+        #         [avg_data_ze],
+        #         [avg_data_az],
+        #     )
         
         cmd = f"ctlearn-predict-model --input_url {input_file} \
 --type_model {type_model_dir}/ctlearn_model.cpk \
