@@ -102,7 +102,7 @@ class CTLearnModelManager():
         self.validity = ModelRangeOfValidity(self)
         # self.model_index = 0
         if 'stereo' in model_parameters.keys():
-            self.stereo = model_parameters['stereo']
+            self.stereo = self.model_parameters_table['stereo'][0]
         else:
             self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
