@@ -6,7 +6,7 @@ from astropy import units as u
 from ..io.io import load_DL2_data, load_DL2_data_RF
 from astropy.time import Time
 import numpy as np
-import tqdm
+from tqdm import tqdm
 
 import argparse
 
@@ -110,9 +110,9 @@ def process_dl2_file():
             for (I_min, I_max) in intensity_ranges:
                 excess_counts = []
                 off_counts = []
-                print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)
-                for gcut in gammaness_cuts:
-                    print(f"Computing excesses for gammaness cut {gcut}", flush=True)
+                # print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)
+                for gcut in tqdm(gammaness_cuts, desc=f"Computing excesses for [{I_min} - {I_max}] p.e.", unit="gcut"):
+                    # print(f"Computing excesses for gammaness cut {gcut}", flush=True)
                     total_excess = 0
                     total_off = 0
                     # for reco_direction, pointing_direction, dl2 in zip(processor.reco_directions, processor.pointings, processor.dl2s):
