@@ -101,7 +101,7 @@ class CTLearnModelManager():
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
         # self.model_index = 0
-        if 'stereo' in model_parameters.keys():
+        if 'stereo' in self.model_parameters_table.keys():
             self.stereo = self.model_parameters_table['stereo'][0]
         else:
             self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
