@@ -160,8 +160,8 @@ class CTLearnModelManager():
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
-            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs'],
-                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int])
+            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'stereo'],
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool])
             training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
                             dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             training_table_proton = QTable(names=['training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths', 'training_proton_energy_min', 'training_proton_energy_max', 'training_proton_nsb_min', 'training_proton_nsb_max'],
@@ -174,11 +174,12 @@ class CTLearnModelManager():
             telescope_ids = model_parameters.get('telescope_ids', [])
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
+            stereo = model_parameters.get('stereo', False)
             
             gamma_training_samples = model_parameters.get('gamma_training_samples', [])
             proton_training_samples = model_parameters.get('proton_training_samples', [])
             
-            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs])
+            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, stereo])
             for sample in gamma_training_samples:
                 training_table_gamma.add_row([sample.directory, 
                                                 sample.pattern, 
