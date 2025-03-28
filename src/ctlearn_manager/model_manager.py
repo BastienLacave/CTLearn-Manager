@@ -174,7 +174,7 @@ class CTLearnModelManager():
             telescope_ids = model_parameters.get('telescope_ids', [])
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
-            stereo = model_parameters.get('stereo', False)
+            stereo = model_parameters.get('stereo', len(telescope_ids) > 1)
             
             gamma_training_samples = model_parameters.get('gamma_training_samples', [])
             proton_training_samples = model_parameters.get('proton_training_samples', [])
