@@ -101,7 +101,10 @@ class CTLearnModelManager():
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
         # self.model_index = 0
-        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
+        if 'stereo' in model_parameters.keys():
+            self.stereo = model_parameters['stereo']
+        else:
+            self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
@@ -297,6 +300,10 @@ class CTLearnModelManager():
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = True if self.stereo else False
         allowed_tels = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
+        if self.stereo:
+            min_telescopes = int(len(allowed_tels))
+        else:
+            min_telescopes = 1
         
         if config_file is None:
             config = {}
@@ -305,7 +312,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['save_best_validation_only'] = save_best_validation_only
             config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
-            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
+            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = min_telescopes
             config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
             config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
