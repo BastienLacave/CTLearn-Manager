@@ -979,6 +979,25 @@ class DL2DataProcessor():
         plt.tight_layout()
         plt.show()
 
+    def plot_gammaness_distribution(self):
+        import matplotlib.pyplot as plt
+        from matplotlib.gridspec import GridSpec
+
+
+        gammaness_values = []
+        for dl2 in self.dl2s:
+            # Extracting the gammaness values
+            gammaness_values.extend(dl2[self.gammaness_key])
+
+
+        # Plotting the histograms
+        plt.hist(gammaness_values, bins=100, range=(0, 1), histtype="step", density=False, lw=2, label="Real data")
+        plt.xlabel('Gammaness')
+        plt.ylabel('Counts')
+        plt.legend()
+   
+        plt.tight_layout()
+        plt.show()
 
 
 

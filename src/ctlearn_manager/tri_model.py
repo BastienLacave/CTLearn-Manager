@@ -696,16 +696,17 @@ class CTLearnTriModelManager():
         testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
         testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
+        tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
+            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file))
+            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
         dl2_proton = vstack(dl2_protons)
-        plt.hist(dl2_gamma["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
-        plt.hist(dl2_proton["CTLearn_prediction"], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        plt.hist(dl2_gamma[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
+        plt.hist(dl2_proton[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
         plt.xlabel("Gammaness")
         plt.ylabel("Density")
         plt.legend()
@@ -731,17 +732,18 @@ class CTLearnTriModelManager():
         testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
         testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
+        tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
+            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
         dl2_gamma = vstack(dl2_gamma)
         
         dl2_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file))
+            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
         dl2_proton = vstack(dl2_protons)
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
-        plt.hist(dl2_gamma["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
-        plt.hist(dl2_proton["CTLearn_energy"], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        plt.hist(dl2_gamma[self.reco_energy_key], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
+        plt.hist(dl2_proton[self.reco_energy_key], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
         plt.xlabel("Energy [TeV]")
         plt.ylabel("Density")
         plt.xscale("log")
@@ -836,8 +838,9 @@ class CTLearnTriModelManager():
         testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
         dl2_gamma = []
         shower_parameters_gamma = []
+        tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file))
+            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
         dl2_gamma = vstack(dl2_gamma)
         shower_parameters_gamma = vstack(shower_parameters_gamma)
@@ -846,7 +849,7 @@ class CTLearnTriModelManager():
         dl2_protons = []
         shower_parameters_protons = []
         for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file))
+            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
             shower_parameters_protons.append(load_true_shower_parameters(file))
         dl2_proton = vstack(dl2_protons)
         shower_parameters_protons = vstack(shower_parameters_protons)
@@ -855,7 +858,7 @@ class CTLearnTriModelManager():
         log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
         
         axs[0].plot([0.1, 500], [0.1, 500], color="red", ls="--")
-        axs[0].hist2d(dl2_gamma["CTLearn_energy"], dl2_gamma["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[0].hist2d(dl2_gamma[self.reco_energy_key], dl2_gamma[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[0].set_xlabel("CTLean Energy [TeV]")
         axs[0].set_ylabel("True Energy [TeV]")
         axs[0].set_xscale("log")
@@ -866,7 +869,7 @@ class CTLearnTriModelManager():
         cbar.set_label("Counts")
         
         axs[1].plot([0.1, 500], [0.1, 500], color="red", ls="--")
-        axs[1].hist2d(dl2_proton["CTLearn_energy"], dl2_proton["true_energy"], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+        axs[1].hist2d(dl2_proton[self.reco_energy_key], dl2_proton[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[1].set_xlabel("CTLearn Energy [TeV]")
         axs[1].set_ylabel("True Energy [TeV]")
         axs[1].set_xscale("log")
