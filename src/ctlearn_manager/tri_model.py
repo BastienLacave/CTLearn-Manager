@@ -81,7 +81,7 @@ class CTLearnTriModelManager():
         if not (self.direction_model.telescope_ids == self.energy_model.telescope_ids == self.type_model.telescope_ids):
             raise ValueError('All models must have the same telescope_ids')
         
-        if not (self.direction_model.self.min_telescopes == self.energy_model.min_telescopes == self.type_model.min_telescopes):
+        if not (self.direction_model.min_telescopes == self.energy_model.min_telescopes == self.type_model.min_telescopes):
             raise ValueError('All models must have the same min_telescopes')
         else:
             self.min_telescopes = self.direction_model.min_telescopes
@@ -866,8 +866,13 @@ class CTLearnTriModelManager():
         shower_parameters_protons = vstack(shower_parameters_protons)
         dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
         
-        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
+        log_bins = np.logspace(
+            np.log10(min((min(dl2_gamma[self.reco_energy_key]), min(dl2_gamma[self.true_energy_key])))), 
+            np.log10(max(max(dl2_gamma[self.reco_energy_key]), max(dl2_gamma[self.true_energy_key]))),
+            100)
         
+        axs[0].set_xlim(log_bins[0], log_bins[-1])
+        axs[0].set_ylim(log_bins[0], log_bins[-1])
         axs[0].plot([0.1, 500], [0.1, 500], color="red", ls="--")
         axs[0].hist2d(dl2_gamma[self.reco_energy_key], dl2_gamma[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[0].set_xlabel("CTLean Energy [TeV]")
@@ -878,7 +883,14 @@ class CTLearnTriModelManager():
         axs[0].set_title("Gammas")
         cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
         cbar.set_label("Counts")
+
+        log_bins = np.logspace(
+            np.log10(min((min(dl2_proton[self.reco_energy_key]), min(dl2_proton[self.true_energy_key])))), 
+            np.log10(max(max(dl2_proton[self.reco_energy_key]), max(dl2_proton[self.true_energy_key]))),
+            100)
         
+        axs[1].set_xlim(log_bins[0], log_bins[-1])
+        axs[1].set_ylim(log_bins[0], log_bins[-1])
         axs[1].plot([0.1, 500], [0.1, 500], color="red", ls="--")
         axs[1].hist2d(dl2_proton[self.reco_energy_key], dl2_proton[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[1].set_xlabel("CTLearn Energy [TeV]")
