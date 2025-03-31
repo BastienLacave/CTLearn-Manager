@@ -1146,7 +1146,7 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        mask = dl2_gamma[self.gammaness_key] < gammaness_cut
+        mask = dl2_gamma[self.gammaness_key] > gammaness_cut
 
         reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
         reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
@@ -1206,7 +1206,7 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        mask = dl2_gamma[self.gammaness_key] < gammaness_cut
+        mask = dl2_gamma[self.gammaness_key] > gammaness_cut
 
         reco_energy = dl2_gamma[self.reco_energy_key] [mask]
         true_energy = dl2_gamma[self.true_energy_key] [mask]
