@@ -80,6 +80,11 @@ class CTLearnTriModelManager():
             self.stereo = self.direction_model.stereo
         if not (self.direction_model.telescope_ids == self.energy_model.telescope_ids == self.type_model.telescope_ids):
             raise ValueError('All models must have the same telescope_ids')
+        
+        if not (self.direction_model.self.min_telescopes == self.energy_model.min_telescopes == self.type_model.min_telescopes):
+            raise ValueError('All models must have the same min_telescopes')
+        else:
+            self.min_telescopes = self.direction_model.min_telescopes
         self.telescope_ids = self.direction_model.telescope_ids
         self.telescope_names = self.direction_model.telescope_names
         self.cluster_configuration = cluster_configuration
@@ -437,10 +442,10 @@ class CTLearnTriModelManager():
 --PredictCTLearnModel.batch_size={batch_size} \
 --type_model={type_model_dir}/ctlearn_model.cpk \
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
---direction_model={direction_model_dir}/ctlearn_model.cpk \
+--skydirection_model={direction_model_dir}/ctlearn_model.cpk \
 --use-HDF5Merger \
 --no-dl1-images --no-true-images --output {output_file} \
---DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes=2 \
+--DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes={self.min_telescopes} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
