@@ -207,7 +207,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, config_file=None, batch_size=64):
+    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, config_file=None, batch_size=64):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
@@ -261,7 +261,7 @@ class CTLearnModelManager():
                 model_version += 1
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 print(f"➡️ Model already exists: will continue training and create {model_dir}")
-                save_best_validation_only = True
+                _save_best_validation_only = True
                 model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
                 os.system(f"mkdir -p {model_dir}")
@@ -271,16 +271,19 @@ class CTLearnModelManager():
                     model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                     load_model = True
                     print(f"➡️ Model already exists: will continue training and create {model_dir}")
-                    save_best_validation_only = True
+                    _save_best_validation_only = True
                 else:
                     print(f"🆕 Model does not exist: will create {model_dir}")
-                    save_best_validation_only = False
+                    _save_best_validation_only = False
         else:
             model_version = 0
             model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
             print(f"🆕 Model does not exist: will create {model_dir}")
             os.system(f"mkdir -p {model_dir}")
-            save_best_validation_only = False
+            _save_best_validation_only = False
+        
+        if save_best_validation_only is not None:
+            _save_best_validation_only = save_best_validation_only
 
         if load_model:
             load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} "
@@ -306,7 +309,7 @@ class CTLearnModelManager():
             config = {}
             config['TrainCTLearnModel'] = {}
             config['TrainCTLearnModel']['DLImageReader'] = {}
-            config['TrainCTLearnModel']['save_best_validation_only'] = save_best_validation_only
+            config['TrainCTLearnModel']['save_best_validation_only'] = _save_best_validation_only
             config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
             config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = self.min_telescopes

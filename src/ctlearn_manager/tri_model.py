@@ -455,7 +455,7 @@ class CTLearnTriModelManager():
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
---use-HDF5Merger \
+--use-HDF5Merger --no-dl2-subarray \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
             if self.cluster_configuration.use_cluster:
