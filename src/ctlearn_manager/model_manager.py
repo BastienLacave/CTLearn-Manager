@@ -100,15 +100,15 @@ class CTLearnModelManager():
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
-        # self.model_index = 0
-        if 'stereo' in self.model_parameters_table.keys():
-            self.stereo = self.model_parameters_table['stereo'][0]
-        else:
-            self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
         self.telescope_names = ast.literal_eval(self.model_parameters_table['telescope_names'][0])
+        try:
+            self.min_telescopes = self.model_parameters_table['min_telescopes'][0] 
+        except:
+            self.min_telescopes = len(self.telescope_ids)
+        self.stereo = True if self.min_telescopes >= 2 else False
         # Check that all gamma related lists are the same length
         gamma_lengths = [len(training_table_gamma['training_gamma_patterns']), len(training_table_gamma['training_gamma_zenith_distances']), len(training_table_gamma['training_gamma_azimuths'])]
         if len(set(gamma_lengths)) != 1:
@@ -160,8 +160,8 @@ class CTLearnModelManager():
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
-            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'stereo'],
-                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool])
+            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes'],
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool, int])
             training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
                             dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             training_table_proton = QTable(names=['training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths', 'training_proton_energy_min', 'training_proton_energy_max', 'training_proton_nsb_min', 'training_proton_nsb_max'],
@@ -174,12 +174,12 @@ class CTLearnModelManager():
             telescope_ids = model_parameters.get('telescope_ids', [])
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
-            stereo = model_parameters.get('stereo', len(telescope_ids) > 1)
+            min_telescopes = model_parameters.get('min_telescopes', 1)
             
             gamma_training_samples = model_parameters.get('gamma_training_samples', [])
             proton_training_samples = model_parameters.get('proton_training_samples', [])
             
-            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, stereo])
+            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes])
             for sample in gamma_training_samples:
                 training_table_gamma.add_row([sample.directory, 
                                                 sample.pattern, 
@@ -301,10 +301,6 @@ class CTLearnModelManager():
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = True if self.stereo else False
         allowed_tels = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
-        if self.stereo:
-            min_telescopes = int(len(allowed_tels))
-        else:
-            min_telescopes = 1
         
         if config_file is None:
             config = {}
@@ -313,7 +309,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['save_best_validation_only'] = save_best_validation_only
             config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
-            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = min_telescopes
+            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = self.min_telescopes
             config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
             config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels

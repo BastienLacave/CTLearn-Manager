@@ -345,7 +345,8 @@ class CTLearnTriModelManager():
         :raises ValueError: If `output_dirs` does not have length 1 or 2.
         """
 
-
+        if self.cluster_configuration.nodes > 1:
+            raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
         self.cluster_configuration.info()
         import os
         import glob
@@ -449,7 +450,7 @@ class CTLearnTriModelManager():
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
---use-HDF5Merger --no-dl2-subarray \
+--use-HDF5Merger \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
             if self.cluster_configuration.use_cluster:
@@ -481,6 +482,8 @@ class CTLearnTriModelManager():
         :return: None
         """
 
+        if self.cluster_configuration.nodes > 1:
+            raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
 
 
         import os
@@ -564,6 +567,9 @@ class CTLearnTriModelManager():
             Path to the pointing table in the input file. Default is 'dl0/monitoring/subarray/pointing'.
         :returns: None
         """
+
+        if self.cluster_configuration.nodes > 1:
+            raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
 
 
         import os
@@ -1087,7 +1093,7 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def plot_angular_resolution_DL2(self, zenith, azimuth):
+    def plot_angular_resolution_DL2(self, zenith, azimuth, gammaness_cut=0.):
         """
         Plot the angular resolution for DL2 data at a given zenith and azimuth angle.
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
@@ -1123,12 +1129,14 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg)
-        reco_az = dl2_gamma[self.reco_az_key].to(u.deg)
-        true_alt = dl2_gamma[self.true_alt_key].to(u.deg)
-        true_az = dl2_gamma[self.true_az_key].to(u.deg)
-        reco_energy = dl2_gamma[self.reco_energy_key]
-        true_energy = dl2_gamma[self.true_energy_key]
+        mask = dl2_gamma[self.gammaness_key] < gammaness_cut
+
+        reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
+        reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
+        true_alt = dl2_gamma[self.true_alt_key].to(u.deg) [mask]
+        true_az = dl2_gamma[self.true_az_key].to(u.deg) [mask]
+        reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+        true_energy = dl2_gamma[self.true_energy_key] [mask]
         
         # Define the range of true energy values
         true_energy_min = np.min(true_energy)
@@ -1140,11 +1148,12 @@ class CTLearnTriModelManager():
                                num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
 
         ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+        plt.xlabel("True Energy [TeV]")
         plt.legend()
         plt.grid(False, which='both')
         plt.show()
         
-    def plot_energy_resolution_DL2(self, zenith, azimuth):
+    def plot_energy_resolution_DL2(self, zenith, azimuth, gammaness_cut=0.):
         """
         Plot the energy resolution for DL2 data at given zenith and azimuth angles.
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
@@ -1180,8 +1189,10 @@ class CTLearnTriModelManager():
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        reco_energy = dl2_gamma[self.reco_energy_key]
-        true_energy = dl2_gamma[self.true_energy_key]
+        mask = dl2_gamma[self.gammaness_key] < gammaness_cut
+
+        reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+        true_energy = dl2_gamma[self.true_energy_key] [mask]
         
         # Define the range of true energy values
         true_energy_min = np.min(true_energy)
