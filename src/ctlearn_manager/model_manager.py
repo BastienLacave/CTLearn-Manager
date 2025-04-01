@@ -606,7 +606,42 @@ class CTLearnModelManager():
                     DL2_proton_table.add_row([testing_DL2_proton_files[i], testing_DL2_proton_zenith_distances[i], testing_DL2_proton_azimuths[i]])
             write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing DL2 proton data updated")
+    
+    def delete_DL2_MC_file(self, testing_DL2_gamma_file=None, testing_DL2_proton_file=None):
+        """
+        Delete the DL2 MC files for gamma and proton testing data in the model manager.
+        This method reads the existing DL2 MC tables for gamma and proton data from the HDF5 file,
+        removes the specified files from the tables, and writes the updated tables back to the HDF5 file.
+        :param testing_DL2_gamma_file: The file path of the DL2 gamma data to be deleted, defaults to None.
+        :type
+        testing_DL2_gamma_file: str, optional
+        :param testing_DL2_proton_file: The file path of the DL2 proton data to be deleted, defaults to None.
+        :type testing_DL2_proton_file: str, optional
+        :raises IOError: If there is an error reading or writing the HDF5 file.
+        :return: None
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
+        DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+        DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+        
+        print(f"💾 Model {self.model_nickname} DL2 data update:")
+        if testing_DL2_gamma_file is not None:
+            match = np.where(DL2_gamma_table['testing_DL2_gamma_files'] == testing_DL2_gamma_file)[0]
+            if len(match) > 0:
+                DL2_gamma_table.remove_rows(match)
+            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True, serialize_meta=True)
+                # print(f"\t➡️ Testing DL2 gamma data updated")
+        
+        if testing_DL2_proton_file is not None:
+            match = np.where(DL2_proton_table['testing_DL2_proton_files'] == testing_DL2_proton_file)[0]
+            if len(match) > 0:
+                DL2_proton_table.remove_rows(match)
+            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
+                # print(f"\t➡️ Testing DL2 proton data updated")
+        if testing_DL2_gamma_file is None and testing_DL2_proton_file is None:
+            print(f"🛑 No DL2 MC files to delete.")
+
     def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
         
         """
