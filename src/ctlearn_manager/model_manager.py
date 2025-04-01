@@ -308,16 +308,18 @@ class CTLearnModelManager():
         if config_file is None:
             config = {}
             config['TrainCTLearnModel'] = {}
-            config['TrainCTLearnModel']['DLImageReader'] = {}
             config['TrainCTLearnModel']['save_best_validation_only'] = _save_best_validation_only
             config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
+            config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
+            config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
+            config['TrainCTLearnModel']['output_dir'] = model_dir
+
+            config['TrainCTLearnModel']['DLImageReader'] = {}
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
             config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = self.min_telescopes
             config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
-            config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
-            config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
-            config['TrainCTLearnModel']['output_dir'] = model_dir
+            
             config['LoadedModel'] = {}
             config['LoadedModel']['trainable_backbone'] = trainable_backbone
             
