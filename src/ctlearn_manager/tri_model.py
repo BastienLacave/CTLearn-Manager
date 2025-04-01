@@ -327,7 +327,7 @@ class CTLearnTriModelManager():
                     print(f"(ZD, Az): ({zenith}, {azimuth})")
         return coords
         
-    def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', batch_size=64):
+    def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', batch_size=64, no_dl2_subarray=False):
         # def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
         """
         Launch testing for the given zenith and azimuth angles.
@@ -437,6 +437,8 @@ class CTLearnTriModelManager():
         type_model_dir = np.sort(glob.glob(f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}*"))[-1]
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}*"))[-1]
+
+        no_dl2_subarray_string = "" if no_dl2_subarray else " --no-dl2-subarray"
          
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
@@ -457,7 +459,7 @@ class CTLearnTriModelManager():
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
---use-HDF5Merger --no-dl2-subarray \
+--use-HDF5Merger{no_dl2_subarray_string} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
             if self.cluster_configuration.use_cluster:
