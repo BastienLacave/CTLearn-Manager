@@ -318,6 +318,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
+            config['LoadedModel'] = {}
             config['LoadedModel']['trainable_backbone'] = trainable_backbone
             
             config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
