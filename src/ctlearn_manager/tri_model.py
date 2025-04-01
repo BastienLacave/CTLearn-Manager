@@ -1193,7 +1193,7 @@ class CTLearnTriModelManager():
             if i == closest_coord_index:
                 ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Closest to training data\n$\gamma$ ({zenith:.1f}, {azimuth:.1f})°")
             else:
-                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='s')
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
             plt.ylim(ylim[0], ylim[1])
         plt.xlabel("True Energy [TeV]")
@@ -1275,7 +1275,7 @@ class CTLearnTriModelManager():
             if i == closest_coord_index:
                 ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Closest to training data\n$\gamma$ ({zenith:.1f}, {azimuth:.1f})°")
             else:
-                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='s')
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
             plt.ylim(ylim[0], ylim[1])
         plt.legend()
