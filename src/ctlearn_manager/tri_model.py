@@ -2,7 +2,7 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 from .model_manager import CTLearnModelManager, DataSample
-from .utils.utils import set_mpl_style, ClusterConfiguration
+from .utils.utils import set_mpl_style, ClusterConfiguration, angular_distance
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 
 __all__ = [
@@ -269,7 +269,7 @@ class CTLearnTriModelManager():
             else:
                 print(f"(ZD, Az): ({zenith}, {azimuth})")
 
-    def get_available_MC_directions(self):
+    def get_available_MC_directions(self, verbose=True):
         """
         Retrieve and print available Monte Carlo (MC) directions from HDF5 files.
         This method reads the zenith and azimuth distances for gamma and proton 
@@ -311,19 +311,21 @@ class CTLearnTriModelManager():
             proton_azimuths = []
 
         coords = set(zip(gamma_zeniths, gamma_azimuths)).union(set(zip(proton_zeniths, proton_azimuths)))
-        if len(coords) > 0:
-            print("Available MC DL2 directions:")
-        for zenith, azimuth in coords:
-            gamma_available = (zenith, azimuth) in set(zip(gamma_zeniths, gamma_azimuths))
-            proton_available = (zenith, azimuth) in set(zip(proton_zeniths, proton_azimuths))
-            if gamma_available and proton_available:
-                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma | proton")
-            elif gamma_available:
-                print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma |")
-            elif proton_available:
-                print(f"(ZD, Az): ({zenith}, {azimuth}) \t       | proton")
-            else:
-                print(f"(ZD, Az): ({zenith}, {azimuth})")
+        if verbose:
+            if len(coords) > 0:
+                print("Available MC DL2 directions:")
+            for zenith, azimuth in coords:
+                gamma_available = (zenith, azimuth) in set(zip(gamma_zeniths, gamma_azimuths))
+                proton_available = (zenith, azimuth) in set(zip(proton_zeniths, proton_azimuths))
+                if gamma_available and proton_available:
+                    print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma | proton")
+                elif gamma_available:
+                    print(f"(ZD, Az): ({zenith}, {azimuth}) \t gamma |")
+                elif proton_available:
+                    print(f"(ZD, Az): ({zenith}, {azimuth}) \t       | proton")
+                else:
+                    print(f"(ZD, Az): ({zenith}, {azimuth})")
+        return coords
         
     def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both', batch_size=64):
         # def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
@@ -1110,7 +1112,7 @@ class CTLearnTriModelManager():
         plt.tight_layout()
         plt.show()
         
-    def plot_angular_resolution_DL2(self, zenith, azimuth, gammaness_cut=0.):
+    def plot_angular_resolution_DL2(self, zeniths=None, azimuths=None, gammaness_cut=0., ylim=None):
         """
         Plot the angular resolution for DL2 data at a given zenith and azimuth angle.
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
@@ -1134,43 +1136,70 @@ class CTLearnTriModelManager():
         from astropy.table import vstack, join
         import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
-        DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
-        testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
-        dl2_gamma = []
-        shower_parameters_gamma = []
-        tel_id = None if self.stereo else self.telescope_ids[0]
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
-            shower_parameters_gamma.append(load_true_shower_parameters(file))
-        dl2_gamma = vstack(dl2_gamma)
-        shower_parameters_gamma = vstack(shower_parameters_gamma)
-        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+        if zeniths is None:
+            coords = self.get_available_MC_directions(verbose=False)
+        else:
+            assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
+            coords = list(zip(zeniths, azimuths))
 
-        mask = dl2_gamma[self.gammaness_key] > gammaness_cut
-
-        reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
-        reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
-        true_alt = dl2_gamma[self.true_alt_key].to(u.deg) [mask]
-        true_az = dl2_gamma[self.true_az_key].to(u.deg) [mask]
-        reco_energy = dl2_gamma[self.reco_energy_key] [mask]
-        true_energy = dl2_gamma[self.true_energy_key] [mask]
+        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg).value
+        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg).value
+        testing_azs = []
+        testing_zes = []
+        for zenith, azimuth in coords:
+            testing_azs.append(azimuth)
+            testing_zes.append(zenith)
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
         
-        # Define the range of true energy values
-        true_energy_min = np.min(true_energy)
-        true_energy_max = np.max(true_energy)
+        DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
+        
+        
+        for i, coord in enumerate(coords):
+            zenith, azimuth = coord
+            testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][
+                (DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) &
+                (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth)
+            ]
+            # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) and (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth)).all()]
+            dl2_gamma = []
+            shower_parameters_gamma = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_gamma_files:
+                dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
+                shower_parameters_gamma.append(load_true_shower_parameters(file))
+            dl2_gamma = vstack(dl2_gamma)
+            shower_parameters_gamma = vstack(shower_parameters_gamma)
+            dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        # Create bins with 5 bins per decade in log scale
-        bins_per_decade = 5
-        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
-                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+            mask = dl2_gamma[self.gammaness_key] > gammaness_cut
 
-        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+            reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
+            reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
+            true_alt = dl2_gamma[self.true_alt_key].to(u.deg) [mask]
+            true_az = dl2_gamma[self.true_az_key].to(u.deg) [mask]
+            reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+            true_energy = dl2_gamma[self.true_energy_key] [mask]
+            
+            # Define the range of true energy values
+            true_energy_min = np.min(true_energy)
+            true_energy_max = np.max(true_energy)
+
+            # Create bins with 5 bins per decade in log scale
+            bins_per_decade = 5
+            log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                                num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+            if i == closest_coord_index:
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Closest to training data\n$\gamma$ ({zenith:.1f}, {azimuth:.1f})°")
+            else:
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='s')
+        if ylim is not None:
+            plt.ylim(ylim[0], ylim[1])
         plt.xlabel("True Energy [TeV]")
         plt.legend()
         plt.grid(False, which='both')
         plt.show()
         
-    def plot_energy_resolution_DL2(self, zenith, azimuth, gammaness_cut=0.):
+    def plot_energy_resolution_DL2(self, zeniths=None, azimuths=None, gammaness_cut=0., ylim=None):
         """
         Plot the energy resolution for DL2 data at given zenith and azimuth angles.
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
@@ -1194,33 +1223,59 @@ class CTLearnTriModelManager():
         from astropy.table import vstack, join
         import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if zeniths is None:
+            coords = self.get_available_MC_directions(verbose=False)
+        else:
+            assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
+            coords = list(zip(zeniths, azimuths))
+
+        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg).value
+        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg).value
+        testing_azs = []
+        testing_zes = []
+        for zenith, azimuth in coords:
+            testing_azs.append(azimuth)
+            testing_zes.append(zenith)
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
+
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/gamma')
-        testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
-        dl2_gamma = []
-        shower_parameters_gamma = []
-        tel_id = None if self.stereo else self.telescope_ids[0]
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file, tel_id))
-            shower_parameters_gamma.append(load_true_shower_parameters(file))
-        dl2_gamma = vstack(dl2_gamma)
-        shower_parameters_gamma = vstack(shower_parameters_gamma)
-        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
+        for i, coord in enumerate(coords):
+            zenith, azimuth = coord
+            testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][
+                (DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) &
+                (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth)
+            ]
+            # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
+            dl2_gamma = []
+            shower_parameters_gamma = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_gamma_files:
+                dl2_gamma.append(load_DL2_data_MC(file, tel_id))
+                shower_parameters_gamma.append(load_true_shower_parameters(file))
+            dl2_gamma = vstack(dl2_gamma)
+            shower_parameters_gamma = vstack(shower_parameters_gamma)
+            dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-        mask = dl2_gamma[self.gammaness_key] > gammaness_cut
+            mask = dl2_gamma[self.gammaness_key] > gammaness_cut
 
-        reco_energy = dl2_gamma[self.reco_energy_key] [mask]
-        true_energy = dl2_gamma[self.true_energy_key] [mask]
-        
-        # Define the range of true energy values
-        true_energy_min = np.min(true_energy)
-        true_energy_max = np.max(true_energy)
+            reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+            true_energy = dl2_gamma[self.true_energy_key] [mask]
+            
+            # Define the range of true energy values
+            true_energy_min = np.min(true_energy)
+            true_energy_max = np.max(true_energy)
 
-        # Create bins with 5 bins per decade in log scale
-        bins_per_decade = 5
-        log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
-                               num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
-        
-        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Gammas {zenith} {azimuth}")
+            # Create bins with 5 bins per decade in log scale
+            bins_per_decade = 5
+            log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                                num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
+            if i == closest_coord_index:
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Closest to training data\n$\gamma$ ({zenith:.1f}, {azimuth:.1f})°")
+            else:
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"$\gamma$ ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='s')
+        if ylim is not None:
+            plt.ylim(ylim[0], ylim[1])
         plt.legend()
         plt.grid(False, which='both')
         plt.show()

@@ -207,7 +207,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, config_file=None, batch_size=64):
+    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, trainable_backbone=True, config_file=None, batch_size=64):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
@@ -318,6 +318,7 @@ class CTLearnModelManager():
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
+            config['LoadedModel']['trainable_backbone'] = trainable_backbone
             
             config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
             with open(config_file, 'w') as file:
