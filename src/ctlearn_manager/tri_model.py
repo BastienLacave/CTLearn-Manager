@@ -802,7 +802,7 @@ class CTLearnTriModelManager():
             axs[0].set_ylabel("Azimuth [deg]")
             axs[0].legend()
             axs[0].set_title("Gammas")
-            cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+            cbar = plt.colorbar(axs[0].collections[1], ax=axs[0])
             cbar.set_label("Counts")
         
         if len(testing_DL2_proton_files) > 0:
@@ -819,7 +819,7 @@ class CTLearnTriModelManager():
             axs[1].set_ylabel("Azimuth [deg]")
             axs[1].legend()
             axs[1].set_title("Protons")
-            cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
+            cbar = plt.colorbar(axs[1].collections[1], ax=axs[1])
             cbar.set_label("Counts")
         
         plt.tight_layout()
@@ -873,14 +873,15 @@ class CTLearnTriModelManager():
             np.log10(max(max(dl2_gamma[self.reco_energy_key]), max(dl2_gamma[self.true_energy_key]))),
             100)
         
-        axs[0].set_xlim(log_bins[0], log_bins[-1])
-        axs[0].set_ylim(log_bins[0], log_bins[-1])
-        axs[0].plot([0.1, 500], [0.1, 500], color="red", ls="--")
+        
+        axs[0].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
         axs[0].hist2d(dl2_gamma[self.reco_energy_key], dl2_gamma[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[0].set_xlabel("CTLean Energy [TeV]")
         axs[0].set_ylabel("True Energy [TeV]")
         axs[0].set_xscale("log")
         axs[0].set_yscale("log")
+        axs[0].set_xlim(log_bins[0], log_bins[-1])
+        axs[0].set_ylim(log_bins[0], log_bins[-1])
         axs[0].axis('equal')
         axs[0].set_title("Gammas")
         cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
@@ -891,14 +892,15 @@ class CTLearnTriModelManager():
             np.log10(max(max(dl2_proton[self.reco_energy_key]), max(dl2_proton[self.true_energy_key]))),
             100)
         
-        axs[1].set_xlim(log_bins[0], log_bins[-1])
-        axs[1].set_ylim(log_bins[0], log_bins[-1])
-        axs[1].plot([0.1, 500], [0.1, 500], color="red", ls="--")
+        
+        axs[1].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
         axs[1].hist2d(dl2_proton[self.reco_energy_key], dl2_proton[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
         axs[1].set_xlabel("CTLearn Energy [TeV]")
         axs[1].set_ylabel("True Energy [TeV]")
         axs[1].set_xscale("log")
         axs[1].set_yscale("log")
+        axs[1].set_xlim(log_bins[0], log_bins[-1])
+        axs[1].set_ylim(log_bins[0], log_bins[-1])
         axs[1].axis('equal')
         axs[1].set_title("Protons")
         cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
