@@ -1,12 +1,13 @@
 import numpy as np
 import glob
+from enum import Enum
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
 # import astropy.units as u
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration']
+__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env']
 
 
 def set_mpl_style():
@@ -226,6 +227,7 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
     import astropy.units as u
     from pyirf.statistics import li_ma_significance
 
+
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
     start_flux = 1
@@ -296,3 +298,10 @@ def find_68_percent_range(bin_heights, bin_edges, a=0.68):
     # Find the value corresponding to 68% of the CDF
     upper_bound = np.interp(a, cdf/np.sum(bin_heights), bin_centers)
     return upper_bound
+
+
+class ParticleType(Enum):
+    GAMMA_POINT = "gamma_point"
+    GAMMA_DIFFUSE = "gamma_diffuse"
+    PROTON = "proton"
+    ELECTRON = "electron"

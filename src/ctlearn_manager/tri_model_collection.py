@@ -29,7 +29,12 @@ class TriModelCollection():
         
     def find_closest_model_to(self, input_file, pointing_table):
         import astropy.units as u
-        avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        from ctlearn_manager.utils.utils import get_avg_pointing
+        try:
+            avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        except:
+            print(f"Corrupted file, skipping : {input_file}")
+            return
         print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
         avg_model_azs = []
         avg_model_zes = []
