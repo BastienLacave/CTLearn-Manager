@@ -326,8 +326,9 @@ class DataSample:
     """
 
     import astropy.units as u
+
     @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
-    def __init__(self, directory, pattern, particle_type: ParticleType, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
+    def __init__(self, directory, pattern, particle_type: ParticleType | None = None, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
         """
         Initialize the ModelManager.
         :param directory: The directory where training data is stored.
@@ -343,11 +344,53 @@ class DataSample:
         :param nsb_range: The NSB range for training data, defaults to [NaN, NaN] Hz.
         :type nsb_range: list of astropy.units.Quantity
         """
+        import astropy.units as u
+        from ctapipe.io import read_table
 
         self.directory = directory
         self.pattern = pattern
-        self.zenith_distance = zenith_distance
-        self.azimuth = azimuth
         self.energy_range = energy_range
         self.nsb_range = nsb_range
-        self.particle_type = particle_type
+
+        files = np.sort(glob.glob(f"{directory}/{pattern}"))
+
+        for i, file in enumerate(files):
+            shower_parameters = read_table(file, "simulation/event/subarray/shower")
+            pointing = read_table(file, "configuration/telescope/pointing/tel_001") 
+            particle_id = np.unique(shower_parameters["true_shower_primary_id"])
+            
+            zenith_distance = np.unique(90 * u.deg - pointing["telescope_pointing_altitude"].to(u.deg))
+            azimuth = np.unique(pointing["telescope_pointing_azimuth"].to(u.deg))
+
+            assert len(zenith_distance) == 1, f"More than one zenith distance found in {file}"
+            assert len(azimuth) == 1, f"More than one azimuth found in {file}"
+            assert len(particle_id) == 1, f"More than one particle ID found in {file}"
+
+            if i == 0:  
+                first_particle_type = particle_id[0]
+                first_zenith_distance = zenith_distance[0]
+                first_azimuth = azimuth[0]
+            else:
+                assert first_particle_type == particle_id[0], f"Different particle types found in {file} and {files[0]}"
+                assert first_zenith_distance == zenith_distance[0], f"Different zenith distances found in {file} and {files[0]}"
+                assert first_azimuth == azimuth[0], f"Different azimuths found in {file} and {files[0]}"
+
+        self.zenith_distance = zenith_distance[0]
+        self.azimuth = azimuth[0]
+
+        match particle_id[0]:
+            case 0:
+                run = read_table(file, "configuration/simulation/run")
+                max_viewcone = np.unique(run["max_viewcone_radius"])
+                if max_viewcone > 0.5 * u.deg:
+                    self.particle_type = ParticleType.GAMMA_DIFFUSE
+                else:
+                    self.particle_type = ParticleType.GAMMA_POINT
+            case 1:
+                self.particle_type = ParticleType.ELECTRON
+            case 101:
+                self.particle_type = ParticleType.PROTON
+            case _:
+                raise ValueError(f"Unknown particle ID: {particle_id}")
+
+        

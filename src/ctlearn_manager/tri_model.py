@@ -811,8 +811,8 @@ class CTLearnTriModelManager():
         self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
         self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
             
-        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[PartycleType.GAMMA_POINT.value]
-        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[PartycleType.PROTON.value]
+        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.GAMMA_POINT.value]
+        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.PROTON.value]
         if len(gamma_files) > 1 or len(proton_files) > 1:
             raise ValueError(f"Multiple files found for zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
         gamma_file = gamma_files[0]
