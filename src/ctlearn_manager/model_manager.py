@@ -2,7 +2,7 @@ from astropy.table import QTable
 import numpy as np
 from pathlib import Path
 import ast
-from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration
+from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration, ParticleType, DataSample
 
 __all__ = [
     'CTLearnModelManager',
@@ -97,11 +97,11 @@ class CTLearnModelManager():
             self.save_to_index(model_parameters)
             print(f"🧠 Model name: {self.model_nickname}")
         self.model_parameters_table = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/parameters")
-        training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
+        training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma_diffuse")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
-        if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
-            raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
+        if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_diffuse_patterns']) == 0):
+            raise ValueError("For reco type, training_proton_patterns and training_gamma_diffuse_patterns are required")
         self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
         self.telescope_names = ast.literal_eval(self.model_parameters_table['telescope_names'][0])
         try:
@@ -110,27 +110,27 @@ class CTLearnModelManager():
             self.min_telescopes = len(self.telescope_ids)
         self.stereo = True if self.min_telescopes >= 2 else False
         # Check that all gamma related lists are the same length
-        gamma_lengths = [len(training_table_gamma['training_gamma_patterns']), len(training_table_gamma['training_gamma_zenith_distances']), len(training_table_gamma['training_gamma_azimuths'])]
-        if len(set(gamma_lengths)) != 1:
-            raise ValueError("All gamma related lists must be the same length")
+        # gamma_lengths = [len(training_table_gamma['training_gamma_diffuse_patterns']), len(training_table_gamma['training_gamma_diffuse_zenith_distances']), len(training_table_gamma['training_gamma_diffuse_azimuths'])]
+        # if len(set(gamma_lengths)) != 1:
+        #     raise ValueError("All gamma related lists must be the same length")
 
         # Check that all proton related lists are the same length
-        proton_lengths = [len(training_table_proton['training_proton_patterns']), len(training_table_proton['training_proton_zenith_distances']), len(training_table_proton['training_proton_azimuths'])]
-        if len(set(proton_lengths)) != 1:
-            raise ValueError("All proton related lists must be the same length")
+        # proton_lengths = [len(training_table_proton['training_proton_patterns']), len(training_table_proton['training_proton_zenith_distances']), len(training_table_proton['training_proton_azimuths'])]
+        # if len(set(proton_lengths)) != 1:
+        #     raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
 
-        current_model_dir = self.model_parameters_table['model_dir'][0]
-        if f"/{self.model_nickname}" not in current_model_dir:
-            print("⚠️ Updating model directories for compatibility with the new version of CTLearnManager")
-            import os
-            import glob
-            os.system(f"mkdir {current_model_dir}/{self.model_nickname}")
-            model_dirs = glob.glob(f"{current_model_dir}/{self.model_nickname}_v*")
-            for model_dir in model_dirs:
-                print(f"➡️ Moving {model_dir} to {model_dir}/{self.model_nickname}")
-                os.system(f"mv {model_dir} {model_dir}/{self.model_nickname}/")
+        # current_model_dir = self.model_parameters_table['model_dir'][0]
+        # if f"/{self.model_nickname}" not in current_model_dir:
+        #     print("⚠️ Updating model directories for compatibility with the new version of CTLearnManager")
+        #     import os
+        #     import glob
+        #     os.system(f"mkdir {current_model_dir}/{self.model_nickname}")
+        #     model_dirs = glob.glob(f"{current_model_dir}/{self.model_nickname}_v*")
+        #     for model_dir in model_dirs:
+        #         print(f"➡️ Moving {model_dir} to {model_dir}/{self.model_nickname}")
+        #         os.system(f"mv {model_dir} {model_dir}/{self.model_nickname}/")
         
     def save_to_index(self, model_parameters):
         """
@@ -154,7 +154,7 @@ class CTLearnModelManager():
         
 
         
-        from astropy.io.misc.hdf5 import write_table_hdf5
+        from astropy.io.misc.hdf5 import write_table_hdf5, read_table_hdf5
         
         try:
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
@@ -162,11 +162,6 @@ class CTLearnModelManager():
         except:
             model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes'],
                         dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool, int])
-            training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
-                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
-            training_table_proton = QTable(names=['training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths', 'training_proton_energy_min', 'training_proton_energy_max', 'training_proton_nsb_min', 'training_proton_nsb_max'],
-                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
-            
             notes = model_parameters.get('notes', '')
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
@@ -175,35 +170,29 @@ class CTLearnModelManager():
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
             min_telescopes = model_parameters.get('min_telescopes', 1)
-            
-            gamma_training_samples = model_parameters.get('gamma_training_samples', [])
-            proton_training_samples = model_parameters.get('proton_training_samples', [])
-            
             model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes])
-            for sample in gamma_training_samples:
-                training_table_gamma.add_row([sample.directory, 
-                                                sample.pattern, 
-                                                sample.zenith_distance, 
-                                                sample.azimuth,
-                                                min(sample.energy_range),
-                                                max(sample.energy_range),
-                                                min(sample.nsb_range),
-                                                max(sample.nsb_range)])
-            for sample in proton_training_samples:
-                training_table_proton.add_row([sample.directory, 
-                                                sample.pattern, 
-                                                sample.zenith_distance, 
-                                                sample.azimuth,
-                                                min(sample.energy_range),
-                                                max(sample.energy_range),
-                                                min(sample.nsb_range),
-                                                max(sample.nsb_range)])
-
-            
-            write_table_hdf5(training_table_gamma, self.model_index_file, path=f'{self.model_nickname}/training/gamma', append=True, overwrite=True, serialize_meta=True)
-            write_table_hdf5(training_table_proton, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True, serialize_meta=True)
             write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters',append=True, overwrite=True,)
-            
+
+            training_samples = model_parameters.get('training_samples', []).astype(list[DataSample])
+
+            for training_sample in training_samples:
+                particle_type = training_sample.particle_type
+
+                try:
+                    training_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/{particle_type.value}')
+                except:
+                    training_table = QTable(names=[f'training_{particle_type.value}_dir', f'training_{particle_type.value}_patterns', f'training_{particle_type.value}_zenith_distances', f'training_{particle_type.value}_azimuths', f'training_{particle_type.value}_energy_min', f'training_{particle_type.value}_energy_max', f'training_{particle_type.value}_nsb_min', f'training_{particle_type.value}_nsb_max'],
+                                    dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
+                
+                training_table.add_row([training_sample.directory, 
+                                        training_sample.pattern, 
+                                        training_sample.zenith_distance, 
+                                        training_sample.azimuth,
+                                        min(training_sample.energy_range),
+                                        max(training_sample.energy_range),
+                                        min(training_sample.nsb_range),
+                                        max(training_sample.nsb_range)])
+                write_table_hdf5(training_table, self.model_index_file, path=f'{self.model_nickname}/training/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
@@ -291,10 +280,10 @@ class CTLearnModelManager():
             load_model_string = "" if transfer_learning_model_cpk is None else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
         
         training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
-        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
         background_string = f"--background {training_proton_table['training_proton_dir'][0]} " if self.model_parameters_table['reco'][0] == 'type' else ""
         signal_patterns = ""
-        for pattern in training_gamma_table['training_gamma_patterns']:
+        for pattern in training_gamma_table['training_gamma_diffuse_patterns']:
             signal_patterns += f'--pattern-signal "{pattern}" '
         background_patterns = ""
         if self.model_parameters_table['reco'][0] == 'type':
@@ -330,7 +319,7 @@ class CTLearnModelManager():
         
         cmd = f"ctlearn-train-model {load_model_string} \
 --TrainCTLearnModel.batch_size={batch_size} \
---signal {training_gamma_table['training_gamma_dir'][0]} {signal_patterns}\
+--signal {training_gamma_table['training_gamma_diffuse_dir'][0]} {signal_patterns}\
 {background_string} {background_patterns}\
 --output {model_dir} \
 --config {config_file} \
@@ -475,7 +464,8 @@ class CTLearnModelManager():
         #     write_table_hdf5(training_proton_table, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True)
         #     print(f"\t➡️ Training proton data updated")
 
-    def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns):
+    # def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns):
+    def update_model_manager_testing_data(self, testing_data_sample: DataSample):
         """
         Update the model manager's testing data for gamma and proton events.
         This method reads the existing testing data from an HDF5 file, updates it with the provided
@@ -502,52 +492,33 @@ class CTLearnModelManager():
         """
 
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-        
+        testing_dir = testing_data_sample.directory
+        testing_zenith_distance = testing_data_sample.zenith_distance
+        testing_azimuth = testing_data_sample.azimuth
+        testing_pattern = testing_data_sample.pattern
+        particle_type = testing_data_sample.particle_type
         try:
-            testing_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma')
+            testing_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/{particle_type.value}')
         except:
-            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
+            testing_table = QTable(names=[f'testing_{particle_type.value}_dirs', f'testing_{particle_type.value}_zenith_distances', f'testing_{particle_type.value}_azimuths', f'testing_{particle_type.value}_patterns'], 
                                         dtype=['S256', float, float, 'S256'])
-            
-        try:
-            testing_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/proton')
-        except:
-            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
-                                        dtype=['S256', float, float, 'S256'])
-            
-        print(f"💾 Model {self.model_nickname} testing data update:")
-        if len(testing_gamma_table)==0:
-            testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=['S256', float, float, 'S256'])
-        if len(testing_proton_table)==0:
-            testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
+        # print(f"💾 Model {self.model_nickname} testing data update:")
+        if len(testing_table)==0:
+            testing_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
                                         dtype=['S256', float, float, 'S256'])
         
-        if len(testing_gamma_dirs) > 0:
-            for i in range(len(testing_gamma_dirs)):
-                match = np.where((testing_gamma_table['testing_gamma_zenith_distances'] == testing_gamma_zenith_distances[i]) & 
-                        (testing_gamma_table['testing_gamma_azimuths'] == testing_gamma_azimuths[i]))[0]
-                if len(match) > 0:
-                    testing_gamma_table['testing_gamma_dirs'][match[0]] = testing_gamma_dirs[i]
-                    testing_gamma_table['testing_gamma_patterns'][match[0]] = testing_gamma_patterns[i]
-                else:
-                    testing_gamma_table.add_row([testing_gamma_dirs[i], testing_gamma_zenith_distances[i], testing_gamma_azimuths[i], testing_gamma_patterns[i]])
-            write_table_hdf5(testing_gamma_table, self.model_index_file, path=f'{self.model_nickname}/testing/gamma', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing gamma data updated")
-        
-        if len(testing_proton_dirs) > 0:
-            for i in range(len(testing_proton_dirs)):
-                match = np.where((testing_proton_table['testing_proton_zenith_distances'] == testing_proton_zenith_distances[i]) & 
-                        (testing_proton_table['testing_proton_azimuths'] == testing_proton_azimuths[i]))[0]
-                if len(match) > 0:
-                    testing_proton_table['testing_proton_dirs'][match[0]] = testing_proton_dirs[i]
-                    testing_proton_table['testing_proton_patterns'][match[0]] = testing_proton_patterns[i]
-                else:
-                    testing_proton_table.add_row([testing_proton_dirs[i], testing_proton_zenith_distances[i], testing_proton_azimuths[i], testing_proton_patterns[i]])
-            write_table_hdf5(testing_proton_table, self.model_index_file, path=f'{self.model_nickname}/testing/proton', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing proton data updated")
+ 
+        match = np.where((testing_table[f'testing_{particle_type.value}_zenith_distances'] == testing_zenith_distance) & 
+                (testing_table[f'testing_{particle_type.value}_azimuths'] == testing_azimuth))[0]
+        if len(match) > 0:
+            testing_table[f'testing_{particle_type.value}_dirs'][match[0]] = testing_dir
+            testing_table[f'testing_{particle_type.value}_patterns'][match[0]] = testing_pattern
+        else:
+            testing_table.add_row([testing_dir, testing_zenith_distance, testing_azimuth, testing_pattern])
+        write_table_hdf5(testing_table, self.model_index_file, path=f'{self.model_nickname}/testing/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
+        print(f"\t➡️ Testing {particle_type.value} data updated")
        
-    def update_model_manager_DL2_MC_files(self, testing_DL2_gamma_files, testing_DL2_proton_files, testing_DL2_gamma_zenith_distances, testing_DL2_gamma_azimuths, testing_DL2_proton_zenith_distances, testing_DL2_proton_azimuths):
+    def update_model_manager_DL2_MC_file(self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample):
         """
         Update the DL2 MC files for gamma and proton testing data in the model manager.
         This method reads the existing DL2 MC tables for gamma and proton data from the HDF5 file,
@@ -567,50 +538,33 @@ class CTLearnModelManager():
         :raises IOError: If there is an error reading or writing the HDF5 file.
         :return: None
         """
-
         
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+        testing_zenith_distance = testing_MC_DL2_data_sample.zenith_distance
+        testing_azimuth = testing_MC_DL2_data_sample.azimuth
+        particle_type = testing_MC_DL2_data_sample.particle_type
         
         try:
-            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
         except:
-            DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
+            DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
                                      dtype=[ 'S256', float, float])
-        try:
-            DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-        except:
-            DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=[ 'S256', float, float])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
-            DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
+            DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
                                      dtype=['S256', float, float])
-        if len(DL2_proton_table)==0:
-            DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=['S256', float, float])
-        
-        if len(testing_DL2_gamma_files) > 0:
-            for i in range(len(testing_DL2_gamma_files)):
-                match = np.where((DL2_gamma_table['testing_DL2_gamma_files'] == testing_DL2_gamma_files[i]) & 
-                        (DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == testing_DL2_gamma_zenith_distances[i]) & 
-                        (DL2_gamma_table['testing_DL2_gamma_azimuths'] == testing_DL2_gamma_azimuths[i]))[0]
-                if len(match) == 0:
-                    DL2_gamma_table.add_row([testing_DL2_gamma_files[i], testing_DL2_gamma_zenith_distances[i], testing_DL2_gamma_azimuths[i]])
-            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing DL2 gamma data updated")
-        
-        if len(testing_DL2_proton_files) > 0:
-            for i in range(len(testing_DL2_proton_files)):
-                match = np.where((DL2_proton_table['testing_DL2_proton_files'] == testing_DL2_proton_files[i]) & 
-                        (DL2_proton_table['testing_DL2_proton_zenith_distances'] == testing_DL2_proton_zenith_distances[i]) & 
-                        (DL2_proton_table['testing_DL2_proton_azimuths'] == testing_DL2_proton_azimuths[i]))[0]
-                if len(match) == 0:
-                    DL2_proton_table.add_row([testing_DL2_proton_files[i], testing_DL2_proton_zenith_distances[i], testing_DL2_proton_azimuths[i]])
-            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing DL2 proton data updated")
+
+        match = np.where((DL2_gamma_table[f'testing_DL2_{particle_type.value}_files'] == testing_MC_DL2_file) & 
+                (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == testing_zenith_distance) & 
+                (DL2_gamma_table[f'testing_DL2_{particle_type.value}_azimuths'] == testing_azimuth))[0]
+        if len(match) == 0:
+            DL2_gamma_table.add_row([testing_MC_DL2_file, testing_zenith_distance, testing_azimuth])
+        write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
+        print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
     
-    def delete_DL2_MC_file(self, testing_DL2_gamma_file=None, testing_DL2_proton_file=None):
+    def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
         """
         Delete the DL2 MC files for gamma and proton testing data in the model manager.
         This method reads the existing DL2 MC tables for gamma and proton data from the HDF5 file,
@@ -625,25 +579,12 @@ class CTLearnModelManager():
         """
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
-        DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-        DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-        
-        print(f"💾 Model {self.model_nickname} DL2 data update:")
-        if testing_DL2_gamma_file is not None:
-            match = np.where(DL2_gamma_table['testing_DL2_gamma_files'] == testing_DL2_gamma_file)[0]
-            if len(match) > 0:
-                DL2_gamma_table.remove_rows(match)
-            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True, serialize_meta=True)
-                # print(f"\t➡️ Testing DL2 gamma data updated")
-        
-        if testing_DL2_proton_file is not None:
-            match = np.where(DL2_proton_table['testing_DL2_proton_files'] == testing_DL2_proton_file)[0]
-            if len(match) > 0:
-                DL2_proton_table.remove_rows(match)
-            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
-                # print(f"\t➡️ Testing DL2 proton data updated")
-        if testing_DL2_gamma_file is None and testing_DL2_proton_file is None:
-            print(f"🛑 No DL2 MC files to delete.")
+        DL2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
+        match = np.where(DL2_table['testing_DL2_{particle_type.value}_files'] == testing_DL2_file)[0]
+        if len(match) > 0:
+            DL2_table.remove_rows(match)
+        write_table_hdf5(DL2_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
+
 
     def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
         
@@ -1024,48 +965,7 @@ class CTLearnModelManager():
         plt.show()
       
 
-class DataSample:
-    """
-    A class to represent a training sample for CTLearn.
-    :param directory: The directory where training data is stored.
-    :type directory: str
-    :param pattern: The pattern to match training files.
-    :type pattern: str
-    :param zenith_distance: The zenith distance of the training sample.
-    :type zenith_distance: astropy.units.Quantity
-    :param azimuth: The azimuth of the training sample.
-    :type azimuth: astropy.units.Quantity
-    :param energy_range: The energy range of the training sample.
-    :type energy_range: list of astropy.units.Quantity
-    :param nsb_range: The NSB (Night Sky Background) range of the training sample.
-    :type nsb_range: list of astropy.units.Quantity
-    """
 
-    import astropy.units as u
-    @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
-    def __init__(self, directory, pattern, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
-        """
-        Initialize the ModelManager.
-        :param directory: The directory where training data is stored.
-        :type directory: str
-        :param pattern: The pattern to match training files.
-        :type pattern: str
-        :param zenith_distance: The zenith distance for training data, defaults to NaN degrees.
-        :type zenith_distance: astropy.units.Quantity
-        :param azimuth: The azimuth for training data, defaults to NaN degrees.
-        :type azimuth: astropy.units.Quantity
-        :param energy_range: The energy range for training data, defaults to [NaN, NaN] TeV.
-        :type energy_range: list of astropy.units.Quantity
-        :param nsb_range: The NSB range for training data, defaults to [NaN, NaN] Hz.
-        :type nsb_range: list of astropy.units.Quantity
-        """
-
-        self.directory = directory
-        self.pattern = pattern
-        self.zenith_distance = zenith_distance
-        self.azimuth = azimuth
-        self.energy_range = energy_range
-        self.nsb_range = nsb_range
         
 
 class ModelRangeOfValidity:

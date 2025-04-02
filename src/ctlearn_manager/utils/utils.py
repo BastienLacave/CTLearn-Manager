@@ -7,7 +7,7 @@ from enum import Enum
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env']
+__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 
 def set_mpl_style():
@@ -305,3 +305,49 @@ class ParticleType(Enum):
     GAMMA_DIFFUSE = "gamma_diffuse"
     PROTON = "proton"
     ELECTRON = "electron"
+    REAL_DATA = "real_data"
+    ALL = "all"
+
+class DataSample:
+    """
+    A class to represent a training sample for CTLearn.
+    :param directory: The directory where training data is stored.
+    :type directory: str
+    :param pattern: The pattern to match training files.
+    :type pattern: str
+    :param zenith_distance: The zenith distance of the training sample.
+    :type zenith_distance: astropy.units.Quantity
+    :param azimuth: The azimuth of the training sample.
+    :type azimuth: astropy.units.Quantity
+    :param energy_range: The energy range of the training sample.
+    :type energy_range: list of astropy.units.Quantity
+    :param nsb_range: The NSB (Night Sky Background) range of the training sample.
+    :type nsb_range: list of astropy.units.Quantity
+    """
+
+    import astropy.units as u
+    @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
+    def __init__(self, directory, pattern, particle_type: ParticleType, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
+        """
+        Initialize the ModelManager.
+        :param directory: The directory where training data is stored.
+        :type directory: str
+        :param pattern: The pattern to match training files.
+        :type pattern: str
+        :param zenith_distance: The zenith distance for training data, defaults to NaN degrees.
+        :type zenith_distance: astropy.units.Quantity
+        :param azimuth: The azimuth for training data, defaults to NaN degrees.
+        :type azimuth: astropy.units.Quantity
+        :param energy_range: The energy range for training data, defaults to [NaN, NaN] TeV.
+        :type energy_range: list of astropy.units.Quantity
+        :param nsb_range: The NSB range for training data, defaults to [NaN, NaN] Hz.
+        :type nsb_range: list of astropy.units.Quantity
+        """
+
+        self.directory = directory
+        self.pattern = pattern
+        self.zenith_distance = zenith_distance
+        self.azimuth = azimuth
+        self.energy_range = energy_range
+        self.nsb_range = nsb_range
+        self.particle_type = particle_type
