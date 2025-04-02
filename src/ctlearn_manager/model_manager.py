@@ -4,7 +4,11 @@ from pathlib import Path
 import ast
 from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration
 
-__all__ = ['CTLearnModelManager']
+__all__ = [
+    'CTLearnModelManager',
+    'DataSample',
+    'ModelRangeOfValidity',
+    ]
 
 class CTLearnModelManager():
 
@@ -96,12 +100,15 @@ class CTLearnModelManager():
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma")
         training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
-        # self.model_index = 0
-        self.stereo = len(ast.literal_eval(self.model_parameters_table['telescope_ids'][0])) > 1
         if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_patterns']) == 0):
             raise ValueError("For reco type, training_proton_patterns and training_gamma_patterns are required")
         self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
         self.telescope_names = ast.literal_eval(self.model_parameters_table['telescope_names'][0])
+        try:
+            self.min_telescopes = self.model_parameters_table['min_telescopes'][0] 
+        except:
+            self.min_telescopes = len(self.telescope_ids)
+        self.stereo = True if self.min_telescopes >= 2 else False
         # Check that all gamma related lists are the same length
         gamma_lengths = [len(training_table_gamma['training_gamma_patterns']), len(training_table_gamma['training_gamma_zenith_distances']), len(training_table_gamma['training_gamma_azimuths'])]
         if len(set(gamma_lengths)) != 1:
@@ -113,8 +120,17 @@ class CTLearnModelManager():
             raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
-        
-        # 
+
+        current_model_dir = self.model_parameters_table['model_dir'][0]
+        if f"/{self.model_nickname}" not in current_model_dir:
+            print("⚠️ Updating model directories for compatibility with the new version of CTLearnManager")
+            import os
+            import glob
+            os.system(f"mkdir {current_model_dir}/{self.model_nickname}")
+            model_dirs = glob.glob(f"{current_model_dir}/{self.model_nickname}_v*")
+            for model_dir in model_dirs:
+                print(f"➡️ Moving {model_dir} to {model_dir}/{self.model_nickname}")
+                os.system(f"mv {model_dir} {model_dir}/{self.model_nickname}/")
         
     def save_to_index(self, model_parameters):
         """
@@ -139,47 +155,49 @@ class CTLearnModelManager():
 
         
         from astropy.io.misc.hdf5 import write_table_hdf5
+        
         try:
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
-            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs'],
-                        dtype=[str, str, str, str, str, str, str, int])
+            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes'],
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool, int])
             training_table_gamma = QTable(names=['training_gamma_dir', 'training_gamma_patterns', 'training_gamma_zenith_distances', 'training_gamma_azimuths', 'training_gamma_energy_min', 'training_gamma_energy_max', 'training_gamma_nsb_min', 'training_gamma_nsb_max'],
-                            dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
+                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             training_table_proton = QTable(names=['training_proton_dir', 'training_proton_patterns', 'training_proton_zenith_distances', 'training_proton_azimuths', 'training_proton_energy_min', 'training_proton_energy_max', 'training_proton_nsb_min', 'training_proton_nsb_max'],
-                            dtype=[str, str, float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
+                            dtype=['S256', 'S256', float, float, float, float, float, float], units=[None, None, 'deg', 'deg', 'TeV', 'TeV', 'Hz', 'Hz'])
             
             notes = model_parameters.get('notes', '')
-            model_dir = model_parameters.get('model_dir', '')
+            model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
             telescope_names = model_parameters.get('telescope_names', [])
             telescope_ids = model_parameters.get('telescope_ids', [])
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
+            min_telescopes = model_parameters.get('min_telescopes', 1)
             
             gamma_training_samples = model_parameters.get('gamma_training_samples', [])
             proton_training_samples = model_parameters.get('proton_training_samples', [])
             
-            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs])
+            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes])
             for sample in gamma_training_samples:
-                training_table_gamma.add_row([sample.training_directory, 
-                                              sample.training_pattern, 
-                                              sample.training_zenith_distance, 
-                                              sample.training_azimuth,
-                                              min(sample.training_energy_range),
-                                              max(sample.training_energy_range),
-                                              min(sample.training_nsb_range),
-                                              max(sample.training_nsb_range)])
+                training_table_gamma.add_row([sample.directory, 
+                                                sample.pattern, 
+                                                sample.zenith_distance, 
+                                                sample.azimuth,
+                                                min(sample.energy_range),
+                                                max(sample.energy_range),
+                                                min(sample.nsb_range),
+                                                max(sample.nsb_range)])
             for sample in proton_training_samples:
-                training_table_proton.add_row([sample.training_directory, 
-                                               sample.training_pattern, 
-                                               sample.training_zenith_distance, 
-                                               sample.training_azimuth,
-                                               min(sample.training_energy_range),
-                                                  max(sample.training_energy_range),
-                                                    min(sample.training_nsb_range),
-                                                    max(sample.training_nsb_range)])
+                training_table_proton.add_row([sample.directory, 
+                                                sample.pattern, 
+                                                sample.zenith_distance, 
+                                                sample.azimuth,
+                                                min(sample.energy_range),
+                                                max(sample.energy_range),
+                                                min(sample.nsb_range),
+                                                max(sample.nsb_range)])
 
             
             write_table_hdf5(training_table_gamma, self.model_index_file, path=f'{self.model_nickname}/training/gamma', append=True, overwrite=True, serialize_meta=True)
@@ -189,7 +207,7 @@ class CTLearnModelManager():
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, transfer_learning_model_cpk=None, config_file=None):
+    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, trainable_backbone=True, config_file=None, batch_size=64):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
@@ -209,22 +227,31 @@ class CTLearnModelManager():
         import glob
         import os
         import numpy as np
-        n_epoch_training = self.get_n_epoch_trained()
-        print(f"📊 Model trained for {n_epoch_training} epochs")
+        self.cluster_configuration.info()
+        if n_epochs == 0:
+            print("🛑 Number of epochs set to 0. Will not train the model.")
+            return
+        n_epoch_trained = self.get_n_epoch_trained()
         max_training_epochs = self.model_parameters_table['max_training_epochs'][0]
-        model_dir = self.model_parameters_table['model_dir'][0]
-        if n_epochs > max_training_epochs:
+        base_model_dir = self.model_parameters_table['model_dir'][0]
+        if n_epochs > max_training_epochs - n_epoch_trained:
             print(f"⚠️ Number of epochs increased from {max_training_epochs} to {n_epochs}")
             self.update_model_manager_parameters_in_index({'max_training_epochs': n_epochs})
             max_training_epochs = n_epochs
-        if n_epoch_training >= max_training_epochs:
-            print(f"🛑 Model already trained for {n_epoch_training} epochs. Will not train further.")
+            n_epochs = max_training_epochs - n_epoch_trained
+        if n_epoch_trained >= max_training_epochs:
+            print(f"🛑 Model already trained for {n_epoch_trained} epochs. Will not train further.")
             self.plot_loss()
             return
-        n_epochs = max_training_epochs - n_epoch_training
-        print(f"🚀 Launching training for {n_epochs} epochs")
+            
+        trained_string = "―" * (n_epoch_trained-1)
+        trained_spaces = " " * (n_epoch_trained-1)
+        remaining_string = "·" * (max_training_epochs - n_epoch_trained)
+        to_train_string = "―" * (n_epochs- len(str(n_epoch_trained)))
+        print(f"{trained_string}o{remaining_string} | {n_epoch_trained}/{max_training_epochs} epochs")
+        print(f"{trained_spaces}{n_epoch_trained}{to_train_string}> 🚀 Training for {n_epochs} epochs")
         
-        models_dir = np.sort(glob.glob(f"{model_dir}/{self.model_nickname}*"))
+        models_dir = np.sort(glob.glob(f"{base_model_dir}/{self.model_nickname}_v*"))
         load_model = False
         if len(models_dir) > 0 :
             last_model_dir = Path(models_dir[-1])
@@ -232,28 +259,31 @@ class CTLearnModelManager():
             model_version = int(models_dir[-1].split("_v")[-1])
             if size > 1e6:
                 model_version += 1
-                print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
-                save_best_validation_only = True
-                model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
-                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
+                model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
+                print(f"➡️ Model already exists: will continue training and create {model_dir}")
+                _save_best_validation_only = True
+                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
                 os.system(f"mkdir -p {model_dir}")
             else :
+                model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                     load_model = True
-                    print(f"➡️ Model already exists: will continue training and create {self.model_nickname}_v{model_version}")
-                    save_best_validation_only = True
+                    print(f"➡️ Model already exists: will continue training and create {model_dir}")
+                    _save_best_validation_only = True
                 else:
-                    print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
-                    save_best_validation_only = False
-                model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
+                    print(f"🆕 Model does not exist: will create {model_dir}")
+                    _save_best_validation_only = False
         else:
             model_version = 0
-            print(f"🆕 Model does not exist: will create {self.model_nickname}_v{model_version}")
-            model_dir = f"{model_dir}/{self.model_nickname}_v{model_version}/"
+            model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
+            print(f"🆕 Model does not exist: will create {model_dir}")
             os.system(f"mkdir -p {model_dir}")
-            save_best_validation_only = False
+            _save_best_validation_only = False
+        
+        if save_best_validation_only is not None:
+            _save_best_validation_only = save_best_validation_only
 
         if load_model:
             load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} "
@@ -266,58 +296,40 @@ class CTLearnModelManager():
         signal_patterns = ""
         for pattern in training_gamma_table['training_gamma_patterns']:
             signal_patterns += f'--pattern-signal "{pattern}" '
-        # print(signal_patterns)
-        # signal_patterns = list(training_gamma_table['training_gamma_patterns'])
-        # print(signal_patterns)
         background_patterns = ""
         if self.model_parameters_table['reco'][0] == 'type':
             for pattern in training_proton_table['training_proton_patterns']:
                 background_patterns += f'--pattern-background "{pattern}" '
-        # background_patterns = list(training_proton_table['training_proton_patterns'])
-        # channels_string = ""
-        # for channel in ast.literal_eval(self.model_parameters_table['channels'][0]):
-        #     channels_string += f"--DLImageReader.channels={channel} "
         channels = ast.literal_eval(self.model_parameters_table['channels'][0])
-
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = True if self.stereo else False
-        # min_telescopes = 2 if self.stereo else 1
         allowed_tels = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
-        # for t in ast.literal_eval(self.model_parameters_table['telescope_ids'][0]):
-        #     allowed_tels.append(str(t))
         
         if config_file is None:
-            # from . import resources
-            # import importlib.resources as pkg_resources
-
-            # with pkg_resources.path(resources, 'train_ctlearn_config.json') as config_example:
-            
-            #     with open(config_example, 'r') as file:
-            #         config = json.load(file)
             config = {}
             config['TrainCTLearnModel'] = {}
-            config['TrainCTLearnModel']['DLImageReader'] = {}
-            config['TrainCTLearnModel']['save_best_validation_only'] = save_best_validation_only
+            config['TrainCTLearnModel']['save_best_validation_only'] = _save_best_validation_only
             config['TrainCTLearnModel']['n_epochs'] = int(n_epochs)
-            config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
-            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = int(len(allowed_tels))
-            config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
             config['TrainCTLearnModel']['stack_telescope_images'] = stack_telescope_images
-            config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
-            # config['TrainCTLearnModel']['input_dir_signal'] = training_gamma_table['training_gamma_dir'][0]
-            # config['TrainCTLearnModel']['input_dir_background'] = training_proton_table['training_proton_dir'][0] if self.model_parameters_table['reco'][0] == 'type' else None
-            # config['TrainCTLearnModel']['file_pattern_signal'] = signal_patterns
-            # config['TrainCTLearnModel']['file_pattern_background'] = background_patterns if self.model_parameters_table['reco'][0] == 'type' else []
             config['TrainCTLearnModel']['reco_tasks'] = [self.model_parameters_table['reco'][0]]
             config['TrainCTLearnModel']['output_dir'] = model_dir
+
+            config['TrainCTLearnModel']['DLImageReader'] = {}
+            config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
+            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = self.min_telescopes
+            config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
+            config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
             
-            config_file = f"{model_dir}/train_config.json"
+            config['LoadedModel'] = {}
+            config['LoadedModel']['trainable_backbone'] = trainable_backbone
+            
+            config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
             with open(config_file, 'w') as file:
                 json.dump(config, file)
             print(f"Configuration saved to {config_file}")
         
         cmd = f"ctlearn-train-model {load_model_string} \
---TrainCTLearnModel.batch_size=64 \
+--TrainCTLearnModel.batch_size={batch_size} \
 --signal {training_gamma_table['training_gamma_dir'][0]} {signal_patterns}\
 {background_string} {background_patterns}\
 --output {model_dir} \
@@ -326,16 +338,11 @@ class CTLearnModelManager():
 --verbose"
 
         if self.cluster_configuration.use_cluster:
-            # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, cluster_configuration.python_env, cluster_configuration.account)
-            sbatch_file = self.cluster_configuration.write_sbatch_script(self.model_nickname, cmd, model_dir)
+            sbatch_file = self.cluster_configuration.write_sbatch_script(f"train_{self.model_nickname}_v{model_version}", cmd, base_model_dir)
             os.system(f"sbatch {sbatch_file}")
         else:
             print(cmd)
             os.system(cmd)
-            # os.system(cmd)
-        # print(cmd)
-        # # !{cmd}
-        # os.system(cmd)
         
     def get_n_epoch_trained(self):
         """
@@ -389,8 +396,15 @@ class CTLearnModelManager():
             losses_train = np.concatenate((losses_train, df['loss'].to_numpy()))
             losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
         epochs = np.arange(1, len(losses_train)+1)
-        plt.plot(epochs, losses_train, label=f"Training", lw=2)
-        plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+        if len(epochs) == 0:
+            print(f"❌ No training logs found for {self.model_nickname}, stert the training to see the loss.")
+            return
+        if len(epochs) > 1:
+            plt.plot(epochs, losses_train, label=f"Training", lw=2)
+            plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+        else:
+            plt.scatter(epochs, losses_train, label=f"Training", lw=2)
+            plt.scatter(epochs, losses_val, label=f"Validation", ls='--')
         plt.title(f"{self.model_parameters_table['reco'][0]} training".title())
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -416,6 +430,8 @@ class CTLearnModelManager():
         # model_index = np.where(model_table['model_nickname'] == self.model_nickname)[0][0]
         print(f"💾 Model {self.model_nickname} index update:")
         for key, value in parameters.items():
+            if model_table[key].dtype.kind == 'U':  # Check if the dtype is Unicode string
+                model_table[key] = model_table[key].astype('S256')  # Convert to 'S256' for long strings
             model_table[key][0] = value
             self.__dict__[key] = value
             print(f"\t➡️ {key} updated to {value}")
@@ -491,20 +507,21 @@ class CTLearnModelManager():
             testing_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma')
         except:
             testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
             
         try:
             testing_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/proton')
         except:
             testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
+            
         print(f"💾 Model {self.model_nickname} testing data update:")
         if len(testing_gamma_table)==0:
             testing_gamma_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
         if len(testing_proton_table)==0:
             testing_proton_table = QTable(names=['testing_proton_dirs', 'testing_proton_zenith_distances', 'testing_proton_azimuths', 'testing_proton_patterns'], 
-                                        dtype=[str, float, float, str])
+                                        dtype=['S256', float, float, 'S256'])
         
         if len(testing_gamma_dirs) > 0:
             for i in range(len(testing_gamma_dirs)):
@@ -558,20 +575,20 @@ class CTLearnModelManager():
             DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
         except:
             DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
-                                     dtype=[ str, float, float])
+                                     dtype=[ 'S256', float, float])
         try:
             DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
         except:
             DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=[ str, float, float])
+                                      dtype=[ 'S256', float, float])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
             DL2_gamma_table = QTable(names=['testing_DL2_gamma_files', 'testing_DL2_gamma_zenith_distances', 'testing_DL2_gamma_azimuths'], 
-                                     dtype=[str, float, float])
+                                     dtype=['S256', float, float])
         if len(DL2_proton_table)==0:
             DL2_proton_table = QTable(names=['testing_DL2_proton_files', 'testing_DL2_proton_zenith_distances', 'testing_DL2_proton_azimuths'], 
-                                      dtype=[str, float, float])
+                                      dtype=['S256', float, float])
         
         if len(testing_DL2_gamma_files) > 0:
             for i in range(len(testing_DL2_gamma_files)):
@@ -592,7 +609,42 @@ class CTLearnModelManager():
                     DL2_proton_table.add_row([testing_DL2_proton_files[i], testing_DL2_proton_zenith_distances[i], testing_DL2_proton_azimuths[i]])
             write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing DL2 proton data updated")
+    
+    def delete_DL2_MC_file(self, testing_DL2_gamma_file=None, testing_DL2_proton_file=None):
+        """
+        Delete the DL2 MC files for gamma and proton testing data in the model manager.
+        This method reads the existing DL2 MC tables for gamma and proton data from the HDF5 file,
+        removes the specified files from the tables, and writes the updated tables back to the HDF5 file.
+        :param testing_DL2_gamma_file: The file path of the DL2 gamma data to be deleted, defaults to None.
+        :type
+        testing_DL2_gamma_file: str, optional
+        :param testing_DL2_proton_file: The file path of the DL2 proton data to be deleted, defaults to None.
+        :type testing_DL2_proton_file: str, optional
+        :raises IOError: If there is an error reading or writing the HDF5 file.
+        :return: None
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
+        DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
+        DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
+        
+        print(f"💾 Model {self.model_nickname} DL2 data update:")
+        if testing_DL2_gamma_file is not None:
+            match = np.where(DL2_gamma_table['testing_DL2_gamma_files'] == testing_DL2_gamma_file)[0]
+            if len(match) > 0:
+                DL2_gamma_table.remove_rows(match)
+            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True, serialize_meta=True)
+                # print(f"\t➡️ Testing DL2 gamma data updated")
+        
+        if testing_DL2_proton_file is not None:
+            match = np.where(DL2_proton_table['testing_DL2_proton_files'] == testing_DL2_proton_file)[0]
+            if len(match) > 0:
+                DL2_proton_table.remove_rows(match)
+            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
+                # print(f"\t➡️ Testing DL2 proton data updated")
+        if testing_DL2_gamma_file is None and testing_DL2_proton_file is None:
+            print(f"🛑 No DL2 MC files to delete.")
+
     def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
         
         """
@@ -618,12 +670,12 @@ class CTLearnModelManager():
             DL2_data_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/Data')
         except:
             DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
-                                     dtype=[ str, float, float])
+                                     dtype=[ 'S256', float, float])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_data_table)==0:
             DL2_data_table = QTable(names=['DL2_files', 'DL2_zenith_distances', 'DL2_azimuths'], 
-                                     dtype=[str, float, float])
+                                     dtype=['S256', float, float])
         
         if len(DL2_files) > 0:
             for i in range(len(DL2_files)):
@@ -637,7 +689,6 @@ class CTLearnModelManager():
                 #     DL2_data_table.remove_rows(match)
             write_table_hdf5(DL2_data_table, self.model_index_file, path=f'{self.model_nickname}/DL2/Data', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing DL2 real data updated")
-
     
     def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
         """
@@ -711,11 +762,11 @@ class CTLearnModelManager():
             IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         except:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=[str, str, str, str, float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
         print(f"💾 Model {self.model_nickname} IRF data update:")
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=[str, str, str, str, float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
         
         match = np.where((IRF_table['config'] == config) or 
                 (IRF_table['cuts_file'] == cuts_file) or 
@@ -808,15 +859,6 @@ class CTLearnModelManager():
         except:
             DL2_proton_files = []
         return DL2_gamma_files, DL2_proton_files
-        # DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-        # DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-        # match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
-        # match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
-        # if len(match_gamma) == 0:
-        #     raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
-        # if len(match_proton) == 0:
-        #     raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
-        # return DL2_gamma_table['testing_DL2_gamma_files'][match_gamma], DL2_proton_table['testing_DL2_proton_files'][match_proton]
       
     def plot_zenith_azimuth_ranges(self, ax=None):
         """
@@ -982,7 +1024,7 @@ class CTLearnModelManager():
         plt.show()
       
 
-class TrainingSample:
+class DataSample:
     """
     A class to represent a training sample for CTLearn.
     :param directory: The directory where training data is stored.
@@ -1018,12 +1060,12 @@ class TrainingSample:
         :type nsb_range: list of astropy.units.Quantity
         """
 
-        self.training_directory = directory
-        self.training_pattern = pattern
-        self.training_zenith_distance = zenith_distance
-        self.training_azimuth = azimuth
-        self.training_energy_range = energy_range
-        self.training_nsb_range = nsb_range
+        self.directory = directory
+        self.pattern = pattern
+        self.zenith_distance = zenith_distance
+        self.azimuth = azimuth
+        self.energy_range = energy_range
+        self.nsb_range = nsb_range
         
 
 class ModelRangeOfValidity:

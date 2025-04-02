@@ -1,6 +1,7 @@
 import numpy as np
 from .utils.utils import angular_distance, get_avg_pointing, get_files, ClusterConfiguration
 
+__all__ = ['TriModelCollection']
 
 class TriModelCollection():
     
@@ -9,7 +10,6 @@ class TriModelCollection():
         self.cluster_configuration = cluster_configuration
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
-        # self.cluster_configuration.__init__()
 
     def predict_lstchain_run(self, run, output_dir, DL1_data_dir="/fefs/aswg/data/real/DL1/", overwrite=False,):
         input_files = get_files(run, DL1_data_dir)
@@ -29,7 +29,12 @@ class TriModelCollection():
         
     def find_closest_model_to(self, input_file, pointing_table):
         import astropy.units as u
-        avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        from ctlearn_manager.utils.utils import get_avg_pointing
+        try:
+            avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+        except:
+            print(f"Corrupted file, skipping : {input_file}")
+            return
         print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
         avg_model_azs = []
         avg_model_zes = []

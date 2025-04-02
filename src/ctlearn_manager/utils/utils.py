@@ -1,10 +1,13 @@
 import numpy as np
 import glob
+from enum import Enum
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
 # import astropy.units as u
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
+
+__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env']
 
 
 def set_mpl_style():
@@ -58,7 +61,9 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None):
+    if memory_mb==None:
+        memory_mb = 64000
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
@@ -76,10 +81,12 @@ srun {command}''',
     'cscs': f'''#!/bin/bash -l
 #SBATCH --job-name={job_name}
 #SBATCH --time={time}
-#SBATCH --nodes=1
+#SBATCH --partition={partition}
 #SBATCH --constraint=gpu
-#SBATCH --gres=gpu:1
-#SBATCH --mem=64000mb
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:{nodes}
+#SBATCH --mem={memory_mb}0mb
 #SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
 #SBATCH --account={account}
@@ -92,8 +99,7 @@ srun --environment={env_name} {command}
 #SBATCH --account={account}
 #SBATCH --partition={partition}
 #SBATCH --time={time}
-#SBATCH --nodes=1
-#SBATCH --mem=64000mb
+#SBATCH --mem={memory_mb}mb
 #SBATCH -o {sbatch_scripts_dir}/{job_name}%x.%j.out
 #SBATCH -e {sbatch_scripts_dir}/{job_name}%x.%j.err 
 
@@ -106,12 +112,18 @@ srun {command}
 ''',
                     
     }
+    if cluster not in sbatch_predict_data_configs:
+        raise ValueError(f"Cluster {cluster} not supported. Supported clusters are: {sbatch_predict_data_configs.keys()}\nIf you wish not to use any slurm job managment system, set use_cluster=False in the ClusterConfiguration object")
     return sbatch_predict_data_configs[cluster]
 
 def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
     import h5py
     with h5py.File(MODEL_INDEX_FILE, 'a') as f:
-        del f[model_nickname]
+        try:
+            del f[model_nickname]
+            print(f"Model {model_nickname} removed from index")
+        except:
+            print(f"Model {model_nickname} not found in index")
 
 
 # def write_sbatch_script(cluster_configuration: ClusterConfiguration, job_name, cmd, sbatch_scripts_dir):
@@ -140,7 +152,7 @@ def get_current_env():
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
 class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None):
+    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
         
 
         # self.current_env = 
@@ -151,6 +163,8 @@ class ClusterConfiguration():
         self.python_env = python_env if python_env!=None else get_current_env()
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
+        self.nodes = nodes
+        self.memory_mb = memory_mb
         # if self.use_cluster:
         #     print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}")
 
@@ -164,16 +178,20 @@ class ClusterConfiguration():
         import socket
         host_name = socket.gethostname()
 
+        #TODO fix ln001 etc for diff login nodes
+        if host_name.startswith("daint-ln"):
+            host_name = "daint"
+
         match host_name:
             case "ui.cta.camk.edu.pl":
                 cluster = 'camk'
                 account = None
                 partition = None
                 time = '03:00:00'
-            case "daint-ln004":
+            case "daint":
                 cluster = 'cscs'
                 account = 'cta03'
-                partition = 'gpu'
+                partition = 'normal'
                 time = '24:00:00'
             case "cp02":
                 cluster = 'lst-cluster'
@@ -185,18 +203,22 @@ class ClusterConfiguration():
                 account = None
                 partition = None
                 time = None
-        # self.use_cluster = cluster!=None
+        if self.use_cluster:
+            self.use_cluster = cluster!=None
         return {"cluster": cluster, "account": account, "partition": partition, "time": time}
 
     
 
     def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition)
+        import os
+        if not os.path.exists(sbatch_scripts_dir):
+            os.system(f"mkdir {sbatch_scripts_dir}")
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes, self.memory_mb)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
 
-        print(f"💾 Testing script saved in {sbatch_file}")
+        print(f"SBATCH script saved in {sbatch_file}")
         return sbatch_file
 
 def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off, 
@@ -204,6 +226,7 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
                           target_obs_time, actual_obs_time, cond=True):
     import astropy.units as u
     from pyirf.statistics import li_ma_significance
+
 
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
@@ -275,3 +298,10 @@ def find_68_percent_range(bin_heights, bin_edges, a=0.68):
     # Find the value corresponding to 68% of the CDF
     upper_bound = np.interp(a, cdf/np.sum(bin_heights), bin_centers)
     return upper_bound
+
+
+class ParticleType(Enum):
+    GAMMA_POINT = "gamma_point"
+    GAMMA_DIFFUSE = "gamma_diffuse"
+    PROTON = "proton"
+    ELECTRON = "electron"
