@@ -161,7 +161,7 @@ class CTLearnModelManager():
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
             model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes'],
-                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, bool, int])
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, int])
             notes = model_parameters.get('notes', '')
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
@@ -631,7 +631,7 @@ class CTLearnModelManager():
             write_table_hdf5(DL2_data_table, self.model_index_file, path=f'{self.model_nickname}/DL2/Data', append=True, overwrite=True, serialize_meta=True)
             print(f"\t➡️ Testing DL2 real data updated")
     
-    def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance, testing_DL2_azimuth, testing_DL2_gamma_merged_file=None, testing_DL2_proton_merged_file=None):
+    def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance: float, testing_DL2_azimuth: float, testing_DL2_merged_file: str, particle_type: ParticleType):
         """
         Update the merged DL2 MC files for gamma and proton data.
         This method updates the DL2 merged data for gamma and proton events in the model index file.
@@ -648,29 +648,17 @@ class CTLearnModelManager():
         :return: None
         """
 
-
-       
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         print(f"💾 Model {self.model_nickname} DL2 merged data update:")
-        if testing_DL2_gamma_merged_file is not None:
-            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-            match = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == testing_DL2_zenith_distance) &
-                    (DL2_gamma_table['testing_DL2_gamma_azimuths'] == testing_DL2_azimuth))[0]
-            if len(match) > 0:
-                DL2_gamma_table.remove_rows(match)
-            DL2_gamma_table.add_row([testing_DL2_gamma_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth])
-            write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing DL2 gamma merged data updated")
-        
-        if testing_DL2_proton_merged_file is not None:
-            DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-            match = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == testing_DL2_zenith_distance) &
-                        (DL2_proton_table['testing_DL2_proton_azimuths'] == testing_DL2_azimuth))[0]
-            if len(match) > 0:
-                DL2_proton_table.remove_rows(match)
-            DL2_proton_table.add_row([testing_DL2_proton_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth])
-            write_table_hdf5(DL2_proton_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing DL2 proton merged data updated")
+        DL2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
+        match = np.where((DL2_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == testing_DL2_zenith_distance) &
+                (DL2_table[f'testing_DL2_{particle_type.value}_azimuths'] == testing_DL2_azimuth))[0]
+        if len(match) > 0:
+            DL2_table.remove_rows(match)
+        DL2_table.add_row([testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth])
+        write_table_hdf5(DL2_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
+        print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
+
         
     def update_model_manager_IRF_data(self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth):
         """
@@ -766,7 +754,7 @@ class CTLearnModelManager():
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
         return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]
 
-    def get_DL2_MC_files(self, zenith, azimuth):
+    def get_DL2_MC_files(self, zenith: float, azimuth: float, particle_types: list[ParticleType] = [ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Retrieve DL2 Monte Carlo (MC) files for given zenith and azimuth angles.
         This method reads HDF5 tables containing DL2 MC data for gamma and proton particles,
@@ -782,24 +770,20 @@ class CTLearnModelManager():
 
     
         from astropy.io.misc.hdf5 import read_table_hdf5
-        
-        try:
-            DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma')
-            match_gamma = np.where((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) & (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth))[0]
-            if len(match_gamma) == 0:
-                raise IndexError(f"No DL2 gamma MC files found for zenith {zenith} and azimuth {azimuth}")
-            DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][match_gamma]
-        except:
-            DL2_gamma_files = []
-        try:
-            DL2_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/proton')
-            match_proton = np.where((DL2_proton_table['testing_DL2_proton_zenith_distances'] == zenith) & (DL2_proton_table['testing_DL2_proton_azimuths'] == azimuth))[0]
-            if len(match_proton) == 0:
-                raise IndexError(f"No DL2 proton MC files found for zenith {zenith} and azimuth {azimuth}")
-            DL2_proton_files = DL2_proton_table['testing_DL2_proton_files'][match_proton]
-        except:
-            DL2_proton_files = []
-        return DL2_gamma_files, DL2_proton_files
+
+        DL2_files = {}
+
+        for particle_type in particle_types:
+            try:
+                DL2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
+                match = np.where((DL2_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == zenith) & (DL2_table[f'testing_DL2_{particle_type.value}_azimuths'] == azimuth))[0]
+                if len(match) == 0:
+                    raise IndexError(f"No DL2 {particle_type.value} MC files found for zenith {zenith} and azimuth {azimuth}")
+                _DL2_files = DL2_table[f'testing_DL2_{particle_type.value}_files'][match]
+            except:
+                _DL2_files = []
+            DL2_files[particle_type.value] = _DL2_files
+        return DL2_files
       
     def plot_zenith_azimuth_ranges(self, ax=None):
         """
@@ -852,7 +836,7 @@ class CTLearnModelManager():
                 theta = np.linspace(azimuth_min, azimuth_max, 100)
                 r = np.full_like(theta, zenith_min).to(u.deg)
                 ax.plot(theta, r, lw=3, zorder=0)
-                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
                 zeniths = training_gamma_table['training_gamma_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
@@ -877,7 +861,7 @@ class CTLearnModelManager():
                 ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
                 ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
                 
-                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
                 zeniths = training_gamma_table['training_gamma_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
@@ -922,7 +906,7 @@ class CTLearnModelManager():
         import matplotlib.pyplot as plt
         import astropy.units as u
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma')
+        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
         zeniths = training_gamma_table['training_gamma_zenith_distances']
         azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
         i = 0
@@ -1008,7 +992,7 @@ class ModelRangeOfValidity:
         """
 
         from astropy.io.misc.hdf5 import read_table_hdf5
-        training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma')
+        training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma_point')
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
         
         
