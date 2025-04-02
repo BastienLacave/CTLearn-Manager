@@ -305,8 +305,8 @@ class ParticleType(Enum):
     GAMMA_DIFFUSE = "gamma_diffuse"
     PROTON = "proton"
     ELECTRON = "electron"
-    REAL_DATA = "real_data"
-    ALL = "all"
+    # REAL_DATA = "real_data"
+    # ALL = "all"
 
 class DataSample:
     """

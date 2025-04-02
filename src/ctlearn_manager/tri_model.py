@@ -139,7 +139,6 @@ class CTLearnTriModelManager():
         self.pointing_az_key = "array_azimuth" if self.stereo else "azimuth" #if self.CTLearn else "az_tel"
         self.time_key = "time" #if self.CTLearn else "dragon_time"
             
-    # def set_testing_directories(self, testing_gamma_dirs = [], testing_proton_dirs = [], testing_gamma_zenith_distances = [], testing_gamma_azimuths = [], testing_proton_zenith_distances = [], testing_proton_azimuths = [], testing_gamma_patterns = [], testing_proton_patterns = []):
     def set_testing_data(self, testing_samples: list[DataSample]):
         """
         Set the directories and associated parameters for testing data.
@@ -575,7 +574,7 @@ class CTLearnTriModelManager():
         print("")
     
     
-    def merge_DL2_files(self, zenith, azimuth, output_file_gammas=None, output_file_protons=None, overwrite=False):
+    def merge_DL2_files(self, zenith: str, azimuth: str, output_file: str, particle_type: ParticleType, overwrite=False):
         """
         Merge DL2 files for given zenith and azimuth angles.
         This method merges DL2 gamma and proton files for the specified zenith and azimuth angles
@@ -594,36 +593,21 @@ class CTLearnTriModelManager():
         :type overwrite: bool
         :raises RuntimeError: If the merging process fails for either gamma or proton files.
         """
-
-
-        import glob
         import os
-        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        if len(gamma_files) > 1 and output_file_gammas is not None:
+        files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[particle_type.value]
+        if len(files) > 1:
             print(f"🔀 Merging DL2 gamma files for zenith {zenith} and azimuth {azimuth}")
-            result = os.system(f"ctapipe-merge {' '.join(gamma_files)} --output={output_file_gammas} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
+            result = os.system(f"ctapipe-merge {' '.join(files)} --output={output_file} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
             if result == 0:
-                self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
-                self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
-                self.type_model.update_merged_DL2_MC_files(zenith, azimuth, output_file_gammas, None)
+                self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
+                self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
+                self.type_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
             else:
                 print(f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}")
         else:
-            print(f"✅ There already is a single gamma file for zenith {zenith} and azimuth {azimuth}")
-        if len(proton_files) > 1 and output_file_protons is not None:
-            print(f"🔀 Merging DL2 proton files for zenith {zenith} and azimuth {azimuth}")
-            result = os.system(f"ctapipe-merge {' '.join(proton_files)} --output={output_file_protons} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
-            if result == 0:
-                self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
-                self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
-                self.type_model.update_merged_DL2_MC_files(zenith, azimuth, None, output_file_protons)
-            else:
-                print(f"Error: Failed to merge proton files for zenith {zenith} and azimuth {azimuth}")
-        else:
-            print(f"✅ There already is a single proton file for zenith {zenith} and azimuth {azimuth}")
+            print(f"✅ There already is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}")
     
-    def plot_DL2_classification(self, zenith, azimuth):
+    def plot_DL2_classification(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Plots the DL2 classification results for gamma and proton events.
         This function generates a histogram plot showing the distribution of 
@@ -640,26 +624,21 @@ class CTLearnTriModelManager():
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        dl2_gamma = []
-        tel_id = None if self.stereo else self.telescope_ids[0]
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
-        dl2_gamma = vstack(dl2_gamma)
-        
-        dl2_protons = []
-        for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
-        dl2_proton = vstack(dl2_protons)
-        plt.hist(dl2_gamma[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
-        plt.hist(dl2_proton[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        for particle_type in particle_types:
+            testing_DL2_files = DL2_MC_files[particle_type.value]
+            dl2_data = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_files:
+                dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_data = vstack(dl2_data)
+            plt.hist(dl2_data[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label=particle_type.value)
         plt.xlabel("Gammaness")
         plt.ylabel("Density")
         plt.legend()
         plt.show()
         
-    def plot_DL2_energy(self, zenith, azimuth):
+    def plot_DL2_energy(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Plot the DL2 energy distribution for gamma and proton events.
         This function generates a histogram plot of the DL2 energy distribution for 
@@ -676,21 +655,15 @@ class CTLearnTriModelManager():
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        dl2_gamma = []
-        tel_id = None if self.stereo else self.telescope_ids[0]
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
-        dl2_gamma = vstack(dl2_gamma)
-        
-        dl2_protons = []
-        for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
-        dl2_proton = vstack(dl2_protons)
-        log_bins = np.logspace(np.log10(0.1), np.log10(500), 100)
-        plt.hist(dl2_gamma[self.reco_energy_key], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Gammas")
-        plt.hist(dl2_proton[self.reco_energy_key], bins=log_bins, range=(0, 1), histtype="step", density=True, lw=2, label="Protons")
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        for particle_type in particle_types:
+            testing_DL2_files = DL2_MC_files[particle_type.value]
+            dl2_data = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_files:
+                dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_data = vstack(dl2_data)
+            plt.hist(dl2_data[self.reco_energy_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label=particle_type.value)
         plt.xlabel("Energy [TeV]")
         plt.ylabel("Density")
         plt.xscale("log")
@@ -698,7 +671,7 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.show()
         
-    def plot_DL2_AltAz(self, zenith, azimuth):
+    def plot_DL2_AltAz(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT]):
         """
         Plot the reconstructed Altitude and Azimuth for DL2 data.
         This function generates two subplots: one for gamma events and one for proton events.
@@ -713,53 +686,30 @@ class CTLearnTriModelManager():
         -------
         None
         """
-
-
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-
-        tel_id = None if self.stereo else self.telescope_ids[0]
-
-        if len(testing_DL2_gamma_files) > 0:
-            dl2_gamma = []
-            for file in testing_DL2_gamma_files:
-                dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
-            dl2_gamma = vstack(dl2_gamma)
-
-            axs[0].scatter(dl2_gamma[self.pointing_alt_key][0]/np.pi*180, dl2_gamma[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-            axs[0].hist2d(dl2_gamma[self.reco_alt_key], dl2_gamma[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-            axs[0].set_xlabel("Altitude [deg]")
-            axs[0].set_ylabel("Azimuth [deg]")
-            axs[0].legend()
-            axs[0].set_title("Gammas")
-            cbar = plt.colorbar(axs[0].collections[1], ax=axs[0])
+        fig, axs = plt.subplots(1, len(particle_types), figsize=(5*len(particle_types), 4))
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        for i, particle_type in enumerate(particle_types):
+            testing_DL2_files = DL2_MC_files[particle_type.value]
+            dl2_data = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_files:
+                dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
+            dl2_data = vstack(dl2_data)
+            axs[i].scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+            axs[i].hist2d(dl2_data[self.reco_alt_key], dl2_data[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            axs[i].set_xlabel("Altitude [deg]")
+            axs[i].set_ylabel("Azimuth [deg]")
+            axs[i].legend()
+            axs[i].set_title(particle_type.value)
+            cbar = plt.colorbar(axs[i].collections[1], ax=axs[i])
             cbar.set_label("Counts")
-        
-        if len(testing_DL2_proton_files) > 0:
-            dl2_protons = []
-            for file in testing_DL2_proton_files:
-                dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
-            dl2_proton = vstack(dl2_protons)
-            
-            
-            
-            axs[1].scatter(dl2_proton[self.pointing_alt_key][0]/np.pi*180, dl2_proton[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-            axs[1].hist2d(dl2_proton[self.reco_alt_key], dl2_proton[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-            axs[1].set_xlabel("Altitude [deg]")
-            axs[1].set_ylabel("Azimuth [deg]")
-            axs[1].legend()
-            axs[1].set_title("Protons")
-            cbar = plt.colorbar(axs[1].collections[1], ax=axs[1])
-            cbar.set_label("Counts")
-        
         plt.tight_layout()
         plt.show()
         
-    def plot_migration_matrix(self, zenith, azimuth):    
+    def plot_migration_matrix(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT]):    
         """
         Plot the migration matrix for gamma and proton events.
         This function generates a 2D histogram plot of the reconstructed energy 
@@ -776,74 +726,44 @@ class CTLearnTriModelManager():
         None
         """
 
-
         import matplotlib.pyplot as plt
         from astropy.table import vstack, join
         set_mpl_style()
-        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-        dl2_gamma = []
-        shower_parameters_gamma = []
-        tel_id = None if self.stereo else self.telescope_ids[0]
-        for file in testing_DL2_gamma_files:
-            dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
-            shower_parameters_gamma.append(load_true_shower_parameters(file))
-        dl2_gamma = vstack(dl2_gamma)
-        shower_parameters_gamma = vstack(shower_parameters_gamma)
-        dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
-        
-        dl2_protons = []
-        shower_parameters_protons = []
-        for file in testing_DL2_proton_files:
-            dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
-            shower_parameters_protons.append(load_true_shower_parameters(file))
-        dl2_proton = vstack(dl2_protons)
-        shower_parameters_protons = vstack(shower_parameters_protons)
-        dl2_proton = join(dl2_proton, shower_parameters_protons, keys=["obs_id", "event_id"])
-        
-        log_bins = np.logspace(
-            np.log10(min((min(dl2_gamma[self.reco_energy_key]), min(dl2_gamma[self.true_energy_key])))), 
-            np.log10(max(max(dl2_gamma[self.reco_energy_key]), max(dl2_gamma[self.true_energy_key]))),
-            100)
-        
-        
-        axs[0].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
-        axs[0].hist2d(dl2_gamma[self.reco_energy_key], dl2_gamma[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        axs[0].set_xlabel("CTLean Energy [TeV]")
-        axs[0].set_ylabel("True Energy [TeV]")
-        axs[0].set_xscale("log")
-        axs[0].set_yscale("log")
-        axs[0].set_xlim(log_bins[0], log_bins[-1])
-        axs[0].set_ylim(log_bins[0], log_bins[-1])
-        axs[0].axis('equal')
-        axs[0].set_title("Gammas")
-        cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
-        cbar.set_label("Counts")
+        fig, axs = plt.subplots(1, len(particle_types) , figsize=(5*len(particle_types), 4))
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        for i, particle_type in enumerate(particle_types):
+            testing_DL2_files = DL2_MC_files[particle_type.value]
+            dl2_data = []
+            shower_parameters = []
+            tel_id = None if self.stereo else self.telescope_ids[0]
+            for file in testing_DL2_files:
+                dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
+                shower_parameters.append(load_true_shower_parameters(file))
+            dl2_data = vstack(dl2_data)
+            shower_parameters = vstack(shower_parameters)
+            dl2_data = join(dl2_data, shower_parameters, keys=["obs_id", "event_id"])
 
-        log_bins = np.logspace(
-            np.log10(min((min(dl2_proton[self.reco_energy_key]), min(dl2_proton[self.true_energy_key])))), 
-            np.log10(max(max(dl2_proton[self.reco_energy_key]), max(dl2_proton[self.true_energy_key]))),
-            100)
-        
-        
-        axs[1].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
-        axs[1].hist2d(dl2_proton[self.reco_energy_key], dl2_proton[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
-        axs[1].set_xlabel("CTLearn Energy [TeV]")
-        axs[1].set_ylabel("True Energy [TeV]")
-        axs[1].set_xscale("log")
-        axs[1].set_yscale("log")
-        axs[1].set_xlim(log_bins[0], log_bins[-1])
-        axs[1].set_ylim(log_bins[0], log_bins[-1])
-        axs[1].axis('equal')
-        axs[1].set_title("Protons")
-        cbar = plt.colorbar(axs[1].collections[0], ax=axs[1])
-        cbar.set_label("Counts")
-        
+            log_bins = np.logspace(
+                    np.log10(min((min(dl2_data[self.reco_energy_key]), min(dl2_data[self.true_energy_key])))), 
+                    np.log10(max(max(dl2_data[self.reco_energy_key]), max(dl2_data[self.true_energy_key]))),
+                    100)
+            axs[i].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
+            axs[i].hist2d(dl2_data[self.reco_energy_key], dl2_data[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            axs[i].set_xlabel("CTLean Energy [TeV]")
+            axs[i].set_ylabel("True Energy [TeV]")
+            axs[i].set_xscale("log")
+            axs[i].set_yscale("log")
+            axs[i].set_xlim(log_bins[0], log_bins[-1])
+            axs[i].set_ylim(log_bins[0], log_bins[-1])
+            axs[i].axis('equal')
+            axs[i].set_title("Gammas")
+            cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+            cbar.set_label("Counts")
+
         plt.tight_layout()
         plt.show()
         
-    def produce_irfs(self, zenith, azimuth, config=None, output_cuts_file=None, output_irf_file=None, output_benchmark_file=None):
+    def produce_irfs(self, zenith: float, azimuth: float, config=None, output_cuts_file=None, output_irf_file=None, output_benchmark_file=None):
         """
         Produce Instrument Response Functions (IRFs) for given zenith and azimuth angles.
         This method generates IRFs by running external commands and updating the model manager with the necessary data.
@@ -891,8 +811,8 @@ class CTLearnTriModelManager():
         self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
         self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
             
-        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
+        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[PartycleType.GAMMA_POINT.value]
+        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[PartycleType.PROTON.value]
         if len(gamma_files) > 1 or len(proton_files) > 1:
             raise ValueError(f"Multiple files found for zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
         gamma_file = gamma_files[0]
@@ -915,7 +835,7 @@ class CTLearnTriModelManager():
 --no-spatial-selection-applied --overwrite"
         os.system(cmd)
     
-    def plot_benchmark(self, zenith, azimuth):
+    def plot_benchmark(self, zenith: float, azimuth: float):
         """
         Plot benchmark graphs for sensitivity, angular resolution, energy resolution, and energy bias 
         based on the given zenith and azimuth angles.
@@ -1217,7 +1137,7 @@ class CTLearnTriModelManager():
         plt.show()
         
 
-    def plot_ROC_curve_DL2(self, zenith, azimuth, nbins=10):
+    def plot_ROC_curve_DL2(self, zenith: float, azimuth: float, nbins=10):
         """
         Plot the ROC curve for DL2 data.
         This function generates and plots the ROC curve for Data Level 2 (DL2) 
@@ -1243,13 +1163,11 @@ class CTLearnTriModelManager():
         import astropy.units as u
         import numpy as np
 
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[0]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[1]
-
+        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.GAMMA_POINT.value]
+        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.PROTON.value]
 
         tel_id = None if self.stereo else self.telescope_ids[0]
 
-      
         if len(testing_DL2_gamma_files) > 0:
             dl2_gamma = []
             shower_parameters_gamma = []
@@ -1293,7 +1211,7 @@ class CTLearnTriModelManager():
         plt.ylim(-0.05, 1.05)
         plt.show()
         
-    def compare_irfs_to_RF(self, zenith, azimuth=None):
+    def compare_irfs_to_RF(self, zenith: float, azimuth=None):
         """
         Compare Instrument Response Functions (IRFs) to Random Forest (RF) benchmarks.
         This function compares the IRFs obtained from the CTLearn model to the RF benchmarks

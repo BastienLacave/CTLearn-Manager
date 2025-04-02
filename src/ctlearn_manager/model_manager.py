@@ -305,7 +305,7 @@ class CTLearnModelManager():
 
             config['TrainCTLearnModel']['DLImageReader'] = {}
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
-            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = self.min_telescopes
+            config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = int(self.min_telescopes)
             config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
             
