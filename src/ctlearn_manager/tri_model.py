@@ -4,6 +4,7 @@ from pathlib import Path
 from .model_manager import CTLearnModelManager, DataSample
 from .utils.utils import set_mpl_style, ClusterConfiguration, angular_distance, ParticleType
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
+import astropy.units as u
 
 __all__ = [
     "CTLearnTriModelManager",
@@ -291,8 +292,8 @@ class CTLearnTriModelManager():
                     print(f"(ZD, Az): ({zenith}, {azimuth})")
         return coords
         
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, no_dl2_subarray=False):
-        # def launch_testing(self, zenith, azimuth, output_dirs: list, config_dir=None, launch_particle_type='both'):
         """
         Launch testing for the given zenith and azimuth angles.
         This function checks the testing files for gamma and proton particles, ensures they match across models,
