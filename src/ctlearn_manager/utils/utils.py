@@ -346,6 +346,7 @@ class DataSample:
         """
         import astropy.units as u
         from ctapipe.io import read_table
+        from tqdm import tqdm
 
         self.directory = directory
         self.pattern = pattern
@@ -353,8 +354,11 @@ class DataSample:
         self.nsb_range = nsb_range
 
         files = np.sort(glob.glob(f"{directory}/{pattern}"))
-
-        for i, file in enumerate(files):
+        if len(files) == 0:
+            raise ValueError(f"No files found matching {directory}/{pattern}")
+        
+        i = 0
+        for file in tqdm(files, desc="Checking files for particle type and pointing", unit="file"):
             shower_parameters = read_table(file, "simulation/event/subarray/shower")
             pointing = read_table(file, "configuration/telescope/pointing/tel_001") 
             particle_id = np.unique(shower_parameters["true_shower_primary_id"])
@@ -374,9 +378,10 @@ class DataSample:
                 assert first_particle_type == particle_id[0], f"Different particle types found in {file} and {files[0]}"
                 assert first_zenith_distance == zenith_distance[0], f"Different zenith distances found in {file} and {files[0]}"
                 assert first_azimuth == azimuth[0], f"Different azimuths found in {file} and {files[0]}"
+            i += 1
 
-        self.zenith_distance = zenith_distance[0]
-        self.azimuth = azimuth[0]
+        self.zenith_distance = np.round(first_zenith_distance.to(u.deg).value, 4) * u.deg
+        self.azimuth = np.round(first_azimuth.to(u.deg).value, 4) * u.deg
 
         match particle_id[0]:
             case 0:
@@ -392,5 +397,7 @@ class DataSample:
                 self.particle_type = ParticleType.PROTON
             case _:
                 raise ValueError(f"Unknown particle ID: {particle_id}")
+        
+        print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
 
         

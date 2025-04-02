@@ -210,8 +210,8 @@ class CTLearnTriModelManager():
         for particle_type in ParticleType:
             try:
                 DL2_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/{particle_type.value}')
-                _zeniths = DL2_table[f'testing_DL2_{particle_type.value}_zenith_distances']
-                _azimuths = DL2_table[f'testing_DL2_{particle_type.value}_azimuths']
+                _zeniths = DL2_table[f'testing_{particle_type.value}_zenith_distances']
+                _azimuths = DL2_table[f'testing_{particle_type.value}_azimuths']
             except:
                 _zeniths = []
                 _azimuths = []
@@ -231,9 +231,9 @@ class CTLearnTriModelManager():
                 if particle_available:
                     available_particles.append(particle_type.value)
             if len(available_particles) > 0:
-                print(f"(ZD, Az): ({zenith}, {azimuth}) \t {' | '.join(available_particles)}")
+                print(f"(ZD, Az): ({zenith.value}, {azimuth.value})°\t{' | '.join(available_particles)}")
             else:
-                print(f"(ZD, Az): ({zenith}, {azimuth})")
+                print(f"(ZD, Az): ({zenith.value}, {azimuth.value})°")
 
     def get_available_MC_directions(self, verbose=True):
         """

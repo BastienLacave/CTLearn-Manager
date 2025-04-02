@@ -97,11 +97,7 @@ class CTLearnModelManager():
             self.save_to_index(model_parameters)
             print(f"🧠 Model name: {self.model_nickname}")
         self.model_parameters_table = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/parameters")
-        training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma_diffuse")
-        training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
         self.validity = ModelRangeOfValidity(self)
-        if self.model_parameters_table['reco'][0] == 'type' and (len(training_table_proton['training_proton_patterns']) == 0 or len(training_table_gamma['training_gamma_diffuse_patterns']) == 0):
-            raise ValueError("For reco type, training_proton_patterns and training_gamma_diffuse_patterns are required")
         self.telescope_ids = ast.literal_eval(self.model_parameters_table['telescope_ids'][0])
         self.telescope_names = ast.literal_eval(self.model_parameters_table['telescope_names'][0])
         try:
@@ -109,6 +105,12 @@ class CTLearnModelManager():
         except:
             self.min_telescopes = len(self.telescope_ids)
         self.stereo = True if self.min_telescopes >= 2 else False
+        training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma_diffuse")
+
+        if self.model_parameters_table['reco'][0] == 'type':
+            training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
+            if (len(training_table_proton['training_proton_patterns']) == 0) or (len(training_table_gamma['training_gamma_diffuse_patterns']) == 0):
+                raise ValueError("For reco type, training_proton_patterns and training_gamma_diffuse_patterns are required")
         # Check that all gamma related lists are the same length
         # gamma_lengths = [len(training_table_gamma['training_gamma_diffuse_patterns']), len(training_table_gamma['training_gamma_diffuse_zenith_distances']), len(training_table_gamma['training_gamma_diffuse_azimuths'])]
         # if len(set(gamma_lengths)) != 1:
@@ -173,7 +175,7 @@ class CTLearnModelManager():
             model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes])
             write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters',append=True, overwrite=True,)
 
-            training_samples = model_parameters.get('training_samples', []).astype(list[DataSample])
+            training_samples = model_parameters.get('training_samples', [])
 
             for training_sample in training_samples:
                 particle_type = training_sample.particle_type
@@ -464,7 +466,6 @@ class CTLearnModelManager():
         #     write_table_hdf5(training_proton_table, self.model_index_file, path=f'{self.model_nickname}/training/proton', append=True, overwrite=True)
         #     print(f"\t➡️ Training proton data updated")
 
-    # def update_model_manager_testing_data(self, testing_gamma_dirs, testing_proton_dirs, testing_gamma_zenith_distances, testing_gamma_azimuths, testing_proton_zenith_distances, testing_proton_azimuths, testing_gamma_patterns, testing_proton_patterns):
     def update_model_manager_testing_data(self, testing_data_sample: DataSample):
         """
         Update the model manager's testing data for gamma and proton events.
@@ -501,11 +502,11 @@ class CTLearnModelManager():
             testing_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/{particle_type.value}')
         except:
             testing_table = QTable(names=[f'testing_{particle_type.value}_dirs', f'testing_{particle_type.value}_zenith_distances', f'testing_{particle_type.value}_azimuths', f'testing_{particle_type.value}_patterns'], 
-                                        dtype=['S256', float, float, 'S256'])
+                                        dtype=['S256', float, float, 'S256'], units=[None, 'deg', 'deg', None])
         # print(f"💾 Model {self.model_nickname} testing data update:")
         if len(testing_table)==0:
-            testing_table = QTable(names=['testing_gamma_dirs', 'testing_gamma_zenith_distances', 'testing_gamma_azimuths', 'testing_gamma_patterns'], 
-                                        dtype=['S256', float, float, 'S256'])
+            testing_table = QTable(names=[f'testing_{particle_type.value}_dirs', f'testing_{particle_type.value}_zenith_distances', f'testing_{particle_type.value}_azimuths', f'testing_{particle_type.value}_patterns'], 
+                                        dtype=['S256', float, float, 'S256'], units=[None, 'deg', 'deg', None])
         
  
         match = np.where((testing_table[f'testing_{particle_type.value}_zenith_distances'] == testing_zenith_distance) & 
@@ -516,7 +517,7 @@ class CTLearnModelManager():
         else:
             testing_table.add_row([testing_dir, testing_zenith_distance, testing_azimuth, testing_pattern])
         write_table_hdf5(testing_table, self.model_index_file, path=f'{self.model_nickname}/testing/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
-        print(f"\t➡️ Testing {particle_type.value} data updated")
+        print(f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) deg : {testing_dir}/{testing_pattern} updated")
        
     def update_model_manager_DL2_MC_file(self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample):
         """
@@ -549,12 +550,12 @@ class CTLearnModelManager():
             DL2_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
         except:
             DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
-                                     dtype=[ 'S256', float, float])
+                                     dtype=[ 'S256', float, float], units=[None, 'deg', 'deg'])
 
         print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
             DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
-                                     dtype=['S256', float, float])
+                                     dtype=['S256', float, float], units=[None, 'deg', 'deg'])
 
         match = np.where((DL2_gamma_table[f'testing_DL2_{particle_type.value}_files'] == testing_MC_DL2_file) & 
                 (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == testing_zenith_distance) & 
@@ -580,7 +581,7 @@ class CTLearnModelManager():
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         DL2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
-        match = np.where(DL2_table['testing_DL2_{particle_type.value}_files'] == testing_DL2_file)[0]
+        match = np.where(DL2_table[f'testing_DL2_{particle_type.value}_files'] == testing_DL2_file)[0]
         if len(match) > 0:
             DL2_table.remove_rows(match)
         write_table_hdf5(DL2_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
@@ -836,9 +837,9 @@ class CTLearnModelManager():
                 theta = np.linspace(azimuth_min, azimuth_max, 100)
                 r = np.full_like(theta, zenith_min).to(u.deg)
                 ax.plot(theta, r, lw=3, zorder=0)
-                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
-                zeniths = training_gamma_table['training_gamma_zenith_distances']
-                azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
+                zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
+                azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
                     ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
         else:
@@ -861,9 +862,9 @@ class CTLearnModelManager():
                 ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
                 ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
                 
-                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
-                zeniths = training_gamma_table['training_gamma_zenith_distances']
-                azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+                training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
+                zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
+                azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
                     ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
         
@@ -906,9 +907,9 @@ class CTLearnModelManager():
         import matplotlib.pyplot as plt
         import astropy.units as u
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
-        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_point')
-        zeniths = training_gamma_table['training_gamma_zenith_distances']
-        azimuths = training_gamma_table['training_gamma_azimuths'].to(u.rad)
+        training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
+        zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
+        azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
         i = 0
         for zenith, azimuth in zip(zeniths, azimuths):
             if (zenith == np.nan) or (azimuth == np.nan):
@@ -918,19 +919,20 @@ class CTLearnModelManager():
                 i += 1
         if i == 0:
             print('Training nodes for gammas cannot be shown because the zenith or azimuth are not defined.')
-            
-        training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
-        zeniths = training_proton_table['training_proton_zenith_distances']
-        azimuths = training_proton_table['training_proton_azimuths'].to(u.rad)
-        i = 0
-        for zenith, azimuth in zip(zeniths, azimuths):
-            if (zenith == np.nan) or (azimuth == np.nan):
-                continue
-            else:
-                ax.scatter(azimuth, zenith, label='Protons', edgecolor=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], facecolors='w', zorder=1, s=100, lw=2)
-                i += 1
-        if i == 0:
-            print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
+
+        if self.model_parameters_table['reco'][0] == 'type': 
+            training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
+            zeniths = training_proton_table['training_proton_zenith_distances']
+            azimuths = training_proton_table['training_proton_azimuths'].to(u.rad)
+            i = 0
+            for zenith, azimuth in zip(zeniths, azimuths):
+                if (zenith == np.nan) or (azimuth == np.nan):
+                    continue
+                else:
+                    ax.scatter(azimuth, zenith, label='Protons', edgecolor=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], facecolors='w', zorder=1, s=100, lw=2)
+                    i += 1
+            if i == 0:
+                print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
             
         ax.set_theta_zero_location('E')
         ax.set_theta_direction(-1)
@@ -992,20 +994,20 @@ class ModelRangeOfValidity:
         """
 
         from astropy.io.misc.hdf5 import read_table_hdf5
-        training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma_point')
+        training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma_diffuse')
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
         
         
-        training_gamma_zeniths = training_gamma_table['training_gamma_zenith_distances']
+        training_gamma_zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
         self.zenith_range = [min(training_gamma_zeniths).value, max(training_gamma_zeniths).value] * training_gamma_zeniths.unit
-        training_gamma_azimuths = training_gamma_table['training_gamma_azimuths']
+        training_gamma_azimuths = training_gamma_table['training_gamma_diffuse_azimuths']
         self.azimuth_range = [min(training_gamma_azimuths.value), max(training_gamma_azimuths).value] * training_gamma_azimuths.unit
-        training_gamma_energies_mins = training_gamma_table['training_gamma_energy_min']
-        training_gamma_energies_maxs = training_gamma_table['training_gamma_energy_max']
+        training_gamma_energies_mins = training_gamma_table['training_gamma_diffuse_energy_min']
+        training_gamma_energies_maxs = training_gamma_table['training_gamma_diffuse_energy_max']
         taining_gamma_energies = np.concatenate((training_gamma_energies_mins, training_gamma_energies_maxs))
         self.energy_range = [min(taining_gamma_energies).value, max(taining_gamma_energies).value] * taining_gamma_energies.unit
-        training_gamma_nsbs_mins = training_gamma_table['training_gamma_nsb_min']
-        training_gamma_nsbs_maxs = training_gamma_table['training_gamma_nsb_max']
+        training_gamma_nsbs_mins = training_gamma_table['training_gamma_diffuse_nsb_min']
+        training_gamma_nsbs_maxs = training_gamma_table['training_gamma_diffuse_nsb_max']
         taining_gamma_nsbs = np.concatenate((training_gamma_nsbs_mins, training_gamma_nsbs_maxs))
         self.nsb_range = [min(taining_gamma_nsbs).value, max(taining_gamma_nsbs).value] * taining_gamma_nsbs.unit
         
