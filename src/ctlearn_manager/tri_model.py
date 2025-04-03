@@ -293,7 +293,7 @@ class CTLearnTriModelManager():
         return coords
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, no_dl2_subarray=False):
+    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, dl2_subarray=True):
         """
         Launch testing for the given zenith and azimuth angles.
         This function checks the testing files for gamma and proton particles, ensures they match across models,
@@ -370,7 +370,7 @@ class CTLearnTriModelManager():
         energy_model_dir = np.sort(glob.glob(f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}*"))[-1]
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}*"))[-1]
 
-        no_dl2_subarray_string = "" if no_dl2_subarray else " --no-dl2-subarray"
+        dl2_subarray_string = " --dl2-subarray" if dl2_subarray else " --no-dl2-subarray"
          
         for input_file, output_file in zip(testing_files, output_files):
             if self.stereo:
@@ -391,7 +391,7 @@ class CTLearnTriModelManager():
 --energy_model={energy_model_dir}/ctlearn_model.cpk \
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
---use-HDF5Merger{no_dl2_subarray_string} \
+--use-HDF5Merger{dl2_subarray_string} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
             
             if self.cluster_configuration.use_cluster:
