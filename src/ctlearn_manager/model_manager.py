@@ -562,7 +562,7 @@ class CTLearnModelManager():
             DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
                                      dtype=[ 'S256', float, float], units=[None, 'deg', 'deg'])
 
-        print(f"💾 Model {self.model_nickname} DL2 data update:")
+        # print(f"💾 Model {self.model_nickname} DL2 data update:")
         if len(DL2_gamma_table)==0:
             DL2_gamma_table = QTable(names=[f'testing_DL2_{particle_type.value}_files', f'testing_DL2_{particle_type.value}_zenith_distances', f'testing_DL2_{particle_type.value}_azimuths'], 
                                      dtype=['S256', float, float], units=[None, 'deg', 'deg'])
@@ -573,7 +573,7 @@ class CTLearnModelManager():
         if len(match) == 0:
             DL2_gamma_table.add_row([testing_MC_DL2_file, testing_zenith_distance, testing_azimuth])
         write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
-        print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
+        # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
     
     def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
         """
