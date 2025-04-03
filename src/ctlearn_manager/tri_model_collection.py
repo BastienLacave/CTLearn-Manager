@@ -21,11 +21,17 @@ class TriModelCollection():
         
     def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', config_dir=None, overwrite=False, run=None, subrun=None):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
-        closest_tri_model.predict_lstchain_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, run=run, subrun=subrun, pointing_table=pointing_table)
+        if closest_tri_model is not None:
+            closest_tri_model.predict_lstchain_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, run=run, subrun=subrun, pointing_table=pointing_table)
+        else:
+            return
         
     def predict_data(self, input_file, output_file, pointing_table='dl0/monitoring/subarray/pointing', config_dir=None, overwrite=False):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table)
-        closest_tri_model.predict_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, pointing_table=pointing_table)
+        if closest_tri_model is not None:
+            closest_tri_model.predict_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, pointing_table=pointing_table)
+        else:
+            return
         
     def find_closest_model_to(self, input_file, pointing_table):
         import astropy.units as u
@@ -33,9 +39,9 @@ class TriModelCollection():
         try:
             avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
         except:
-            print(f"Corrupted file, skipping : {input_file}")
+            print(f"⚠️ Corrupted file, skipping : {input_file}")
             return
-        print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
+        
         avg_model_azs = []
         avg_model_zes = []
         for tri_model in self.tri_models:
@@ -43,8 +49,11 @@ class TriModelCollection():
             avg_model_zes.append(np.mean((tri_model.direction_model.validity.zenith_range)).to(u.deg).value)
         closest_model_index = np.argmin(angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs))
         closest_model = self.tri_models[closest_model_index]
-        print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
-        print(f"｜🧠 Using models {closest_model.direction_model.model_nickname}, {closest_model.energy_model.model_nickname} and {closest_model.type_model.model_nickname}")
+
+        print(f"File : {input_file.split('/')[-1]}\tPointing : ({avg_data_ze:3f}, {avg_data_az:3f})\tModel : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
+        # print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
+        # print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
+        # print(f"｜🧠 Using models {closest_model.direction_model.model_nickname}, {closest_model.energy_model.model_nickname} and {closest_model.type_model.model_nickname}")
         return closest_model
 
 

@@ -104,7 +104,7 @@ class CTLearnModelManager():
             self.min_telescopes = self.model_parameters_table['min_telescopes'][0] 
         except:
             self.min_telescopes = len(self.telescope_ids)
-        self.stereo = True if self.min_telescopes >= 2 else False
+        self.stereo = self.model_parameters_table['stereo'][0]  #True if self.min_telescopes >= 2 else False
         training_table_gamma = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/gamma_diffuse")
 
         if self.model_parameters_table['reco'][0] == 'type':
@@ -162,8 +162,8 @@ class CTLearnModelManager():
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
             print(f"❌ Model nickname {self.model_nickname} already in table")
         except:
-            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes'],
-                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, int])
+            model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes', 'stereo'],
+                        dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, int, bool])
             notes = model_parameters.get('notes', '')
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
@@ -172,7 +172,17 @@ class CTLearnModelManager():
             channels = model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time'])
             max_training_epochs = model_parameters.get('max_training_epochs', 10)
             min_telescopes = model_parameters.get('min_telescopes', 1)
-            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes])
+            stereo = model_parameters.get('stereo', True if min_telescopes >= 2 else False)
+
+            assert len(telescope_names) == len(telescope_ids), "Telescope names and IDs must have the same length"
+            assert np.ndim(self.telescope_ids) == 1, "telescope_ids must be a 1-dimensional array"
+            assert np.ndim(self.telescope_names) == 1, "telescope_names must be a 1-dimensional array"
+            assert np.ndim(channels) == 1, "channels must be a 1-dimensional array"
+            assert reco in ['type', 'energy', 'cameradirection', 'skydirection'], "reco must be one of ['type', 'energy', 'cameradirection', 'skydirection']"
+            assert type(max_training_epochs) == int, "max_training_epochs must be an integer"
+            assert type(min_telescopes) == int, "min_telescopes must be an integer"
+
+            model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes, stereo])
             write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters',append=True, overwrite=True,)
 
             training_samples = model_parameters.get('training_samples', [])

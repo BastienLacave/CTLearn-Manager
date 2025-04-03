@@ -463,7 +463,7 @@ class CTLearnTriModelManager():
         config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
-        print(f"🪛 Configuration saved to {config_file}")
+        print(f"Configuration saved to {config_file}")
 
         # avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
         # for model in [self.direction_model, self.energy_model, self.type_model]:
@@ -546,7 +546,7 @@ class CTLearnTriModelManager():
         config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, 'w') as file:
             json.dump(config, file)
-        print(f"🪛 Configuration saved to {config_file}")
+        print(f"Configuration saved to {config_file}")
 
         avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
         # for model in [self.direction_model, self.energy_model, self.type_model]:

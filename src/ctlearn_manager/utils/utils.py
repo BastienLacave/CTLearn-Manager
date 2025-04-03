@@ -190,7 +190,7 @@ class ClusterConfiguration():
                 time = '03:00:00'
             case "daint":
                 cluster = 'cscs'
-                account = 'cta03'
+                account = 'cta08'
                 partition = 'normal'
                 time = '24:00:00'
             case "cp02":
