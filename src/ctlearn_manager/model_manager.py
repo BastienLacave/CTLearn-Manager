@@ -175,8 +175,8 @@ class CTLearnModelManager():
             stereo = model_parameters.get('stereo', True if min_telescopes >= 2 else False)
 
             assert len(telescope_names) == len(telescope_ids), "Telescope names and IDs must have the same length"
-            assert np.ndim(self.telescope_ids) == 1, "telescope_ids must be a 1-dimensional array"
-            assert np.ndim(self.telescope_names) == 1, "telescope_names must be a 1-dimensional array"
+            assert np.ndim(telescope_ids) == 1, "telescope_ids must be a 1-dimensional array"
+            assert np.ndim(telescope_names) == 1, "telescope_names must be a 1-dimensional array"
             assert np.ndim(channels) == 1, "channels must be a 1-dimensional array"
             assert reco in ['type', 'energy', 'cameradirection', 'skydirection'], "reco must be one of ['type', 'energy', 'cameradirection', 'skydirection']"
             assert type(max_training_epochs) == int, "max_training_epochs must be an integer"
