@@ -170,7 +170,7 @@ class ClusterConfiguration():
 
     def info(self):
         if self.use_cluster:
-            print(f"🔧 Using cluster {self.cluster} \tAccount : {self.account} \tEnvironment : {self.environment} \tPartition : {self.partition} \tTime limi : {self.time}")
+            print(f"🔧 Using cluster {self.cluster} ||| Account : {self.account} ||| Environment : {self.environment} ||| Partition : {self.partition} ||| Time limit : {self.time} ||| Nodes : {self.nodes}")
         else:
             print("🔧 Not using any cluster")
 
