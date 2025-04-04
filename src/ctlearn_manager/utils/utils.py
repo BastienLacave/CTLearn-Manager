@@ -152,7 +152,7 @@ def get_current_env():
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
 class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
+    def __init__(self, account=None, environment=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
         
 
         # self.current_env = 
@@ -160,7 +160,7 @@ class ClusterConfiguration():
         config = self.get_cluster()
         self.cluster = config['cluster']
         self.account = account if account!=None else config['account']
-        self.python_env = python_env if python_env!=None else get_current_env()
+        self.environment = environment if environment!=None else get_current_env()
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
         self.nodes = nodes
@@ -170,7 +170,7 @@ class ClusterConfiguration():
 
     def info(self):
         if self.use_cluster:
-            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}, partition {self.partition} and time limit {self.time}")
+            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.environment}, partition {self.partition} and time limit {self.time}")
         else:
             print("🔧 Not using any cluster")
 
@@ -213,7 +213,7 @@ class ClusterConfiguration():
         import os
         if not os.path.exists(sbatch_scripts_dir):
             os.system(f"mkdir {sbatch_scripts_dir}")
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes, self.memory_mb)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.environment, self.time, self.partition, self.nodes, self.memory_mb)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
