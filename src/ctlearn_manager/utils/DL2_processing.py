@@ -64,7 +64,7 @@ class DL2DataProcessor():
     
     def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None, pointing_table='dl1/monitoring/telescope/pointing'):
         
-        self.DL2_files = DL2_files
+        self.DL2_files = np.sort(DL2_files)
         self.CTLearnTriModelManager = CTLearnTriModelManager
         self.source_position = source_position
         self.dl2_processed_dir = dl2_processed_dir
@@ -128,7 +128,7 @@ class DL2DataProcessor():
 
 
             if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
-                if self.DL2_files.index(DL2_file) == 0:
+                if np.where(self.DL2_files == DL2_file)[0][0] == 0:
                     print(f"Preprocessing DL2 (~50min/run), only once")
                 self.CTLearnTriModelManager.cluster_configuration.info()
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
@@ -322,7 +322,7 @@ class DL2DataProcessor():
         
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color='black', linestyle='--')
-        plt.text(0.1, 0.8, '0.2° radius', color='black', fontsize=12, rotation=90, transform=ax.transAxes, ha='right', va='center')
+        plt.text(0.1, 0.1, '0.2°', color='black', fontsize=12, rotation=90, transform=ax.transAxes, ha='right', va='center')
         # plt.text(0.045, on_count[np.where(angle2_center < 0.04)[0][-1]], 'on source', color=colors[0], fontsize=14, ha='left', va='bottom')
         # plt.text(0.045, off_count[np.where(angle2_center < 0.04)[0][-1]]/3 - 100, 'off source', color=colors[1], fontsize=14, ha='left', va='top')
         plt.legend()

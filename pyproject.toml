@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ctlearn-manager"
 description = "Compagnon package to manage CTLearn models, train, test and benchmark them."
 readme = "README.md"
-license = {text = "BSD-3-Clause"}
+license = "BSD-3-Clause"
 authors = [
     {name = "Bastien Lacave", email = "bastien.lacave@unige.ch"},
 ]
