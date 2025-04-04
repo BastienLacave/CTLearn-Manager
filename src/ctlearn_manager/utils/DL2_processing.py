@@ -132,6 +132,8 @@ class DL2DataProcessor():
                     print(f"Preprocessing DL2 (~50min/run), only once")
                 self.CTLearnTriModelManager.cluster_configuration.info()
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
+                    if self.CTLearnTriModelManager.cluster_configuration.environment == 'ctlearn' and self.CTLearnTriModelManager.cluster_configuration.cluster == 'cscs':
+                        print(f"⚠️⚠️⚠️The environment is set to ctlearn, be sure you change it to ctlearn_manager to use the apropriate image, ctlearn manager does not use ctlearn for DL2 processing.")
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
                         pickle.dump(self, f)
