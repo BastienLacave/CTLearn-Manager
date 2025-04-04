@@ -18,6 +18,7 @@ dependencies = [
     "gammapy",
     "pyirf",
     "ctaplot",
+    "h5py",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
