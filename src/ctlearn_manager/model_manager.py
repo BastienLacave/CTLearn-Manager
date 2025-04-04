@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 import ast
 from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration, ParticleType, DataSample
+import astropy.units as u
 
 __all__ = [
     'CTLearnModelManager',
@@ -670,7 +671,7 @@ class CTLearnModelManager():
         write_table_hdf5(DL2_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
         print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
 
-        
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def update_model_manager_IRF_data(self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth):
         """
         Update the IRF (Instrument Response Function) data for the model manager.
@@ -702,11 +703,11 @@ class CTLearnModelManager():
             IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         except:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
         print(f"💾 Model {self.model_nickname} IRF data update:")
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
-                               dtype=['S256', 'S256', 'S256', 'S256', float, float])
+                               dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
         
         match = np.where((IRF_table['config'] == config) or 
                 (IRF_table['cuts_file'] == cuts_file) or 
@@ -723,7 +724,8 @@ class CTLearnModelManager():
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
             write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True, serialize_meta=True)
         print(f"\t➡️ IRF data updated")
-        
+    
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_IRF_data(self, zenith, azimuth):
         """
         Retrieve the Instrument Response Function (IRF) data for a given zenith and azimuth.
@@ -746,6 +748,7 @@ class CTLearnModelManager():
             raise IndexError(f"No IRF data found for altitude {zenith} and azimuth {azimuth}")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_closest_IRF_data(self, zenith, azimuth):
         """
         Retrieve the closest Instrument Response Function (IRF) data based on the given zenith and azimuth angles.
@@ -765,6 +768,7 @@ class CTLearnModelManager():
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
         return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]
 
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_DL2_MC_files(self, zenith: float, azimuth: float, particle_types: list[ParticleType] = [ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Retrieve DL2 Monte Carlo (MC) files for given zenith and azimuth angles.

@@ -29,7 +29,8 @@ def set_mpl_style():
     with pkg_resources.path(resources, 'CTLearnStyle.mplstyle') as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
-    
+
+# @u.quantity_input(ze1=u.deg, az1=u.deg, ze2=u.deg, az2=u.deg)
 def angular_distance(ze1, az1, ze2, az2):
     ze1, az1, ze2, az2 = map(np.radians, [ze1, az1, ze2, az2])
     delta_az = az2 - az1

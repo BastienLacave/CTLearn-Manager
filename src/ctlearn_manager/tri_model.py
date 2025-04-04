@@ -608,6 +608,8 @@ class CTLearnTriModelManager():
         else:
             print(f"✅ There already is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}")
     
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_DL2_classification(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Plots the DL2 classification results for gamma and proton events.
@@ -638,7 +640,8 @@ class CTLearnTriModelManager():
         plt.ylabel("Density")
         plt.legend()
         plt.show()
-        
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)  
     def plot_DL2_energy(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT, ParticleType.PROTON]):
         """
         Plot the DL2 energy distribution for gamma and proton events.
@@ -671,7 +674,8 @@ class CTLearnTriModelManager():
         plt.yscale("log")
         plt.legend()
         plt.show()
-        
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)   
     def plot_DL2_AltAz(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT]):
         """
         Plot the reconstructed Altitude and Azimuth for DL2 data.
@@ -709,7 +713,8 @@ class CTLearnTriModelManager():
             cbar.set_label("Counts")
         plt.tight_layout()
         plt.show()
-        
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)   
     def plot_migration_matrix(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT]):    
         """
         Plot the migration matrix for gamma and proton events.
@@ -763,7 +768,8 @@ class CTLearnTriModelManager():
 
         plt.tight_layout()
         plt.show()
-        
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def produce_irfs(self, zenith: float, azimuth: float, config=None, output_cuts_file=None, output_irf_file=None, output_benchmark_file=None):
         """
         Produce Instrument Response Functions (IRFs) for given zenith and azimuth angles.
@@ -836,6 +842,8 @@ class CTLearnTriModelManager():
 --no-spatial-selection-applied --overwrite"
         os.system(cmd)
     
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_benchmark(self, zenith: float, azimuth: float):
         """
         Plot benchmark graphs for sensitivity, angular resolution, energy resolution, and energy bias 
@@ -891,7 +899,8 @@ class CTLearnTriModelManager():
         plt.ylabel('Energy bias')
         plt.show()
         hudl.close() 
-        
+    
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_irfs(self, zenith, azimuth):
         """
         Plot the Instrument Response Functions (IRFs) for given zenith and azimuth angles.
@@ -1138,7 +1147,7 @@ class CTLearnTriModelManager():
         plt.grid(False, which='both')
         plt.show()
         
-
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_ROC_curve_DL2(self, zenith: float, azimuth: float, nbins=10):
         """
         Plot the ROC curve for DL2 data.
