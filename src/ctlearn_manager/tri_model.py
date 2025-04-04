@@ -770,7 +770,7 @@ class CTLearnTriModelManager():
         plt.show()
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def produce_irfs(self, zenith: float, azimuth: float, config=None, output_cuts_file=None, output_irf_file=None, output_benchmark_file=None):
+    def produce_irfs(self, zenith: float, azimuth: float, config: str=None, output_cuts_file: str=None, output_irf_file: str=None, output_benchmark_file: str=None):
         """
         Produce Instrument Response Functions (IRFs) for given zenith and azimuth angles.
         This method generates IRFs by running external commands and updating the model manager with the necessary data.
@@ -979,7 +979,7 @@ class CTLearnTriModelManager():
         plt.show()
     
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)
-    def plot_angular_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+    def plot_angular_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
         """
         Plot the angular resolution for DL2 data at a given zenith and azimuth angle.
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
@@ -1066,7 +1066,7 @@ class CTLearnTriModelManager():
         plt.show()
 
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)    
-    def plot_energy_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+    def plot_energy_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
         """
         Plot the energy resolution for DL2 data at given zenith and azimuth angles.
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
@@ -1148,7 +1148,7 @@ class CTLearnTriModelManager():
         plt.show()
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_ROC_curve_DL2(self, zenith: float, azimuth: float, nbins=10):
+    def plot_ROC_curve_DL2(self, zenith: float, azimuth: float, nbins: int=10):
         """
         Plot the ROC curve for DL2 data.
         This function generates and plots the ROC curve for Data Level 2 (DL2) 
