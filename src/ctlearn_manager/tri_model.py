@@ -968,8 +968,9 @@ class CTLearnTriModelManager():
             ax.legend()
         plt.tight_layout()
         plt.show()
-        
-    def plot_angular_resolution_DL2(self, zeniths=None, azimuths=None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+    
+    @u.quantity_input(zeniths=u.deg,azimuths=u.deg)
+    def plot_angular_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
         """
         Plot the angular resolution for DL2 data at a given zenith and azimuth angle.
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
@@ -1006,10 +1007,9 @@ class CTLearnTriModelManager():
         for zenith, azimuth in coords:
             testing_azs.append(azimuth)
             testing_zes.append(zenith)
-        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes.to(u.deg).value, testing_azs.to(u.deg).value))
         
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
-        
         
         for i, coord in enumerate(coords):
             zenith, azimuth = coord
@@ -1055,8 +1055,9 @@ class CTLearnTriModelManager():
         plt.legend()
         plt.grid(False, which='both')
         plt.show()
-        
-    def plot_energy_resolution_DL2(self, zeniths=None, azimuths=None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+
+    @u.quantity_input(zeniths=u.deg,azimuths=u.deg)    
+    def plot_energy_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
         """
         Plot the energy resolution for DL2 data at given zenith and azimuth angles.
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
@@ -1094,7 +1095,7 @@ class CTLearnTriModelManager():
         for zenith, azimuth in coords:
             testing_azs.append(azimuth)
             testing_zes.append(zenith)
-        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes.to(u.deg).value, testing_azs.to(u.deg).value))
 
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
         for i, coord in enumerate(coords):

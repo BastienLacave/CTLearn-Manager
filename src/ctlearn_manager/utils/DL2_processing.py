@@ -108,9 +108,6 @@ class DL2DataProcessor():
     
 
     def process_DL2_data(self):
-        
-        
-        
 
         for DL2_file in self.DL2_files:
             if self.dl2_processed_dir is None:
