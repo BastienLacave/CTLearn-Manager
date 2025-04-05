@@ -291,17 +291,17 @@ class CTLearnModelManager():
             load_model_string = f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={model_to_load} "
         else:
             load_model_string = "" if transfer_learning_model_cpk is None else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
-        
-        training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
+            
         training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
-        background_string = f"--background {training_proton_table['training_proton_dir'][0]} " if self.model_parameters_table['reco'][0] == 'type' else ""
         signal_patterns = ""
         for pattern in training_gamma_table['training_gamma_diffuse_patterns']:
             signal_patterns += f'--pattern-signal "{pattern}" '
         background_patterns = ""
         if self.model_parameters_table['reco'][0] == 'type':
+            training_proton_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/proton')
             for pattern in training_proton_table['training_proton_patterns']:
                 background_patterns += f'--pattern-background "{pattern}" '
+        background_string = f"--background {training_proton_table['training_proton_dir'][0]} " if self.model_parameters_table['reco'][0] == 'type' else ""
         channels = ast.literal_eval(self.model_parameters_table['channels'][0])
         stereo_mode = 'stereo' if self.stereo else "mono"
         stack_telescope_images = True if self.stereo else False
