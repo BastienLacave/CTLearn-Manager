@@ -328,7 +328,6 @@ class CTLearnTriModelManager():
         testing_files = []
         output_files = []
         for particle_type, output_dir in zip(launch_particle_types, output_dirs):
-
             direction_testing_table =  read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/testing/{particle_type.value}')
             energy_testing_table =  read_table_hdf5(self.energy_model.model_index_file, path=f'{self.energy_model.model_nickname}/testing/{particle_type.value}')
             type_testing_table =  read_table_hdf5(self.type_model.model_index_file, path=f'{self.type_model.model_nickname}/testing/{particle_type.value}')
@@ -358,7 +357,7 @@ class CTLearnTriModelManager():
             testing_files.extend(_files)
             output_files.extend(_output_files)
             for model in [self.direction_model, self.energy_model, self.type_model]:
-                for file in _files:
+                for file in _output_files:
                     model.update_model_manager_DL2_MC_file(
                         testing_MC_DL2_file=file,
                         testing_MC_DL2_data_sample=data_sample
@@ -703,13 +702,17 @@ class CTLearnTriModelManager():
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
             dl2_data = vstack(dl2_data)
-            axs[i].scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
-            axs[i].hist2d(dl2_data[self.reco_alt_key], dl2_data[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
-            axs[i].set_xlabel("Altitude [deg]")
-            axs[i].set_ylabel("Azimuth [deg]")
-            axs[i].legend()
-            axs[i].set_title(particle_type.value)
-            cbar = plt.colorbar(axs[i].collections[1], ax=axs[i])
+            if len(particle_types) > 1:
+                ax = axs[i]
+            else:
+                ax = axs
+            ax.scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+            ax.hist2d(dl2_data[self.reco_alt_key], dl2_data[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            ax.set_xlabel("Altitude [deg]")
+            ax.set_ylabel("Azimuth [deg]")
+            ax.legend()
+            ax.set_title(particle_type.value)
+            cbar = plt.colorbar(ax.collections[1], ax=ax)
             cbar.set_label("Counts")
         plt.tight_layout()
         plt.show()
@@ -753,17 +756,21 @@ class CTLearnTriModelManager():
                     np.log10(min((min(dl2_data[self.reco_energy_key]), min(dl2_data[self.true_energy_key])))), 
                     np.log10(max(max(dl2_data[self.reco_energy_key]), max(dl2_data[self.true_energy_key]))),
                     100)
-            axs[i].plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
-            axs[i].hist2d(dl2_data[self.reco_energy_key], dl2_data[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
-            axs[i].set_xlabel("CTLean Energy [TeV]")
-            axs[i].set_ylabel("True Energy [TeV]")
-            axs[i].set_xscale("log")
-            axs[i].set_yscale("log")
-            axs[i].set_xlim(log_bins[0], log_bins[-1])
-            axs[i].set_ylim(log_bins[0], log_bins[-1])
-            axs[i].axis('equal')
-            axs[i].set_title("Gammas")
-            cbar = plt.colorbar(axs[0].collections[0], ax=axs[0])
+            if len(particle_types) > 1:
+                ax = axs[i]
+            else:
+                ax = axs
+            ax.plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
+            ax.hist2d(dl2_data[self.reco_energy_key], dl2_data[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
+            ax.set_xlabel("CTLean Energy [TeV]")
+            ax.set_ylabel("True Energy [TeV]")
+            ax.set_xscale("log")
+            ax.set_yscale("log")
+            ax.set_xlim(log_bins[0], log_bins[-1])
+            ax.set_ylim(log_bins[0], log_bins[-1])
+            ax.axis('equal')
+            ax.set_title(f"{particle_type.value}")
+            cbar = plt.colorbar(ax.collections[0], ax=ax)
             cbar.set_label("Counts")
 
         plt.tight_layout()
@@ -1014,9 +1021,9 @@ class CTLearnTriModelManager():
         testing_azs = []
         testing_zes = []
         for zenith, azimuth in coords:
-            testing_azs.append(azimuth)
-            testing_zes.append(zenith)
-        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes.to(u.deg).value, testing_azs.to(u.deg).value))
+            testing_azs.append(azimuth.to(u.deg).value)
+            testing_zes.append(zenith.to(u.deg).value)
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
         
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
         
@@ -1102,9 +1109,9 @@ class CTLearnTriModelManager():
         testing_azs = []
         testing_zes = []
         for zenith, azimuth in coords:
-            testing_azs.append(azimuth)
-            testing_zes.append(zenith)
-        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes.to(u.deg).value, testing_azs.to(u.deg).value))
+            testing_azs.append(azimuth.to(u.deg).value)
+            testing_zes.append(zenith.to(u.deg).value)
+        closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
 
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
         for i, coord in enumerate(coords):
