@@ -31,6 +31,7 @@ repository = "https://github.com/BastienLacave/CTLearn-Manager"
 # Command-line scripts mapping the name of the tool to the import and function to execute
 [project.scripts]
 process_dl2_file = "ctlearn_manager.cli.dl2_processing_slurm:process_dl2_file"
+plot_dl2 = "ctlearn_manager.cli.dl2_plots_slurm:plot_dl2"
 
 [tool.setuptools.packages.find]
 where = ["src"]

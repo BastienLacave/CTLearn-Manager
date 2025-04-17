@@ -977,22 +977,31 @@ class DL2DataProcessor():
 
         E = (E_bins[:-1] + E_bins[1:]) / 2
 
-        fig, axs = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
+        # fig, axs = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
         
-        axs[0].plot(E.value, excess_rates, marker='o', linestyle='-')
-        axs[0].set_ylabel('Excess Rate [Hz]')
-        axs[0].set_xscale('log')
-        axs[0].set_yscale('log')
-        # axs[0].set_title('Excess Rate vs Energy')
+        # axs[0].plot(E.value, excess_rates, marker='o', linestyle='-')
+        # axs[0].set_ylabel('Excess Rate [Hz]')
+        # axs[0].set_xscale('log')
+        # axs[0].set_yscale('log')
+        # # axs[0].set_title('Excess Rate vs Energy')
 
-        axs[1].plot(E.value, background_rates, marker='o', linestyle='-')
-        axs[1].set_xlabel('Reco Energy [TeV]')
-        axs[1].set_ylabel('Background Rate [Hz]')
-        axs[1].set_xscale('log')
-        axs[1].set_yscale('log')
-        # axs[1].set_title('Background Rate vs Energy')
+        # axs[1].plot(E.value, background_rates, marker='o', linestyle='-')
+        # axs[1].set_xlabel('Reco Energy [TeV]')
+        # axs[1].set_ylabel('Background Rate [Hz]')
+        # axs[1].set_xscale('log')
+        # axs[1].set_yscale('log')
+        # # axs[1].set_title('Background Rate vs Energy')
 
-        plt.setp(axs[0].get_xticklabels(), visible=False)
+        # plt.setp(axs[0].get_xticklabels(), visible=False
+
+        plt.plot(E.value, excess_rates, marker='o', linestyle='-', label='Excess Rate')
+        plt.plot(E.value, background_rates, marker='o', linestyle='-', label='Background Rate')
+        plt.xlabel('Reco Energy [TeV]')
+        plt.ylabel('Rate [Hz]')
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.title('Excess and Background Rates vs Energy')
+        plt.legend()
 
         plt.tight_layout()
         if output_file is not None:

@@ -606,7 +606,6 @@ class CTLearnTriModelManager():
                 print(f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}")
         else:
             print(f"✅ There already is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}")
-    
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_DL2_classification(self, zenith: float, azimuth: float, particle_types: list[ParticleType]=[ParticleType.GAMMA_POINT, ParticleType.PROTON]):
@@ -795,10 +794,7 @@ class CTLearnTriModelManager():
         :param output_benchmark_file: Path to the output benchmark file. If None, it will be retrieved from the direction model.
         :type output_benchmark_file: str, optional
         :raises ValueError: If any of the required files (config, output_cuts_file, output_irf_file, output_benchmark_file) are not provided and cannot be retrieved.
-        :raises ValueError: If multiple gamma or proton files are found for the given zenith and azimuth angles.
-        """
-
-
+        :raises ValueError: If multiple gamma or proton files are found for the given zenith and azimuth angles."""
         import os
         if config is None:
             try:
@@ -1315,4 +1311,42 @@ class CTLearnTriModelManager():
         plt.show()
         
         hudl.close()
+
+    def plot_everything_dl2(self, output_directory: str, dl2_files: list[str], dl2_processed_dir: str, gammaness_cut: float=0.9):
+        """
+        Plot the angular resolution, energy resolution, and gammaness for DL2 data.
+        This function generates plots for the angular resolution, energy resolution,
+        and gammaness for the given DL2 files. It uses ctaplot to create the plots
+        and saves them in the specified output directory.
+        Parameters
+        ----------
+        output_directory : str
+            The directory where the plots will be saved.
+        dl2_files : list[str]
+            List of DL2 files to be processed.
+        dl2_processed_dir : str
+            The directory where the processed DL2 files are stored.
+        gammaness_cut : float, optional
+            The gammaness cut value to be applied. Default is 0.9.
+        Returns
+        -------
+        None
+        """
+        import pickle
+        import os
+        tri_model_file = f"{output_directory}/tri_model.pkl"
+        self.dl2_data_files = dl2_files
+
+        use_cluster = self.cluster_configuration.use_cluster
+        self.cluster_configuration.use_cluster = False # if some DL2 files were not processed, they will be processed in the same job as the plotting job, and not submit multiple new jobs
+
+        with open(tri_model_file, 'wb') as f:
+            pickle.dump(self, f)
+        self.cluster_configuration.use_cluster = use_cluster
+
+        cmd = f"plot_dl2 {tri_model_file} {output_directory} {dl2_processed_dir} {gammaness_cut}"
+        
+        sbatch_file = self.cluster_configuration.write_sbatch_script("dl2_plots", cmd, output_directory, use_gpu_cscs=False)
+        os.system(f"sbatch {sbatch_file}")
+
         
