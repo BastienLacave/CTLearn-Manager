@@ -62,9 +62,17 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None, use_gpu_cscs=True):
     if memory_mb==None:
         memory_mb = 64000
+
+    if use_gpu_cscs:
+        gpu_string = f'''
+#SBATCH --constraint=gpu
+#SBATCH --gres=gpu:{nodes}'''
+    else:
+        gpu_string = f""
+
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
@@ -83,11 +91,10 @@ srun {command}''',
 #SBATCH --job-name={job_name}
 #SBATCH --time={time}
 #SBATCH --partition={partition}
-#SBATCH --constraint=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:{nodes}
-#SBATCH --mem={memory_mb}0mb
+{gpu_string}
+#SBATCH --mem={memory_mb}mb
 #SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
 #SBATCH --account={account}
@@ -210,11 +217,11 @@ class ClusterConfiguration():
 
     
 
-    def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
+    def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir, use_gpu_cscs=True):
         import os
         if not os.path.exists(sbatch_scripts_dir):
             os.system(f"mkdir {sbatch_scripts_dir}")
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.environment, self.time, self.partition, self.nodes, self.memory_mb)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.environment, self.time, self.partition, self.nodes, self.memory_mb, use_gpu_cscs=use_gpu_cscs)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
         with open(sbatch_file, "w") as f:
             f.write(sh_script)

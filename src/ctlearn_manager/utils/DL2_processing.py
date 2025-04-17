@@ -134,7 +134,7 @@ class DL2DataProcessor():
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
                         pickle.dump(self, f)
-                    self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
+                    self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir, use_gpu_cscs=False)
                     os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
                 else:
                     # print(f"[NOT USING SLURM] Processing {DL2_file}")
@@ -250,7 +250,7 @@ class DL2DataProcessor():
 
 
 
-    def plot_theta2_distribution(self, bins, n_off=3):
+    def plot_theta2_distribution(self, bins, n_off=3, output_file=None):
         import matplotlib.pyplot as plt
         
         on_count_tot = 0 #np.zeros(len(gammaness_cuts))
@@ -262,7 +262,7 @@ class DL2DataProcessor():
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
-        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing on-off counts", total=len(self.reco_directions)):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             dl2 = dl2[cuts_mask]
@@ -329,7 +329,10 @@ class DL2DataProcessor():
         plt.ylabel('Counts')
         plt.title(f'{self.telscope_names[0]} Crab Nebula with {self.reconstruction_method}')
         # plt.yscale('log')
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
     def compute_off_regions(self, pointing, n_off):
         center = pointing # SkyCoord(ra=10*u.degree, dec=20*u.degree)
@@ -425,7 +428,7 @@ class DL2DataProcessor():
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
 
-    def plot_skymap(self):
+    def plot_skymap(self, output_file=None):
 
         import matplotlib.pyplot as plt
 
@@ -607,9 +610,12 @@ class DL2DataProcessor():
         plt.gca().set_aspect('equal', adjustable='box')
 
         # plt.legend()
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
-    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn"):
+    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
@@ -620,7 +626,7 @@ class DL2DataProcessor():
         t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing sensitivity", total=len(self.reco_directions)):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             dl2 = dl2[cuts_mask]
@@ -699,10 +705,13 @@ class DL2DataProcessor():
         ax.legend()
 
         plt.tight_layout()
-        if ax is None:
-            plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            if ax is None:
+                plt.show()
 
-    def plot_PSF(self, n_off=3, ax=None, label="CTLearn"):
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
@@ -718,7 +727,7 @@ class DL2DataProcessor():
         h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing PSF", total=len(self.reco_directions)):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             dl2 = dl2[cuts_mask]
@@ -788,8 +797,11 @@ class DL2DataProcessor():
         # ax.ylim(bottom=0.1, top=0.5)
         ax.set_title('Point Spread Function')
 
-        if ax is None:
-            plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            if ax is None:
+                plt.show()
         # plt.show()
 
     def get_gammaness_cuts_for_efficiencies(self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None):
@@ -823,7 +835,7 @@ class DL2DataProcessor():
             efficiencies.append(efficiency)
         return efficiencies
 
-    def plot_bkg_discrimination_capability(self, n_off=3, axs=None, label="CTLearn"):
+    def plot_bkg_discrimination_capability(self, n_off=3, axs=None, label="CTLearn", output_file=None):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
@@ -873,10 +885,14 @@ class DL2DataProcessor():
         axs[0].set_ylabel('Excess Counts')
         axs[0].legend()
         plt.suptitle('Excess Counts vs Background Counts for Different Intensity Ranges')
-        if axs is None:
-            plt.show()
 
-    def plot_excess_vs_background_rates(self, n_off=3):
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            if axs is None:
+                plt.show()
+
+    def plot_excess_vs_background_rates(self, n_off=3, output_file=None):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
@@ -929,9 +945,12 @@ class DL2DataProcessor():
         
         axs[0].set_ylabel('Excess Rate [Hz]')
         plt.suptitle('Excess Rate vs Background Rate for Different Intensity Ranges')
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
-    def plot_excess_and_background_rates_vs_energy(self, n_off=3):
+    def plot_excess_and_background_rates_vs_energy(self, n_off=3, output_file=None):
         import matplotlib.pyplot as plt
 
         E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
@@ -939,7 +958,7 @@ class DL2DataProcessor():
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
 
-        for reco_direction, pointing_direction, dl2 in zip(self.reco_directions, self.pointings, self.dl2s):
+        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions)):
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 on_count, off_count, _, _, _ = self.compute_on_off_counts(
                     dl2, 
@@ -976,9 +995,12 @@ class DL2DataProcessor():
         plt.setp(axs[0].get_xticklabels(), visible=False)
 
         plt.tight_layout()
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
-    def plot_gammaness_distribution(self):
+    def plot_gammaness_distribution(self, output_file=None):
         import matplotlib.pyplot as plt
         from matplotlib.gridspec import GridSpec
 
@@ -996,7 +1018,21 @@ class DL2DataProcessor():
         plt.legend()
    
         plt.tight_layout()
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
+
+    def plot_everything(self, output_directory):
+        
+        self.plot_gammaness_distribution(output_file=f"{output_directory}/gammaness_distribution.png")
+        self.plot_skymap(output_file=f"{output_directory}/skymap.png")
+        self.plot_theta2_distribution(25, output_file=f"{output_directory}/theta2_distribution.png")
+        self.plot_bkg_discrimination_capability(output_file=f"{output_directory}/bkg_discrimination_capability.png")
+        self.plot_excess_vs_background_rates(output_file=f"{output_directory}/excess_vs_background_rates.png")
+        self.plot_excess_and_background_rates_vs_energy(output_file=f"{output_directory}/excess_and_background_rates_vs_energy.png")
+        self.plot_PSF(output_file=f"{output_directory}/psf.png")
+        self.plot_sensitivity(output_file=f"{output_directory}/sensitivity.png")
 
 
 
