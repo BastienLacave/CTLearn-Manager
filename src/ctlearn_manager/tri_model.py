@@ -588,6 +588,7 @@ class CTLearnTriModelManager:
         print("")
     
     
+    # TODO add option to delete original files
     def merge_DL2_files(self, zenith: str, azimuth: str, output_file: str, particle_type: ParticleType, overwrite=False):
         """
         Merge DL2 files for given zenith and azimuth angles.
@@ -790,7 +791,7 @@ class CTLearnTriModelManager:
         plt.show()
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def produce_irfs(self, zenith: float, azimuth: float, config: str=None, output_cuts_file: str=None, output_irf_file: str=None, output_benchmark_file: str=None):
+    def produce_irfs(self, zenith: float, azimuth: float, config: str=None, output_cuts_file: str=None, output_irf_file: str=None, output_benchmark_file: str=None, pointlike=True, electrons=False):
         """
         Produce Instrument Response Functions (IRFs) for given zenith and azimuth angles.
         This method generates IRFs by running external commands and updating the model manager with the necessary data.
@@ -835,17 +836,30 @@ class CTLearnTriModelManager:
         self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
         self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
         self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
-            
-        gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.GAMMA_POINT.value]
-        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.PROTON.value]
-        if len(gamma_files) > 1 or len(proton_files) > 1:
-            raise ValueError(f"Multiple files found for zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
+        
+        if pointlike:
+            gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT])[ParticleType.GAMMA_POINT.value]
+        else:
+            gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE])[ParticleType.GAMMA_DIFFUSE.value]
+        if len(gamma_files) > 1:
+            raise ValueError(f"Multiple files found for gamma, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
         gamma_file = gamma_files[0]
+        if electrons:
+            electrons_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.ELECTRON])[ParticleType.ELECTRON.value]
+            if len(electrons_files) > 1:
+                raise ValueError(f"Multiple files found for electrons, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
+            electron_file = electrons_files[0]
+        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.PROTON])[ParticleType.PROTON.value]
+        if len(proton_files) > 1:
+            raise ValueError(f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
         proton_file = proton_files[0]
+        
+        electron_string = f" --electron-file {electron_file}" if electrons else ""
         cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
 --proton-file {proton_file} \
+{electron_string} \
 --output {output_cuts_file} \
 --overwrite True"
             # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
@@ -853,7 +867,8 @@ class CTLearnTriModelManager:
         cmd = f"ctapipe-compute-irf \
 -c {config} --IrfTool.cuts_file {output_cuts_file} \
 --gamma-file {gamma_file} \
---proton-file {proton_file}  \
+--proton-file {proton_file} \
+{electron_string} \
 --do-background \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
