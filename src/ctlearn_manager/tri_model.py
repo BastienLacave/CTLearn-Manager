@@ -194,6 +194,18 @@ class CTLearnTriModelManager():
                 testing_MC_DL2_data_sample=testing_MC_DL2_data_sample
             )
 
+    def errase_table_from_index(self, path: str):
+        """
+        Erase the table from the index file.
+        This method removes the specified table from the HDF5 index file of the direction model.
+        :param path: Path to the table to be erased.
+        :type path: str
+        """
+        import h5py
+        with h5py.File(self.direction_model.model_index_file, 'r+') as f:
+            del f[path]
+            print(f"Table {path} erased from {self.direction_model.model_index_file}")
+
     def get_available_testing_directions(self):
         """
         Retrieve and print available testing directions from the direction model's HDF5 file.
@@ -1191,6 +1203,7 @@ class CTLearnTriModelManager():
             dl2_gamma = []
             shower_parameters_gamma = []
             for file in testing_DL2_gamma_files:
+                print(file)
                 dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
                 shower_parameters_gamma.append(load_true_shower_parameters(file))
             dl2_gamma = vstack(dl2_gamma)
@@ -1205,6 +1218,7 @@ class CTLearnTriModelManager():
             dl2_protons = []
             shower_parameters_protons = []
             for file in testing_DL2_proton_files:
+                print(file)
                 dl2_protons.append(load_DL2_data_MC(file, tel_id=tel_id))
                 shower_parameters_protons.append(load_true_shower_parameters(file))
             dl2_proton = vstack(dl2_protons)
