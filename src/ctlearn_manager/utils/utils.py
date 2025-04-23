@@ -3,7 +3,7 @@ import glob
 from enum import Enum
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
-# import astropy.units as u
+import astropy.units as u
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
@@ -30,7 +30,7 @@ def set_mpl_style():
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
 
-# @u.quantity_input(ze1=u.deg, az1=u.deg, ze2=u.deg, az2=u.deg)
+@u.quantity_input(ze1=u.deg, az1=u.deg, ze2=u.deg, az2=u.deg)
 def angular_distance(ze1, az1, ze2, az2):
     ze1, az1, ze2, az2 = map(np.radians, [ze1, az1, ze2, az2])
     delta_az = az2 - az1
@@ -58,8 +58,8 @@ def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters
     from ctapipe.io import read_table
     import astropy.units as u
     pointing = read_table(input_file, path=pointing_table)
-    avg_data_az = np.mean(pointing['az_tel']*180/np.pi)
-    avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
+    avg_data_az = np.mean(pointing['az_tel']*180/np.pi) * u.deg
+    avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi) * u.deg
     return avg_data_ze, avg_data_az
 
 def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None, use_gpu_cscs=True):

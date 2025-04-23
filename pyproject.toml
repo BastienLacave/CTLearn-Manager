@@ -19,6 +19,7 @@ dependencies = [
     "pyirf",
     "ctaplot",
     "h5py",
+    "ctadata",
 ]
 
 # needed for setuptools_scm, we don"t define a static version

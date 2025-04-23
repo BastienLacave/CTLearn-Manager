@@ -193,7 +193,7 @@ class DL2DataProcessor():
         self.I_g_on_counts = []
         self.I_g_off_counts = []
 
-        for DL2_file in tqdm(self.DL2_files, desc="Loading processed data"):
+        for DL2_file in tqdm(self.DL2_files, desc="Loading processed data", disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
             if self.dl2_processed_dir is None:
                 dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
                 reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
@@ -262,9 +262,12 @@ class DL2DataProcessor():
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing on-off counts", total=len(self.reco_directions)):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
+            # eff time must be computed on all events, regardless on the requred cuts
+            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            # The mask is applied here
             dl2 = dl2[cuts_mask]
             (
                 on_count_temp,
@@ -294,9 +297,10 @@ class DL2DataProcessor():
             h_off += h_off_temp / n_off # To plot the average off source counts
 
 
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
+            print(t_elapsed)
 
         # t_eff = 2 * u.h
         lima_signi = li_ma_significance(np.float64(on_count_tot), 
@@ -626,9 +630,12 @@ class DL2DataProcessor():
         t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing sensitivity", total=len(self.reco_directions)):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing sensitivity", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
+            # eff time must be computed on all events, regardless on the requred cuts
+            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            # The mask is applied here
             dl2 = dl2[cuts_mask]
 
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
@@ -650,7 +657,6 @@ class DL2DataProcessor():
                 )
                 on_count[i] += on_count_temp
                 off_count[i] += off_count_temp / n_off
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
             # on_count_RF += df['on_count_RF'].to_numpy()
@@ -667,7 +673,7 @@ class DL2DataProcessor():
                             # ignore the corresponding cut combination.
 
         backg_syst = 0.01
-        t_eff = 0.33 * u.h
+        # t_eff = 0.33 * u.h
         obs_time = 50. * u.h 
 
         flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
@@ -727,9 +733,12 @@ class DL2DataProcessor():
         h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing PSF", total=len(self.reco_directions)):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing PSF", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
+            # eff time must be computed on all events, regardless on the requred cuts
+            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            # The mask is applied here
             dl2 = dl2[cuts_mask]
 
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
@@ -757,7 +766,6 @@ class DL2DataProcessor():
                 h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value**2, bins=angle_bins)
                 h_on[i] += h_on_temp
                 h_off[i] += h_off_temp / n_off # To plot the average off source counts
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
 
@@ -958,7 +966,7 @@ class DL2DataProcessor():
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
 
-        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions)):
+        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 on_count, off_count, _, _, _ = self.compute_on_off_counts(
                     dl2, 
@@ -1034,6 +1042,7 @@ class DL2DataProcessor():
 
     def plot_everything(self, output_directory):
         
+        self.plot_sensitivity(output_file=f"{output_directory}/sensitivity.png")
         self.plot_gammaness_distribution(output_file=f"{output_directory}/gammaness_distribution.png")
         self.plot_skymap(output_file=f"{output_directory}/skymap.png")
         self.plot_theta2_distribution(25, output_file=f"{output_directory}/theta2_distribution.png")
@@ -1041,7 +1050,7 @@ class DL2DataProcessor():
         self.plot_excess_vs_background_rates(output_file=f"{output_directory}/excess_vs_background_rates.png")
         self.plot_excess_and_background_rates_vs_energy(output_file=f"{output_directory}/excess_and_background_rates_vs_energy.png")
         self.plot_PSF(output_file=f"{output_directory}/psf.png")
-        self.plot_sensitivity(output_file=f"{output_directory}/sensitivity.png")
+        
 
 
 

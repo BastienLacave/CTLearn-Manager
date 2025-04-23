@@ -432,6 +432,7 @@ class CTLearnTriModelManager():
         import json
         import yaml
         from .utils.utils import get_avg_pointing
+        import ctadata
 
 
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
