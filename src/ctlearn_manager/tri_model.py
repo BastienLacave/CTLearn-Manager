@@ -1013,13 +1013,15 @@ class CTLearnTriModelManager():
             assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
             coords = list(zip(zeniths, azimuths))
 
-        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg).value
-        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg).value
-        testing_azs = []
-        testing_zes = []
+        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg)
+        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg)
+        testing_azs = np.empty(len(coords)) * u.deg
+        testing_zes = np.empty(len(coords)) * u.deg
+        i = 0
         for zenith, azimuth in coords:
-            testing_azs.append(azimuth.to(u.deg).value)
-            testing_zes.append(zenith.to(u.deg).value)
+            testing_azs[i] = azimuth.to(u.deg)
+            testing_zes[i] = zenith.to(u.deg)
+            i += 1
         closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
         
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
@@ -1059,9 +1061,9 @@ class CTLearnTriModelManager():
             log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                 num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
             if i == closest_coord_index:
-                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith:.1f}, {azimuth:.1f})°")
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°")
             else:
-                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"{particle_type.value} ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='v')
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
             plt.ylim(ylim[0], ylim[1])
         plt.xlabel("True Energy [TeV]")
@@ -1101,13 +1103,15 @@ class CTLearnTriModelManager():
             assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
             coords = list(zip(zeniths, azimuths))
 
-        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg).value
-        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg).value
-        testing_azs = []
-        testing_zes = []
+        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg)
+        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg)
+        testing_azs = np.empty(len(coords)) * u.deg
+        testing_zes = np.empty(len(coords)) * u.deg
+        i = 0
         for zenith, azimuth in coords:
-            testing_azs.append(azimuth.to(u.deg).value)
-            testing_zes.append(zenith.to(u.deg).value)
+            testing_azs[i] = azimuth.to(u.deg)
+            testing_zes[i] = zenith.to(u.deg)
+            i += 1
         closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
 
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
@@ -1142,9 +1146,9 @@ class CTLearnTriModelManager():
             log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                 num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
             if i == closest_coord_index:
-                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith:.1f}, {azimuth:.1f})°")
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°")
             else:
-                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"{particle_type.value} ({zenith:.1f}, {azimuth:.1f})°", alpha=0.5, marker='v')
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
             plt.ylim(ylim[0], ylim[1])
         plt.legend()

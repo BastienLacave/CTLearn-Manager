@@ -300,7 +300,6 @@ class DL2DataProcessor():
             
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
-            print(t_elapsed)
 
         # t_eff = 2 * u.h
         lima_signi = li_ma_significance(np.float64(on_count_tot), 
@@ -705,8 +704,8 @@ class DL2DataProcessor():
         ax.set_ylabel("Differential sensitivity [% Obs. Flux.]")
         ax.set_xlim(0.03, 2)
         # ax.set_ylim(2, 60)
-        ax.set_yticks([2, 5, 10, 20, 50])
-        ax.set_yticklabels(['2', '5', '10', '20', '50'])
+        ax.set_yticks([1, 10])
+        ax.set_yticklabels(['1', '10'])
         ax.set_title('Differential sensitivity')
         ax.legend()
 
