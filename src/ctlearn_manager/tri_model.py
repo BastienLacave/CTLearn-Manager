@@ -612,7 +612,9 @@ class CTLearnTriModelManager:
         files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = [particle_type])[particle_type.value]
         if len(files) > 1:
             print(f"🔀 Merging DL2 {particle_type.value} files for zenith {zenith} and azimuth {azimuth}")
-            result = os.system(f"ctapipe-merge {' '.join(files)} --output={output_file} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
+            cmd = f"ctapipe-merge {' '.join(files)} --output={output_file} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}"
+            print(f"Running : cmd")
+            result = os.system(cmd)
             if result == 0:
                 self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
                 self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
