@@ -1,9 +1,14 @@
 import numpy as np
-from .utils.utils import angular_distance, get_avg_pointing, get_files, ClusterConfiguration
+
+from .utils.utils import (
+    ClusterConfiguration,
+    angular_distance,
+    get_files,
+)
 
 __all__ = ['TriModelCollection']
 
-class TriModelCollection():
+class TriModelCollection:
     
     def __init__(self, tri_models: list, cluster_configuration=ClusterConfiguration()):
         self.tri_models = tri_models
@@ -11,7 +16,7 @@ class TriModelCollection():
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
 
-    def predict_lstchain_run(self, run, output_dir, DL1_data_dir="/fefs/aswg/data/real/DL1/", overwrite=False,):
+    def predict_lstchain_run(self, run, output_dir, DL1_data_dir="/fefs/aswg/data/real/DL1/", overwrite=False):
         input_files = get_files(run, DL1_data_dir)
         for input_file in input_files:
             print(f"🔮 Predicting {input_file.split('/')[-1]}")
@@ -35,6 +40,7 @@ class TriModelCollection():
         
     def find_closest_model_to(self, input_file, pointing_table, plot=False):
         import astropy.units as u
+
         from ctlearn_manager.utils.utils import get_avg_pointing
         try:
             avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)

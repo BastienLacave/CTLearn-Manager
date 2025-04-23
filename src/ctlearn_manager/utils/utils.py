@@ -1,9 +1,11 @@
-import numpy as np
 import glob
 from enum import Enum
+
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
 import astropy.units as u
+import numpy as np
+
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
@@ -11,14 +13,14 @@ __all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_file
 
 
 def set_mpl_style():
-    import matplotlib.pyplot as plt
-    import matplotlib.font_manager as font_manager
-    from matplotlib import rcParams
-    from .. import resources
-
-
     # font_path = "./resources/Outfit-Medium.ttf"
     import importlib.resources as pkg_resources
+
+    import matplotlib.font_manager as font_manager
+    import matplotlib.pyplot as plt
+    from matplotlib import rcParams
+
+    from .. import resources
 
     with pkg_resources.path(resources, 'Outfit-Medium.ttf') as font_path:
         font_manager.fontManager.addfont(font_path)
@@ -55,8 +57,8 @@ def get_files(run, DL1_data_dir):
     return testing_files
 
 def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
-    from ctapipe.io import read_table
     import astropy.units as u
+    from ctapipe.io import read_table
     pointing = read_table(input_file, path=pointing_table)
     avg_data_az = np.mean(pointing['az_tel']*180/np.pi) * u.deg
     avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi) * u.deg
@@ -71,7 +73,7 @@ def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_di
 #SBATCH --constraint=gpu
 #SBATCH --gres=gpu:{nodes}'''
     else:
-        gpu_string = f""
+        gpu_string = ""
 
     sbatch_predict_data_configs = {
     'camk': 
@@ -159,7 +161,7 @@ def get_current_env():
     import os
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
-class ClusterConfiguration():
+class ClusterConfiguration:
     def __init__(self, account=None, environment=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
         
 

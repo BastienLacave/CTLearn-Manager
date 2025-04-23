@@ -1,23 +1,27 @@
-from ..tri_model import CTLearnTriModelManager
-from ..io.io import load_DL2_data
-from ..utils.utils import set_mpl_style, get_avg_pointing, calc_flux_for_N_sigma, find_68_percent_range
-from astropy.time import Time
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, concatenate
+import os
+import pickle
+
 import astropy.units as u
 import numpy as np
+from astropy.coordinates import Angle, EarthLocation, SkyCoord
+from astropy.time import Time
 from pyirf.statistics import li_ma_significance
-from astropy.coordinates import Angle
-import pickle
-import os
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from tqdm import tqdm
 
+from ..tri_model import CTLearnTriModelManager
+from ..utils.utils import (
+    calc_flux_for_N_sigma,
+    find_68_percent_range,
+    set_mpl_style,
+)
 
-class DL2DataProcessor():
+
+class DL2DataProcessor:
     """
     A class to process DL2 data and perform various analyses such as plotting theta^2 distributions and computing on-off counts.
-    Attributes:
-    -----------
+
+    Attributes
+    ----------
     DL2_files : list
         List of DL2 file paths to be processed.
     CTLearnTriModelManager : CTLearnTriModelManager
@@ -46,8 +50,9 @@ class DL2DataProcessor():
         List of loaded DL2 data.
     dl2s_cuts : list
         List of DL2 data after applying cuts.
-    Methods:
-    --------
+
+    Methods
+    -------
     __init__(self, DL2_files, CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab")):
         Initializes the DL2DataProcessor with the given parameters and processes the DL2 data.
     process_DL2_data(self):
@@ -126,11 +131,11 @@ class DL2DataProcessor():
 
             if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
                 if np.where(self.DL2_files == DL2_file)[0][0] == 0:
-                    print(f"Preprocessing DL2 (~50min/run), only once")
+                    print("Preprocessing DL2 (~50min/run), only once")
                 self.CTLearnTriModelManager.cluster_configuration.info()
                 if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
                     if self.CTLearnTriModelManager.cluster_configuration.environment == 'ctlearn' and self.CTLearnTriModelManager.cluster_configuration.cluster == 'cscs':
-                        print(f"⚠️⚠️⚠️The environment is set to ctlearn, be sure you change it to ctlearn_manager to use the apropriate image, ctlearn manager does not use ctlearn for DL2 processing.")
+                        print("⚠️⚠️⚠️The environment is set to ctlearn, be sure you change it to ctlearn_manager to use the apropriate image, ctlearn manager does not use ctlearn for DL2 processing.")
                     processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
                         pickle.dump(self, f)
@@ -620,7 +625,6 @@ class DL2DataProcessor():
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
-        from matplotlib.gridspec import GridSpec
 
         E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
@@ -718,7 +722,6 @@ class DL2DataProcessor():
 
     def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
-        from matplotlib.gridspec import GridSpec
 
 
 
@@ -793,7 +796,7 @@ class DL2DataProcessor():
         ax.fill_between(E.value, 
                         psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
                         psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
-                        alpha=0.3, zorder=0,)
+                        alpha=0.3, zorder=0)
         ax.legend()
         ax.set_ylabel('68% cont. [deg]')
         ax.set_xlabel('Reco Energy [TeV]')
@@ -945,7 +948,7 @@ class DL2DataProcessor():
         I_g_off_counts_tot = np.sum(self.I_g_off_counts, axis=0)
 
         for i, ax, (I_min, I_max) in zip(range(len(intensity_ranges)), axs, intensity_ranges):
-            ax.plot(I_g_off_counts_tot[i] / total_t_eff, I_g_on_counts_tot[i] / total_t_eff, marker='o', linestyle='-',)
+            ax.plot(I_g_off_counts_tot[i] / total_t_eff, I_g_on_counts_tot[i] / total_t_eff, marker='o', linestyle='-')
             ax.set_xlabel('Background Counts')
             ax.set_title(f'[{I_min} - {I_max}] p.e.')
             ax.set_xscale('log')
@@ -1018,7 +1021,6 @@ class DL2DataProcessor():
 
     def plot_gammaness_distribution(self, output_file=None):
         import matplotlib.pyplot as plt
-        from matplotlib.gridspec import GridSpec
 
 
         gammaness_values = []

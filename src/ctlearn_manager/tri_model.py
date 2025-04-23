@@ -1,10 +1,16 @@
-from astropy.table import QTable
-import numpy as np
 from pathlib import Path
-from .model_manager import CTLearnModelManager, DataSample
-from .utils.utils import set_mpl_style, ClusterConfiguration, angular_distance, ParticleType
-from .io.io import load_DL2_data_MC, load_true_shower_parameters
+
 import astropy.units as u
+import numpy as np
+
+from .io.io import load_DL2_data_MC, load_true_shower_parameters
+from .model_manager import CTLearnModelManager, DataSample
+from .utils.utils import (
+    ClusterConfiguration,
+    ParticleType,
+    angular_distance,
+    set_mpl_style,
+)
 
 __all__ = [
     "CTLearnTriModelManager",
@@ -12,14 +18,18 @@ __all__ = [
 
 
 
-class CTLearnTriModelManager():
+class CTLearnTriModelManager:
     """
     A manager class for handling three CTLearn models: direction, energy, and type.
-    Attributes:
+
+    Attributes
+    ----------
         direction_model (CTLearnModelManager): The direction model manager.
         energy_model (CTLearnModelManager): The energy model manager.
         type_model (CTLearnModelManager): The type model manager.
-    Methods:
+
+    Methods
+    -------
         __init__(direction_model, energy_model, type_model):
             Initializes the CTLearnTriModelManager with the given models.
         launch_testing():
@@ -51,9 +61,6 @@ class CTLearnTriModelManager():
         :raises ValueError: If all models do not have the same telescope_ids.
         :return: None
         """
-
-
-
         if direction_model.model_parameters_table['reco'][0] in ['direction', 'cameradirection', 'skydirection']:
             self.direction_model = direction_model
         else:
@@ -100,6 +107,7 @@ class CTLearnTriModelManager():
         Set the keys for various attributes used in the model.
         This method initializes several attributes with specific keys based on the 
         `reco_field_suffix` and `stereo` properties of the instance.
+
         Attributes
         ----------
         gammaness_key : str
@@ -125,8 +133,6 @@ class CTLearnTriModelManager():
         time_key : str
             Key for the time.
         """
-
-
         self.gammaness_key = f"{self.reco_field_suffix}_prediction" #if self.CTLearn else "gammaness"
         self.reco_energy_key = f"{self.reco_field_suffix}_energy" #if self.CTLearn else "reco_energy"
         self.intensity_key = "hillas_intensity" #if self.CTLearn else "intensity"
@@ -186,8 +192,6 @@ class CTLearnTriModelManager():
         :param testing_DL2_proton_azimuths: List of azimuths for testing DL2 proton files.
         :type testing_DL2_proton_azimuths: list
         """
-
-        
         for model in [self.direction_model, self.energy_model, self.type_model]:
             model.update_model_manager_DL2_MC_file(
                 testing_MC_DL2_file=testing_MC_DL2_file,
@@ -215,7 +219,6 @@ class CTLearnTriModelManager():
         :raises KeyError: If the required keys are not found in the HDF5 file.
         :raises IOError: If there is an issue reading the HDF5 file.
         """
-
         from astropy.io.misc.hdf5 import read_table_hdf5
         zeniths = []
         azimuths = []
@@ -264,11 +267,12 @@ class CTLearnTriModelManager():
         (ZD, Az): (zenith_distance, azimuth)    gamma | proton
         Where `gamma` and `proton` indicate the availability of the respective 
         event type for the given direction.
-        Raises:
+
+        Raises
+        ------
             Any exceptions raised during the reading of the HDF5 file are caught 
             and result in empty lists for the respective event type.
         """
-
         from astropy.io.misc.hdf5 import read_table_hdf5
 
         zeniths = []
@@ -328,14 +332,14 @@ class CTLearnTriModelManager():
         :raises ValueError: If no matching directory is found for the given zenith and azimuth angles.
         :raises ValueError: If `output_dirs` does not have length 1 or 2.
         """
-
         assert len(output_dirs) == len(launch_particle_types), "Output directories must match the number of launched particle types"
 
         if self.cluster_configuration.nodes > 1:
             raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
         self.cluster_configuration.info()
-        import os
         import glob
+        import os
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         testing_files = []
         output_files = []
@@ -433,18 +437,15 @@ class CTLearnTriModelManager():
         :type pointing_table: str, optional
         :return: None
         """
-
         if self.cluster_configuration.nodes > 1:
             raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
 
 
-        import os
-        import glob
         import ast
+        import glob
         import json
-        import yaml
-        from .utils.utils import get_avg_pointing
-        import ctadata
+        import os
+
 
 
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
@@ -520,15 +521,15 @@ class CTLearnTriModelManager():
             Path to the pointing table in the input file. Default is 'dl0/monitoring/subarray/pointing'.
         :returns: None
         """
-
         if self.cluster_configuration.nodes > 1:
             raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
 
 
-        import os
-        import glob
         import ast
+        import glob
         import json
+        import os
+
         from .utils.utils import get_avg_pointing
         
         os.system(f"mkdir -p {output_file.rsplit('/', 1)[0]}")
@@ -607,14 +608,15 @@ class CTLearnTriModelManager():
         :raises RuntimeError: If the merging process fails for either gamma or proton files.
         """
         import os
-        files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[particle_type.value]
+        files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = [particle_type.value])[particle_type.value]
         if len(files) > 1:
-            print(f"🔀 Merging DL2 gamma files for zenith {zenith} and azimuth {azimuth}")
+            print(f"🔀 Merging DL2 {particle_type.value} files for zenith {zenith} and azimuth {azimuth}")
             result = os.system(f"ctapipe-merge {' '.join(files)} --output={output_file} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
             if result == 0:
                 self.direction_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
                 self.energy_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
                 self.type_model.update_merged_DL2_MC_files(zenith, azimuth, output_file, particle_type)
+                print("Original files still exist and were not erased.")
             else:
                 print(f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}")
         else:
@@ -633,12 +635,10 @@ class CTLearnTriModelManager():
         :param azimuth: Azimuth angle for which to retrieve DL2 MC files.
         :type azimuth: float
         """
-
-
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = particle_types)
         for particle_type in particle_types:
             testing_DL2_files = DL2_MC_files[particle_type.value]
             dl2_data = []
@@ -665,12 +665,10 @@ class CTLearnTriModelManager():
         :type azimuth: float
         :returns: None
         """
-
-
         import matplotlib.pyplot as plt
         from astropy.table import vstack
         set_mpl_style()
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = particle_types)
         for particle_type in particle_types:
             testing_DL2_files = DL2_MC_files[particle_type.value]
             dl2_data = []
@@ -692,12 +690,14 @@ class CTLearnTriModelManager():
         Plot the reconstructed Altitude and Azimuth for DL2 data.
         This function generates two subplots: one for gamma events and one for proton events.
         It visualizes the reconstructed altitude and azimuth using a 2D histogram and marks the array pointing direction.
+
         Parameters
         ----------
         zenith : float
             The zenith angle for which to get the DL2 MC files.
         azimuth : float
             The azimuth angle for which to get the DL2 MC files.
+
         Returns
         -------
         None
@@ -706,7 +706,7 @@ class CTLearnTriModelManager():
         from astropy.table import vstack
         set_mpl_style()
         fig, axs = plt.subplots(1, len(particle_types), figsize=(5*len(particle_types), 4))
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = particle_types)
         for i, particle_type in enumerate(particle_types):
             testing_DL2_files = DL2_MC_files[particle_type.value]
             dl2_data = []
@@ -736,22 +736,23 @@ class CTLearnTriModelManager():
         This function generates a 2D histogram plot of the reconstructed energy 
         versus the true energy for both gamma and proton events. The plots are 
         displayed side by side for comparison.
+
         Parameters
         ----------
         zenith : float
             The zenith angle of the observation.
         azimuth : float
             The azimuth angle of the observation.
+
         Returns
         -------
         None
         """
-
         import matplotlib.pyplot as plt
-        from astropy.table import vstack, join
+        from astropy.table import join, vstack
         set_mpl_style()
         fig, axs = plt.subplots(1, len(particle_types) , figsize=(5*len(particle_types), 4))
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)
+        DL2_MC_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = particle_types)
         for i, particle_type in enumerate(particle_types):
             testing_DL2_files = DL2_MC_files[particle_type.value]
             dl2_data = []
@@ -807,7 +808,8 @@ class CTLearnTriModelManager():
         :param output_benchmark_file: Path to the output benchmark file. If None, it will be retrieved from the direction model.
         :type output_benchmark_file: str, optional
         :raises ValueError: If any of the required files (config, output_cuts_file, output_irf_file, output_benchmark_file) are not provided and cannot be retrieved.
-        :raises ValueError: If multiple gamma or proton files are found for the given zenith and azimuth angles."""
+        :raises ValueError: If multiple gamma or proton files are found for the given zenith and azimuth angles.
+        """
         import os
         if config is None:
             try:
@@ -864,21 +866,21 @@ class CTLearnTriModelManager():
         """
         Plot benchmark graphs for sensitivity, angular resolution, energy resolution, and energy bias 
         based on the given zenith and azimuth angles.
+
         Parameters
         ----------
         zenith : float
             The zenith angle for which the IRF data is to be retrieved.
         azimuth : float
             The azimuth angle for which the IRF data is to be retrieved.
+
         Returns
         -------
         None
         """
-
-
         set_mpl_style()
-        from astropy.io import fits
         import matplotlib.pyplot as plt
+        from astropy.io import fits
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         hudl = fits.open(irf_file)
         
@@ -928,12 +930,12 @@ class CTLearnTriModelManager():
         :param azimuth: Azimuth angle for which to retrieve and plot the IRFs.
         :type azimuth: float
         """
-
-
         set_mpl_style()
-        from astropy.io import fits
-        import matplotlib.pyplot as plt
-        from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, RadMax2D
+        from gammapy.irf import (
+            Background2D,
+            EffectiveAreaTable2D,
+            EnergyDispersion2D,
+        )
         irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
         # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
@@ -955,15 +957,16 @@ class CTLearnTriModelManager():
         The CSV files are expected to be located in directories specified by the
         'model_dir' and 'model_nickname' attributes of each model's 'model_parameters_table'.
         The method uses the `set_mpl_style` function to set the matplotlib style.
-        Raises:
+
+        Raises
+        ------
             FileNotFoundError: If no training log files are found for any of the models.
         """
-
-
         set_mpl_style()
+        import glob
+
         import matplotlib.pyplot as plt
         import pandas as pd
-        import glob
         
         fig, axs = plt.subplots(1, 3, figsize=(15, 4))
         for ax, model in zip(axs, [self.direction_model, self.energy_model, self.type_model]):
@@ -981,11 +984,11 @@ class CTLearnTriModelManager():
                 losses_val = np.concatenate((losses_val, df['val_loss'].to_numpy()))
             epochs = np.arange(1, len(losses_train)+1)
             if len(epochs) > 1:
-                ax.plot(epochs, losses_train, label=f"Training", lw=2)
-                ax.plot(epochs, losses_val, label=f"Validation", ls='--')
+                ax.plot(epochs, losses_train, label="Training", lw=2)
+                ax.plot(epochs, losses_val, label="Validation", ls='--')
             else:
-                ax.scatter(epochs, losses_train, label=f"Training", lw=2)
-                ax.scatter(epochs, losses_val, label=f"Validation", ls='--')
+                ax.scatter(epochs, losses_train, label="Training", lw=2)
+                ax.scatter(epochs, losses_val, label="Validation", ls='--')
             ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
             ax.set_xlabel('Epoch')
             ax.set_ylabel('Loss')
@@ -1001,32 +1004,32 @@ class CTLearnTriModelManager():
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
         obtain reconstructed and true shower parameters, and then plots the angular 
         resolution as a function of true energy using ctaplot.
+
         Parameters
         ----------
         zenith : float
             The zenith angle for which to plot the angular resolution.
         azimuth : float
             The azimuth angle for which to plot the angular resolution.
+
         Returns
         -------
         None
         """
-
-
         set_mpl_style()
+        import astropy.units as u
         import ctaplot
         import matplotlib.pyplot as plt
-        from astropy.table import vstack, join
-        import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
+        from astropy.table import join, vstack
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
         else:
             assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
             coords = list(zip(zeniths, azimuths))
 
-        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg)
-        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg)
+        avg_model_az = np.mean(self.direction_model.validity.azimuth_range).to(u.deg)
+        avg_model_ze = np.mean(self.direction_model.validity.zenith_range).to(u.deg)
         testing_azs = np.empty(len(coords)) * u.deg
         testing_zes = np.empty(len(coords)) * u.deg
         i = 0
@@ -1090,24 +1093,24 @@ class CTLearnTriModelManager():
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
         reconstructed and true energy values, and then plots the energy resolution
         using ctaplot.
+
         Parameters
         ----------
         zenith : float
             The zenith angle for which the energy resolution is to be plotted.
         azimuth : float
             The azimuth angle for which the energy resolution is to be plotted.
+
         Returns
         -------
         None
         """
-
-
         set_mpl_style()
+        import astropy.units as u
         import ctaplot
         import matplotlib.pyplot as plt
-        from astropy.table import vstack, join
-        import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
+        from astropy.table import join, vstack
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -1115,8 +1118,8 @@ class CTLearnTriModelManager():
             assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
             coords = list(zip(zeniths, azimuths))
 
-        avg_model_az = np.mean((self.direction_model.validity.azimuth_range)).to(u.deg)
-        avg_model_ze = np.mean((self.direction_model.validity.zenith_range)).to(u.deg)
+        avg_model_az = np.mean(self.direction_model.validity.azimuth_range).to(u.deg)
+        avg_model_ze = np.mean(self.direction_model.validity.zenith_range).to(u.deg)
         testing_azs = np.empty(len(coords)) * u.deg
         testing_zes = np.empty(len(coords)) * u.deg
         i = 0
@@ -1185,14 +1188,12 @@ class CTLearnTriModelManager():
                             zenith and azimuth angles.
         :returns: None
         """
-
-
         set_mpl_style()
+        import astropy.units as u
         import ctaplot
         import matplotlib.pyplot as plt
-        from astropy.table import vstack, join
-        import astropy.units as u
         import numpy as np
+        from astropy.table import join, vstack
 
         testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.GAMMA_POINT.value]
         testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth)[ParticleType.PROTON.value]
@@ -1250,28 +1251,27 @@ class CTLearnTriModelManager():
         This function compares the IRFs obtained from the CTLearn model to the RF benchmarks
         for a given zenith angle and optional azimuth angle. It plots the flux sensitivity,
         angular resolution, and energy resolution for both the CTLearn model and the RF benchmarks.
+
         Parameters
         ----------
         zenith : float
             The zenith angle in degrees.
         azimuth : float, optional
             The azimuth angle in degrees. If not provided, the default value is None.
+
         Returns
         -------
         None
             This function does not return any value. It generates and displays plots.
         """
-
-
         set_mpl_style()
-        from astropy.io import fits
-        import matplotlib.pyplot as plt
-        from .resources.irfs import SST1M
-        from astropy.coordinates import Angle
-        from gammapy.irf import EnergyDispersion2D, EffectiveAreaTable2D, Background2D, PSF3D
         import importlib
-        from astropy.table import Table
         import importlib.resources as pkg_resources
+
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+        from astropy.table import Table
+
     
         tel_path = "SST1M"
         tel_string = "stereo" if self.stereo else "tel_001"
@@ -1337,6 +1337,7 @@ class CTLearnTriModelManager():
         This function generates plots for the angular resolution, energy resolution,
         and gammaness for the given DL2 files. It uses ctaplot to create the plots
         and saves them in the specified output directory.
+
         Parameters
         ----------
         output_directory : str
@@ -1347,12 +1348,13 @@ class CTLearnTriModelManager():
             The directory where the processed DL2 files are stored.
         gammaness_cut : float, optional
             The gammaness cut value to be applied. Default is 0.9.
+
         Returns
         -------
         None
         """
-        import pickle
         import os
+        import pickle
         tri_model_file = f"{output_directory}/tri_model.pkl"
         self.dl2_data_files = dl2_files
 

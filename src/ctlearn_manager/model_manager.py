@@ -1,9 +1,16 @@
-from astropy.table import QTable
-import numpy as np
-from pathlib import Path
 import ast
-from ctlearn_manager.utils.utils import set_mpl_style, ClusterConfiguration, ParticleType, DataSample
+from pathlib import Path
+
 import astropy.units as u
+import numpy as np
+from astropy.table import QTable
+
+from ctlearn_manager.utils.utils import (
+    ClusterConfiguration,
+    DataSample,
+    ParticleType,
+    set_mpl_style,
+)
 
 __all__ = [
     'CTLearnModelManager',
@@ -11,8 +18,7 @@ __all__ = [
     'ModelRangeOfValidity',
     ]
 
-class CTLearnModelManager():
-
+class CTLearnModelManager:
     """
     CTLearnModelManager class for managing CTLearn models.
     This class provides methods for initializing, saving, loading, and training CTLearn models. It also includes methods for updating and retrieving model parameters, training data, testing data, DL2 data, and IRF data.
@@ -71,6 +77,7 @@ class CTLearnModelManager():
     plot_training_nodes()
         Plot the training nodes for gamma and proton events on a polar plot.
     """
+
     def __init__(self, model_parameters, MODEL_INDEX_FILE, load=False, cluster_configuration=ClusterConfiguration()):
         """
         Initializes the ModelManager instance.
@@ -88,9 +95,6 @@ class CTLearnModelManager():
         :raises ValueError: If gamma related lists (training_gamma_patterns, training_gamma_zenith_distances, training_gamma_azimuths) are not the same length.
         :raises ValueError: If proton related lists (training_proton_patterns, training_proton_zenith_distances, training_proton_azimuths) are not the same length.
         """
-
-
-
         from astropy.io.misc.hdf5 import read_table_hdf5
         self.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters.get('model_nickname', 'new_model')
@@ -154,10 +158,7 @@ class CTLearnModelManager():
         :raises: Exception if there is an error reading or writing to the HDF5 file.
         :return: None
         """
-        
-
-        
-        from astropy.io.misc.hdf5 import write_table_hdf5, read_table_hdf5
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         try:
             model_table = QTable.read(self.model_index_file, format='hdf5', path=f'{self.model_nickname}/parameters')
@@ -184,7 +185,7 @@ class CTLearnModelManager():
             assert type(min_telescopes) == int, "min_telescopes must be an integer"
 
             model_table.add_row([self.model_nickname, model_dir, reco, str(channels), str(telescope_names), str(telescope_ids), notes, max_training_epochs, min_telescopes, stereo])
-            write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters',append=True, overwrite=True,)
+            write_table_hdf5(model_table, self.model_index_file, path=f'{self.model_nickname}/parameters',append=True, overwrite=True)
 
             training_samples = model_parameters.get('training_samples', [])
 
@@ -222,13 +223,12 @@ class CTLearnModelManager():
         :type config_file: str, optional
         :return: None
         """
-
-        
-        import json
-        from astropy.io.misc.hdf5 import read_table_hdf5
         import glob
+        import json
         import os
+
         import numpy as np
+        from astropy.io.misc.hdf5 import read_table_hdf5
         self.cluster_configuration.info()
         if n_epochs == 0:
             print("🛑 Number of epochs set to 0. Will not train the model.")
@@ -351,12 +351,13 @@ class CTLearnModelManager():
         Calculate the total number of epochs trained by summing the lengths of all training logs.
         This method searches for all training log files in the model directory that match the model nickname pattern,
         reads each log file as a pandas DataFrame, and sums the number of rows (epochs) in each DataFrame.
-        Returns:
+
+        Returns
+        -------
             int: The total number of epochs trained.
         """
-        
-        
         import glob
+
         import pandas as pd
         training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}*/training_log.csv"))
         n_epochs = 0
@@ -384,11 +385,10 @@ class CTLearnModelManager():
         Raises:
             FileNotFoundError: If no training log files are found in the specified directory.
         """
+        import glob
 
-       
         import matplotlib.pyplot as plt
         import pandas as pd
-        import glob
         set_mpl_style()
         training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}*/training_log.csv"))
         losses_train = []
@@ -402,11 +402,11 @@ class CTLearnModelManager():
             print(f"❌ No training logs found for {self.model_nickname}, stert the training to see the loss.")
             return
         if len(epochs) > 1:
-            plt.plot(epochs, losses_train, label=f"Training", lw=2)
-            plt.plot(epochs, losses_val, label=f"Validation", ls='--')
+            plt.plot(epochs, losses_train, label="Training", lw=2)
+            plt.plot(epochs, losses_val, label="Validation", ls='--')
         else:
-            plt.scatter(epochs, losses_train, label=f"Training", lw=2)
-            plt.scatter(epochs, losses_val, label=f"Validation", ls='--')
+            plt.scatter(epochs, losses_train, label="Training", lw=2)
+            plt.scatter(epochs, losses_val, label="Validation", ls='--')
         plt.title(f"{self.model_parameters_table['reco'][0]} training".title())
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
@@ -424,8 +424,6 @@ class CTLearnModelManager():
                            names in the HDF5 file, and the values are the new values to set.
         :type parameters: dict
         """
-
-        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         model_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/parameters')
@@ -502,7 +500,6 @@ class CTLearnModelManager():
         :raises IOError: If there is an error reading or writing the HDF5 file.
         :return: None
         """
-
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         testing_dir = testing_data_sample.directory
         testing_zenith_distance = testing_data_sample.zenith_distance
@@ -550,7 +547,6 @@ class CTLearnModelManager():
         :raises IOError: If there is an error reading or writing the HDF5 file.
         :return: None
         """
-        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
         testing_zenith_distance = testing_MC_DL2_data_sample.zenith_distance
@@ -598,8 +594,7 @@ class CTLearnModelManager():
         write_table_hdf5(DL2_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
 
 
-    def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths,):
-        
+    def update_model_manager_DL2_data_files(self, DL2_files, DL2_zenith_distances, DL2_azimuths):
         """
         Update the DL2 data files for the model manager.
         This method reads the existing DL2 data from an HDF5 file, updates it with the provided
@@ -613,8 +608,6 @@ class CTLearnModelManager():
         :raises IOError: If there is an issue reading or writing the HDF5 file.
         :returns: None
         """
-        
-
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
 
@@ -641,7 +634,7 @@ class CTLearnModelManager():
                 # else:
                 #     DL2_data_table.remove_rows(match)
             write_table_hdf5(DL2_data_table, self.model_index_file, path=f'{self.model_nickname}/DL2/Data', append=True, overwrite=True, serialize_meta=True)
-            print(f"\t➡️ Testing DL2 real data updated")
+            print("\t➡️ Testing DL2 real data updated")
     
     def update_merged_DL2_MC_files(self, testing_DL2_zenith_distance: float, testing_DL2_azimuth: float, testing_DL2_merged_file: str, particle_type: ParticleType):
         """
@@ -659,7 +652,6 @@ class CTLearnModelManager():
         :type testing_DL2_proton_merged_file: str, optional
         :return: None
         """
-
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         print(f"💾 Model {self.model_nickname} DL2 merged data update:")
         DL2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}')
@@ -694,9 +686,6 @@ class CTLearnModelManager():
         :raises IOError: If there is an error reading or writing the HDF5 file.
         :return: None
         """
-
-
-        
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
         
         try:
@@ -723,7 +712,7 @@ class CTLearnModelManager():
             IRF_table.remove_rows(match)
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
             write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True, serialize_meta=True)
-        print(f"\t➡️ IRF data updated")
+        print("\t➡️ IRF data updated")
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_IRF_data(self, zenith, azimuth):
@@ -737,9 +726,6 @@ class CTLearnModelManager():
         :rtype: tuple
         :raises IndexError: If no IRF data is found for the specified zenith and azimuth.
         """
-
-
-        
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
@@ -760,8 +746,6 @@ class CTLearnModelManager():
         :return: A tuple containing the configuration, cuts file, IRF file, and benchmark file of the closest matching IRF data.
         :rtype: tuple
         """
-
-        
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
@@ -782,8 +766,6 @@ class CTLearnModelManager():
         :rtype: tuple(list, list)
         :raises IndexError: If no matching DL2 gamma or proton MC files are found for the given zenith and azimuth.
         """
-
-    
         from astropy.io.misc.hdf5 import read_table_hdf5
 
         DL2_files = {}
@@ -807,10 +789,12 @@ class CTLearnModelManager():
         `self.validity` attribute. It can plot circles, points, or areas 
         depending on the ranges provided. If no azimuth range is specified, 
         it defaults to a full circle.
+
         Parameters
         ----------
         ax : matplotlib.axes._subplots.PolarAxesSubplot, optional
             A polar subplot axis to plot on. If None, a new subplot will be created.
+
         Notes
         -----
         - The method uses `astropy.units` for unit conversions.
@@ -818,11 +802,9 @@ class CTLearnModelManager():
           `self.model_index_file` and `self.model_nickname`.
         - The plot style is set using `set_mpl_style()`.
         """
-
-        
         set_mpl_style()
-        import matplotlib.pyplot as plt
         import astropy.units as u
+        import matplotlib.pyplot as plt
         from astropy.io.misc.hdf5 import read_table_hdf5
         if ax is None:
             fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
@@ -908,6 +890,7 @@ class CTLearnModelManager():
         between gamma and proton events.
         If no valid zenith or azimuth values are found for either gamma or proton events,
         a message is printed indicating that the training nodes cannot be shown.
+
         Raises
         ------
         FileNotFoundError
@@ -915,11 +898,9 @@ class CTLearnModelManager():
         KeyError
             If the specified path within the HDF5 file does not exist.
         """
-
-
-        from astropy.io.misc.hdf5 import read_table_hdf5
-        import matplotlib.pyplot as plt
         import astropy.units as u
+        import matplotlib.pyplot as plt
+        from astropy.io.misc.hdf5 import read_table_hdf5
         fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
         training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
         zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
@@ -973,6 +954,7 @@ class ModelRangeOfValidity:
     A class to determine the range of validity for a given model based on its training data.
     :param model_manager: An instance of CTLearnModelManager containing model information.
     :type model_manager: CTLearnModelManager
+
     Attributes
     ----------
     zenith_range : astropy.units.Quantity
@@ -983,6 +965,7 @@ class ModelRangeOfValidity:
         The range of energies covered by the training data.
     nsb_range : astropy.units.Quantity
         The range of night sky background (NSB) levels covered by the training data.
+
     Methods
     -------
     matches(**kwargs)
@@ -1006,7 +989,6 @@ class ModelRangeOfValidity:
         :ivar nsb_range: The range of NSB values in the training gamma data.
         :vartype nsb_range: astropy.units.Quantity
         """
-
         from astropy.io.misc.hdf5 import read_table_hdf5
         training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma_diffuse')
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
