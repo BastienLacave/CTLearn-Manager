@@ -608,7 +608,7 @@ class CTLearnTriModelManager:
         :raises RuntimeError: If the merging process fails for either gamma or proton files.
         """
         import os
-        files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = [particle_type.value])[particle_type.value]
+        files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types = [particle_type])[particle_type.value]
         if len(files) > 1:
             print(f"🔀 Merging DL2 {particle_type.value} files for zenith {zenith} and azimuth {azimuth}")
             result = os.system(f"ctapipe-merge {' '.join(files)} --output={output_file} --progress --MergeTool.skip_broken_files=True {'--overwrite' if overwrite else ''}")
