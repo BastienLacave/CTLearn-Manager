@@ -835,10 +835,6 @@ class CTLearnTriModelManager:
             except:
                 raise ValueError("An output benchmark file must be provided, at least the first time.")
         
-        self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
-        self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
-        self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
-        
         if pointlike:
             gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT])[ParticleType.GAMMA_POINT.value]
         else:
@@ -865,7 +861,9 @@ class CTLearnTriModelManager:
 --output {output_cuts_file} \
 --overwrite True"
             # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
-        os.system(cmd)
+        result_cuts = os.system(cmd)
+        if result_cuts != 0:
+            raise RuntimeError(f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}")
         cmd = f"ctapipe-compute-irf \
 -c {config} --IrfTool.cuts_file {output_cuts_file} \
 --gamma-file {gamma_file} \
@@ -875,7 +873,12 @@ class CTLearnTriModelManager:
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
 --no-spatial-selection-applied --overwrite"
-        os.system(cmd)
+        result_irfs = os.system(cmd)
+        if result_irfs != 0:
+            raise RuntimeError(f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}")
+        self.direction_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
+        self.energy_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
+        self.type_model.update_model_manager_IRF_data(config, output_cuts_file, output_irf_file, output_benchmark_file, zenith, azimuth)
     
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)

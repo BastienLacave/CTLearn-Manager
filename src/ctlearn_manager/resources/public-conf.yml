@@ -83,7 +83,7 @@ EventPreprocessor:
 
   EventQualityQuery:
     quality_criteria:
-      - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 2"]
+      - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 1"]
       - ["valid classifier", "CTLearn_is_valid"]
       - ["valid geom reco", "CTLearn_is_valid"]
       - ["valid energy reco", "CTLearn_is_valid"]

@@ -731,7 +731,7 @@ class CTLearnModelManager:
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0]
         if len(match) == 0:
-            raise IndexError(f"No IRF data found for altitude {zenith} and azimuth {azimuth}")
+            raise IndexError(f"No IRF data found for zenith {zenith} and azimuth {azimuth}")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
