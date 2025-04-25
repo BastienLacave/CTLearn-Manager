@@ -882,7 +882,7 @@ class CTLearnTriModelManager:
     
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_benchmark(self, zenith: float, azimuth: float):
+    def plot_benchmark(self, zenith: float, azimuth: float, containments: list[int]=[25, 50, 68], title: str=None):
         """
         Plot benchmark graphs for sensitivity, angular resolution, energy resolution, and energy bias 
         based on the given zenith and azimuth angles.
@@ -910,17 +910,24 @@ class CTLearnTriModelManager:
         plt.yscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        if title is not None:
+            plt.title(title)
         plt.show()
         
         energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
-        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
-        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
-        plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
+        for containment in containments:
+            plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data[f'ANGULAR_RESOLUTION_{containment}'][0,0,:], label=f'{containment}%')
+
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
+        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Angular resolution [deg]')
         plt.legend()
+        if title is not None:
+            plt.title(title)
         plt.show()
         
         energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
@@ -928,6 +935,8 @@ class CTLearnTriModelManager:
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Energy resolution')
+        if title is not None:
+            plt.title(title)
         plt.show()
         
         energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
@@ -935,6 +944,8 @@ class CTLearnTriModelManager:
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Energy bias')
+        if title is not None:
+            plt.title(title)
         plt.show()
         hudl.close() 
     

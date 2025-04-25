@@ -693,7 +693,6 @@ class CTLearnModelManager:
         except:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
                                dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
-        print(f"💾 Model {self.model_nickname} IRF data update:")
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
                                dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
@@ -712,7 +711,7 @@ class CTLearnModelManager:
             IRF_table.remove_rows(match)
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
             write_table_hdf5(IRF_table, self.model_index_file, path=f'{self.model_nickname}/IRF', append=True, overwrite=True, serialize_meta=True)
-        print("\t➡️ IRF data updated")
+        print(f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}")
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_IRF_data(self, zenith, azimuth):
