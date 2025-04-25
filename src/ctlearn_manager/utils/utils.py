@@ -1,15 +1,18 @@
+import fnmatch
 import glob
 from enum import Enum
 
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
 import astropy.units as u
+import ctadata
 import numpy as np
+from astropy.table import Table
 
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 
 def set_mpl_style():
@@ -42,19 +45,49 @@ def angular_distance(ze1, az1, ze2, az2):
     return c
 
 def get_dates_from_runs(runs):
+    # dates_ = np.empty(len(runs))
+    # for i, run in enumerate(runs):
+    #     pattern = f'/fefs/aswg/data/real/R0V/*/LST-1.1.Run{run:05d}.0000.fits.fz'
+    #     file = glob.glob(pattern)
+    #     date = file[0].split('/')[-2]
+    #     dates_[i] = int(date)
+    # return runs, dates_.astype(int)
+    import importlib.resources as pkg_resources
+
+    from .. import resources
+    with pkg_resources.path(resources, 'LST_source_catalog.ecsv') as catalog_file:
+        catalog_table = Table.read(catalog_file, format="ascii.ecsv")
     dates_ = np.empty(len(runs))
     for i, run in enumerate(runs):
-        pattern = f'/fefs/aswg/data/real/R0V/*/LST-1.1.Run{run:05d}.0000.fits.fz'
-        file = glob.glob(pattern)
-        date = file[0].split('/')[-2]
-        dates_[i] = int(date)
+        matching_row = catalog_table[catalog_table["Run ID"] == run]
+        if len(matching_row) == 0:
+            raise ValueError(f"Run {run} not found in the catalog table")
+        dates_[i] = int(matching_row["Date directory"][0].replace("-", ""))
     return runs, dates_.astype(int)
 
-def get_files(run, DL1_data_dir):
+def get_files_LST_cluster(run: int, DL1_data_dir="/fefs/aswg/data/real/DL1/"):
     date = get_dates_from_runs([run])[1][0]
-    testing_files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.10/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
-    print(f"{len(testing_files)} files found for run {run:05d}")
-    return testing_files
+    files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.10/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
+    print(f"{len(files)} files found for run {run:05d}")
+    return files
+
+def get_files_cscs(run: int, DL1_data_dir="/pnfs/cta.cscs.ch/lst/DL1/"):
+    date = get_dates_from_runs([run])[1][0]
+    try:
+        v = 'v0.10'
+        directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
+        all_files = ctadata.list_dir(directory)
+    except:
+        v = 'v0.9'
+        directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
+        all_files = ctadata.list_dir(directory)
+    pattern = f"dl1_LST-1.Run{run:05d}.*.h5"
+    files = fnmatch.filter(all_files, pattern)
+    files = np.sort(files)
+    files = [f"{directory}/{file}" for file in files]
+    print(f"{len(files)} files found for run {run:05d}")
+    return files, v
+    
 
 def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
     import astropy.units as u

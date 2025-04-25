@@ -1,9 +1,13 @@
+import os
+
+import ctadata
 import numpy as np
 
 from .utils.utils import (
     ClusterConfiguration,
     angular_distance,
-    get_files,
+    get_files_cscs,
+    get_files_LST_cluster,
 )
 
 __all__ = ['TriModelCollection']
@@ -16,16 +20,45 @@ class TriModelCollection:
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
 
-    def predict_lstchain_run(self, run, output_dir, DL1_data_dir="/fefs/aswg/data/real/DL1/", overwrite=False):
-        input_files = get_files(run, DL1_data_dir)
-        for input_file in input_files:
-            print(f"🔮 Predicting {input_file.split('/')[-1]}")
-            subrun = int(input_file.split('.')[-2])
-            output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
-            self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
+    def predict_lstchain_run(self, run: int, output_dir: str, DL1_data_dir=None, overwrite=False, plot=False):
+        os.makedirs(output_dir, exist_ok=True)
+        if self.cluster_configuration.cluster == 'cscs':
+            if DL1_data_dir is None:
+                DL1_data_dir = "/pnfs/cta.cscs.ch/lst/DL1/"
+            input_files, v = get_files_cscs(run, DL1_data_dir)
+            scratch_dir = os.getenv('SCRATCH')
+            scratch_dl1_dir = f"{scratch_dir}/ctlearn_manager_dl1_from_dcache/{run:05d}/{v}/tailcut84/"
+            os.system(f"mkdir -p {scratch_dl1_dir}")
+            current_directory = os.getcwd()
+            print(f"Copying DL1 files to {scratch_dl1_dir}")
+            for dcache_file in input_files:
+                input_file = f"{scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
+                if not os.path.exists(input_file):
+                    ctadata.fetch_and_save_file_or_dir(dcache_file)
+                    os.system(f"mv {current_directory}/{dcache_file.split('/')[-1]} {scratch_dl1_dir}/{dcache_file.split('/')[-1]}")
+                print(f"🔮 Predicting {input_file}")
+                subrun = int(input_file.split('.')[-2])
+                output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
+
+        elif self.cluster_configuration.cluster == 'lst-cluster':
+            if DL1_data_dir is None:
+                DL1_data_dir = "/fefs/aswg/data/real/DL1/"
+            input_files = get_files_LST_cluster(run, DL1_data_dir)
+            for input_file in input_files:
+                print(f"🔮 Predicting {input_file}")
+                subrun = int(input_file.split('.')[-2])
+                output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
+        else:
+            raise ValueError(f"To predict LST data run-wise, the cluster must be either 'cscs' or 'lst-cluster'. Current cluster : {self.cluster_configuration.cluster}")
+        
         
     def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', config_dir=None, overwrite=False, run=None, subrun=None, plot=False):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table, plot=plot)
+        if os.path.exists(output_file) and not overwrite:
+            print(f"⚠️ Output file already exists and overwrite is set to False : {output_file}")
+            return
         if closest_tri_model is not None:
             closest_tri_model.predict_lstchain_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, run=run, subrun=subrun, pointing_table=pointing_table)
         else:

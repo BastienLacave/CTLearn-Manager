@@ -2,6 +2,7 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+import ctadata
 
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 from .model_manager import CTLearnModelManager, DataSample
