@@ -30,13 +30,14 @@ class TriModelCollection:
             scratch_dl1_dir = f"{scratch_dir}/ctlearn_manager_dl1_from_dcache/{run:05d}/{v}/tailcut84/"
             os.system(f"mkdir -p {scratch_dl1_dir}")
             current_directory = os.getcwd()
-            print(f"Copying DL1 files to {scratch_dl1_dir}")
+            print(f"DL1 files will be copied to {scratch_dl1_dir}\n")
             for dcache_file in input_files:
                 input_file = f"{scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
                 if not os.path.exists(input_file):
+                    print(f"⌛ Copying {dcache_file} to {scratch_dl1_dir}")
                     ctadata.fetch_and_save_file_or_dir(dcache_file)
                     os.system(f"mv {current_directory}/{dcache_file.split('/')[-1]} {scratch_dl1_dir}/{dcache_file.split('/')[-1]}")
-                print(f"🔮 Predicting {input_file}")
+                # print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
                 self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
@@ -46,7 +47,7 @@ class TriModelCollection:
                 DL1_data_dir = "/fefs/aswg/data/real/DL1/"
             input_files = get_files_LST_cluster(run, DL1_data_dir)
             for input_file in input_files:
-                print(f"🔮 Predicting {input_file}")
+                print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
                 self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
@@ -92,7 +93,7 @@ class TriModelCollection:
         closest_model_index = np.argmin(angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs))
         closest_model = self.tri_models[closest_model_index]
 
-        print(f"File : {input_file.split('/')[-1]}\tPointing : ({avg_data_ze:3f}, {avg_data_az:3f})\tModel : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
+        print(f"📁 File : {input_file.split('/')[-1]}      📡 Pointing : ({avg_data_ze.value:.3f}, {avg_data_az.value:.3f})      🧠 Closest Model : ({np.mean(closest_model.direction_model.validity.zenith_range).value:.3f}, {np.mean(closest_model.direction_model.validity.azimuth_range).value:.3f})")
         # print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
         # print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
         # print(f"｜🧠 Using models {closest_model.direction_model.model_nickname}, {closest_model.energy_model.model_nickname} and {closest_model.type_model.model_nickname}")

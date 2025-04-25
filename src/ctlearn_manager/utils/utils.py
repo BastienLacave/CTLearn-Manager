@@ -78,6 +78,7 @@ def get_files_cscs(run: int, DL1_data_dir="/pnfs/cta.cscs.ch/lst/DL1/"):
         directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
         all_files = ctadata.list_dir(directory)
     except:
+        print("Version v0.10 not found, trying v0.9")
         v = 'v0.9'
         directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
         all_files = ctadata.list_dir(directory)
