@@ -40,7 +40,7 @@ class TriModelCollection:
                 # print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
-                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot)
 
         elif self.cluster_configuration.cluster == 'lst-cluster':
             if DL1_data_dir is None:
@@ -50,7 +50,7 @@ class TriModelCollection:
                 print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
-                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun)
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot)
         else:
             raise ValueError(f"To predict LST data run-wise, the cluster must be either 'cscs' or 'lst-cluster'. Current cluster : {self.cluster_configuration.cluster}")
         
