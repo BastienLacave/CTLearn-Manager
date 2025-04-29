@@ -12,7 +12,7 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['get_cuts_info_plt', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 
 def set_mpl_style():
@@ -446,3 +446,32 @@ class DataSample:
         print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
 
         
+def get_cuts_info_plt(ax, gammaness_cut=None, theta_cut=None, efficiency_gammaness=None, efficiency_theta=None):
+
+    if gammaness_cut is not None:
+        gammaness_cut_type = f"Global gcut : {gammaness_cut}"
+    elif efficiency_gammaness is not None:
+        gammaness_cut_type = f"Energy dependent gcut : {efficiency_gammaness}eff."
+    else:
+        gammaness_cut_type = ""
+    
+    if theta_cut is not None:
+        theta_cut_type = f"Global theta cut : {theta_cut}"
+    elif efficiency_theta is not None:
+        theta_cut_type = f"Energy dependent theta cut : {efficiency_theta}eff."
+    else:
+        theta_cut_type = ""
+    
+    if gammaness_cut_type != "" and theta_cut_type != "" :
+        final_string = f"{gammaness_cut_type} | {theta_cut_type}"
+    else:
+        final_string = f"{gammaness_cut_type}{theta_cut_type}"
+
+    ax.text(
+        0.98, 0.02, final_string,
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment='bottom',
+        horizontalalignment='right',
+        bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white', alpha=0.8)
+    )

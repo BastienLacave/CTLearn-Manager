@@ -5,7 +5,7 @@
 # Configuration for calculating G/H and spatial selection ("theta") cuts
 # ======================================================================
 
-IrfEventSelector:
+EventSelectionOptimizer:
   gamma_target_spectrum: CRAB_HEGRA
   proton_target_spectrum: IRFDOC_PROTON_SPECTRUM
   electron_target_spectrum: IRFDOC_ELECTRON_SPECTRUM
@@ -76,17 +76,6 @@ IrfTool:
   energy_bias_resolution_maker_name: "EnergyBiasResolution2dMaker"
   sensitivity_maker_name: "Sensitivity2dMaker"
 
-EventPreprocessor:
-  energy_reconstructor: "CTLearn"
-  geometry_reconstructor: "CTLearn"
-  gammaness_classifier: "CTLearn"
-
-  EventQualityQuery:
-    quality_criteria:
-      - ["multiplicity", "np.count_nonzero(CTLearn_telescopes,axis=1) == 1"]
-      - ["valid classifier", "CTLearn_is_valid"]
-      - ["valid geom reco", "CTLearn_is_valid"]
-      - ["valid energy reco", "CTLearn_is_valid"]
 
 # DefaultRecoEnergyBins:
   # reco_energy_min: 0.015 TeV

@@ -1041,6 +1041,29 @@ class DL2DataProcessor:
         else:
             plt.show()
 
+    def plot_energy_distribution(self, output_file=None, bins=None, gammaness_cut=0.9):
+        import matplotlib.pyplot as plt
+
+        energy_values = []
+        for dl2 in self.dl2s:
+            # Extracting the energy values
+            energy_values.extend(dl2[self.energy_key][dl2[self.gammaness_key] > gammaness_cut])
+
+        # Plotting the histograms
+        if bins is None:
+            bins = np.logspace(np.log10(min(energy_values)), np.log10(max(energy_values)), 100)
+        plt.hist(energy_values, bins=bins, histtype="step", density=False, lw=2, label=f"Real data gcut {gammaness_cut}")
+        plt.xlabel('Energy [TeV]')
+        plt.xscale('log')
+        plt.ylabel('Counts')
+        plt.legend()
+   
+        plt.tight_layout()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
+
     def plot_everything(self, output_directory):
         
         self.plot_sensitivity(output_file=f"{output_directory}/sensitivity.png")

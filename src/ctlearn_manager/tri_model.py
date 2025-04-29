@@ -1,8 +1,8 @@
 from pathlib import Path
 
 import astropy.units as u
-import numpy as np
 import ctadata
+import numpy as np
 
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 from .model_manager import CTLearnModelManager, DataSample
@@ -10,6 +10,7 @@ from .utils.utils import (
     ClusterConfiguration,
     ParticleType,
     angular_distance,
+    get_cuts_info_plt,
     set_mpl_style,
 )
 
@@ -310,7 +311,7 @@ class CTLearnTriModelManager:
         return coords
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, dl2_subarray=True):
+    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, dl2_subarray=True, overwrite=False, config=None):
         """
         Launch testing for the given zenith and azimuth angles.
         This function checks the testing files for gamma and proton particles, ensures they match across models,
@@ -387,8 +388,12 @@ class CTLearnTriModelManager:
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}*"))[-1]
 
         dl2_subarray_string = " --dl2-subarray" if dl2_subarray else " --no-dl2-subarray"
+        config_string = f"--config {config}" if config is not None else ""
          
         for input_file, output_file in zip(testing_files, output_files):
+            if os.path.exists(output_file) and not overwrite:
+                print(f"Output file {output_file} already exists, skipping, set overwrite=True to overwrite")
+                continue
             if self.stereo:
                 cmd = f"ctlearn-predict-stereo-model --input_url {input_file} \
 --PredictCTLearnModel.batch_size={batch_size} \
@@ -398,7 +403,8 @@ class CTLearnTriModelManager:
 --use-HDF5Merger \
 --no-dl1-images --no-true-images --output {output_file} \
 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes={self.min_telescopes} \
---PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string} \
+{config_string}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
                 cmd = f"ctlearn-predict-mono-model --input_url {input_file} \
@@ -408,7 +414,8 @@ class CTLearnTriModelManager:
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
 --use-HDF5Merger{dl2_subarray_string} \
---PredictCTLearnModel.overwrite_tables=True -v {channels_string}"
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string} \
+{config_string}"
             
             if self.cluster_configuration.use_cluster:
                 # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
@@ -722,7 +729,7 @@ class CTLearnTriModelManager:
                 ax = axs[i]
             else:
                 ax = axs
-            ax.scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=100)
+            ax.scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=80)
             ax.hist2d(dl2_data[self.reco_alt_key], dl2_data[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
             ax.set_xlabel("Altitude [deg]")
             ax.set_ylabel("Azimuth [deg]")
@@ -794,7 +801,7 @@ class CTLearnTriModelManager:
         plt.show()
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def produce_irfs(self, zenith: float, azimuth: float, config: str=None, output_cuts_file: str=None, output_irf_file: str=None, output_benchmark_file: str=None, pointlike=True, electrons=False):
+    def produce_irfs(self, zenith: float, azimuth: float, config: str=None, output_cuts_file: str=None, output_irf_file: str=None, output_benchmark_file: str=None, pointlike=True, electrons=False, protons=True):
         """
         Produce Instrument Response Functions (IRFs) for given zenith and azimuth angles.
         This method generates IRFs by running external commands and updating the model manager with the necessary data.
@@ -848,19 +855,27 @@ class CTLearnTriModelManager:
             if len(electrons_files) > 1:
                 raise ValueError(f"Multiple files found for electrons, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
             electron_file = electrons_files[0]
-        proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.PROTON])[ParticleType.PROTON.value]
-        if len(proton_files) > 1:
-            raise ValueError(f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
-        proton_file = proton_files[0]
+
+        if protons:
+            proton_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.PROTON])[ParticleType.PROTON.value]
+            if len(proton_files) > 1:
+                raise ValueError(f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()")
+            proton_file = proton_files[0]
+
+        os.makedirs(output_cuts_file.rsplit('/', 1)[0], exist_ok=True)
+        os.makedirs(output_irf_file.rsplit('/', 1)[0], exist_ok=True)
+        os.makedirs(output_benchmark_file.rsplit('/', 1)[0], exist_ok=True)
         
         electron_string = f" --electron-file {electron_file}" if electrons else ""
+        proton_string = f" --proton-file {proton_file}" if protons else ""
         cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
---proton-file {proton_file} \
+{proton_string} \
 {electron_string} \
 --output {output_cuts_file} \
 --overwrite True"
+        print(cmd)
             # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
         result_cuts = os.system(cmd)
         if result_cuts != 0:
@@ -868,12 +883,13 @@ class CTLearnTriModelManager:
         cmd = f"ctapipe-compute-irf \
 -c {config} --IrfTool.cuts_file {output_cuts_file} \
 --gamma-file {gamma_file} \
---proton-file {proton_file} \
+{proton_string} \
 {electron_string} \
 --do-background \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied --overwrite"
+--no-spatial-selection-applied --overwrite --spatial-selection-applied"
+        print(cmd)
         result_irfs = os.system(cmd)
         if result_irfs != 0:
             raise RuntimeError(f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}")
@@ -949,6 +965,35 @@ class CTLearnTriModelManager:
             plt.title(title)
         plt.show()
         hudl.close() 
+
+    def plot_cuts(self, zenith: float, azimuth: float):
+        """
+        Plot the cuts for given zenith and azimuth angles.
+        This method reads the cuts data from the specified IRF file and plots the cuts
+        using the `peek` method from the `gammapy.irf` module.
+        :param zenith: Zenith angle for which to retrieve and plot the cuts.
+        :type zenith: float
+        :param azimuth: Azimuth angle for which to retrieve and plot the cuts.
+        :type azimuth: float
+        """
+        set_mpl_style()
+        from astropy.io import fits
+        import matplotlib.pyplot as plt
+        cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+        with fits.open(cuts_file) as hdul:
+            axs[0].plot(hdul['GH_CUTS'].data['center'], hdul['GH_CUTS'].data['cut'])
+            axs[0].set_xlabel("Energy [TeV]")
+            axs[0].set_ylabel("Gammaness cut")
+            axs[0].set_xscale('log')
+
+            axs[1].plot(hdul['RAD_MAX'].data['center'], hdul['RAD_MAX'].data['cut'])
+            axs[1].set_xlabel("Energy [TeV]")
+            axs[1].set_ylabel("Theta cut [deg]")
+            axs[1].set_xscale('log')
+        plt.tight_layout()
+        plt.show()
+
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_irfs(self, zenith, azimuth):
@@ -1030,7 +1075,7 @@ class CTLearnTriModelManager:
         plt.show()
     
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)
-    def plot_angular_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+    def plot_angular_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
         """
         Plot the angular resolution for DL2 data at a given zenith and azimuth angle.
         This function reads DL2 gamma-ray data from HDF5 files, processes the data to 
@@ -1072,7 +1117,12 @@ class CTLearnTriModelManager:
         closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
         
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
-        
+
+        if figsize is not None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig, ax = plt.subplots()
+
         for i, coord in enumerate(coords):
             zenith, azimuth = coord
             testing_DL2_gamma_files = DL2_gamma_table[f'testing_DL2_{particle_type.value}_files'][
@@ -1090,25 +1140,41 @@ class CTLearnTriModelManager:
             shower_parameters_gamma = vstack(shower_parameters_gamma)
             dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-            mask = dl2_gamma[self.gammaness_key] > gammaness_cut
+            if gammaness_cut is not None:
+                get_cuts_info_plt(ax, gammaness_cut=gammaness_cut)
+                mask = dl2_gamma[self.gammaness_key] > gammaness_cut
 
-            reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
-            reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
-            true_alt = dl2_gamma[self.true_alt_key].to(u.deg) [mask]
-            true_az = dl2_gamma[self.true_az_key].to(u.deg) [mask]
-            reco_energy = dl2_gamma[self.reco_energy_key] [mask]
-            true_energy = dl2_gamma[self.true_energy_key] [mask]
-            
+                reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg) [mask]
+                reco_az = dl2_gamma[self.reco_az_key].to(u.deg) [mask]
+                true_alt = dl2_gamma[self.true_alt_key].to(u.deg) [mask]
+                true_az = dl2_gamma[self.true_az_key].to(u.deg) [mask]
+                reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+                true_energy = dl2_gamma[self.true_energy_key] [mask]
+            else:
+                get_cuts_info_plt(ax, efficiency_gammaness=0.7)
+                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
+                dl2_gamma = self.apply_energy_dependent_cuts_MC(dl2_gamma, cuts_file, theta_cut=False)  
+                reco_alt = dl2_gamma[self.reco_alt_key].to(u.deg)
+                reco_az = dl2_gamma[self.reco_az_key].to(u.deg)
+                true_alt = dl2_gamma[self.true_alt_key].to(u.deg)
+                true_az = dl2_gamma[self.true_az_key].to(u.deg)
+                reco_energy = dl2_gamma[self.reco_energy_key]
+                true_energy = dl2_gamma[self.true_energy_key]          
             # Define the range of true energy values
             true_energy_min = np.min(true_energy)
             true_energy_max = np.max(true_energy)
+            reco_energy_min = np.min(reco_energy)
+            reco_energy_max = np.max(reco_energy)
+
+            plt.xlim(reco_energy_min, reco_energy_max)
 
             # Create bins with 5 bins per decade in log scale
             bins_per_decade = 5
             log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                 num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
             if i == closest_coord_index:
-                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°")
+                label = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=label, markersize=8)
             else:
                 ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
@@ -1119,7 +1185,7 @@ class CTLearnTriModelManager:
         plt.show()
 
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)    
-    def plot_energy_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=0., ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT):
+    def plot_energy_resolution_DL2(self, zeniths: list | None = None, azimuths: list | None = None, gammaness_cut: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
         """
         Plot the energy resolution for DL2 data at given zenith and azimuth angles.
         This function reads DL2 gamma data from HDF5 files, processes it to obtain
@@ -1160,6 +1226,11 @@ class CTLearnTriModelManager:
             testing_zes[i] = zenith.to(u.deg)
             i += 1
         closest_coord_index = np.argmin(angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs))
+        if figsize is not None:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig, ax = plt.subplots()
+           
 
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
         for i, coord in enumerate(coords):
@@ -1179,25 +1250,38 @@ class CTLearnTriModelManager:
             shower_parameters_gamma = vstack(shower_parameters_gamma)
             dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
-            mask = dl2_gamma[self.gammaness_key] > gammaness_cut
-
-            reco_energy = dl2_gamma[self.reco_energy_key] [mask]
-            true_energy = dl2_gamma[self.true_energy_key] [mask]
-            
+            if gammaness_cut is not None:
+                get_cuts_info_plt(ax, gammaness_cut=gammaness_cut)
+                mask = dl2_gamma[self.gammaness_key] > gammaness_cut
+                reco_energy = dl2_gamma[self.reco_energy_key] [mask]
+                true_energy = dl2_gamma[self.true_energy_key] [mask]
+            else:
+                get_cuts_info_plt(ax, efficiency_gammaness=0.7, efficiency_theta=0.7)
+                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
+                dl2_gamma = self.apply_energy_dependent_cuts_MC(dl2_gamma, cuts_file)
+                reco_energy = dl2_gamma[self.reco_energy_key]
+                true_energy = dl2_gamma[self.true_energy_key]          
+                
             # Define the range of true energy values
             true_energy_min = np.min(true_energy)
             true_energy_max = np.max(true_energy)
+            reco_energy_min = np.min(reco_energy)
+            reco_energy_max = np.max(reco_energy)
+
+            plt.xlim(reco_energy_min, reco_energy_max)
 
             # Create bins with 5 bins per decade in log scale
             bins_per_decade = 5
             log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                 num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
             if i == closest_coord_index:
-                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°")
+                label = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=label, markersize=8)
             else:
                 ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°", alpha=0.5, marker='v')
         if ylim is not None:
             plt.ylim(ylim[0], ylim[1])
+        
         plt.legend()
         plt.grid(False, which='both')
         plt.show()
@@ -1401,5 +1485,47 @@ class CTLearnTriModelManager:
         
         sbatch_file = self.cluster_configuration.write_sbatch_script("dl2_plots", cmd, output_directory, use_gpu_cscs=False)
         os.system(f"sbatch {sbatch_file}")
+
+    def plot_zenith_azimuth_ranges(self):
+        self.direction_model.plot_zenith_azimuth_ranges()
+
+    def apply_energy_dependent_cuts_MC(self, data, cuts_file, theta_cut=True):
+        # Apply cuts to the data
+        from astropy.io import fits
+        from astropy.coordinates import SkyCoord
+        with fits.open(cuts_file) as hdul:
+            gammaness_cuts = hdul['GH_CUTS'].data['cut']
+            energy_low_gamma = hdul['GH_CUTS'].data['low']
+            energy_high_gamma = hdul['GH_CUTS'].data['high']
+            theta_cuts = hdul['RAD_MAX'].data['cut']
+            energy_low_theta = hdul['RAD_MAX'].data['low']
+            energy_high_theta = hdul['RAD_MAX'].data['high']
+            assert (energy_low_gamma == energy_low_theta).all(), "Energy low values for gammaness and theta cuts do not match"
+            assert (energy_high_gamma == energy_high_theta).all(), "Energy high values for gammaness and theta cuts do not match"
+
+            if theta_cut:
+                true_coords = SkyCoord(alt=data[self.true_alt_key], az=data[self.true_az_key], frame='altaz', unit='deg')
+                reco_coords = SkyCoord(alt=data[self.reco_alt_key], az=data[self.reco_az_key], frame='altaz', unit='deg')
+                angular_separation = true_coords.separation(reco_coords).deg
+                data['angular_separation'] = angular_separation
+
+
+            masks = []
+            for E_min, E_max, gcut, tcut in zip(energy_low_gamma, energy_high_gamma, gammaness_cuts, theta_cuts):
+                energy_mask = (data[self.reco_energy_key] > E_min) & (data[self.reco_energy_key] < E_max)
+                gammaness_mask = data[self.gammaness_key] > gcut
+                if theta_cut:
+                    theta_mask = data['angular_separation'] < tcut
+                    mask = energy_mask & gammaness_mask & theta_mask
+                else:
+                    mask = energy_mask & gammaness_mask
+                masks.append(mask)
+
+            full_mask = np.zeros(len(data), dtype=bool)
+            for mask in masks:
+                full_mask |= mask
+            dl2 = data[full_mask]
+        return dl2
+
 
         
