@@ -1,14 +1,15 @@
+import argparse
 import os
 import pickle
-from astropy.coordinates import SkyCoord, AltAz
-from astropy import units as u
-# from ..utils.DL2_processing import DL2DataProcessor
-from ..io.io import load_DL2_data, load_DL2_data_RF
-from astropy.time import Time
+
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import AltAz, SkyCoord
+from astropy.time import Time
 from tqdm import tqdm
 
-import argparse
+# from ..utils.DL2_processing import DL2DataProcessor
+from ..io.io import load_DL2_data, load_DL2_data_RF
 
 parser = argparse.ArgumentParser(description="Process DL2 file with DL2DataProcessor")
 parser.add_argument("dl2_file", type=str, help="Path to the DL2 file to process")
@@ -27,19 +28,24 @@ def process_dl2_file():
 
     DL2_file = args.dl2_file
 
-
-    if processor.dl2_processed_dir is None:
-        dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
-        reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
-        pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
-        I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
-        I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-    else:
-        dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-        reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-        pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-        I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-        I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+    dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
+    # if processor.dl2_processed_dir is None:
+    #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+    #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+    #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+    #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+    #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
+    # else:
+    #     dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+    #     reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+    #     pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+    #     I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+    #     I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+    dl2_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+    reco_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+    pointing_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+    I_g_on_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+    I_g_off_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
     if not os.path.exists(dl2_output_file):
         print(f"Loading {DL2_file}", flush=True)

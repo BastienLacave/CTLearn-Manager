@@ -1,9 +1,12 @@
-from ctlearn_manager.utils.utils import ClusterConfiguration, set_mpl_style
-from ctlearn_manager.utils.DL2_processing import DL2DataProcessor
-from ..tri_model import CTLearnTriModelManager
 import glob
-from astropy.coordinates import SkyCoord, EarthLocation
+
 import astropy.units as u
+from astropy.coordinates import EarthLocation, SkyCoord
+
+from ctlearn_manager.utils.DL2_processing import DL2DataProcessor
+from ctlearn_manager.utils.utils import ClusterConfiguration, set_mpl_style
+
+from ..tri_model import CTLearnTriModelManager
 
 
 class RFCounterpart(DL2DataProcessor):

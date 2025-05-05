@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ctlearn-manager"
 description = "Compagnon package to manage CTLearn models, train, test and benchmark them."
 readme = "README.md"
-license = {text = "BSD-3-Clause"}
+license = "BSD-3-Clause"
 authors = [
     {name = "Bastien Lacave", email = "bastien.lacave@unige.ch"},
 ]
@@ -18,6 +18,9 @@ dependencies = [
     "gammapy",
     "pyirf",
     "ctaplot",
+    "h5py",
+    "ctadata",
+    "ctlearn",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
@@ -30,6 +33,7 @@ repository = "https://github.com/BastienLacave/CTLearn-Manager"
 # Command-line scripts mapping the name of the tool to the import and function to execute
 [project.scripts]
 process_dl2_file = "ctlearn_manager.cli.dl2_processing_slurm:process_dl2_file"
+plot_dl2 = "ctlearn_manager.cli.dl2_plots_slurm:plot_dl2"
 
 [tool.setuptools.packages.find]
 where = ["src"]

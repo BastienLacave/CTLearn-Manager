@@ -1,9 +1,11 @@
-from ctlearn_manager.utils.utils import ClusterConfiguration, set_mpl_style
-from ctlearn_manager.utils.DL2_processing import DL2DataProcessor
-from astropy.table import (join, hstack, vstack)
-from astropy.coordinates import SkyCoord, EarthLocation, AltAz, concatenate
-from tqdm import tqdm
 import astropy.units as u
+from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+from astropy.table import join, vstack
+from tqdm import tqdm
+
+from ctlearn_manager.utils.DL2_processing import DL2DataProcessor
+from ctlearn_manager.utils.utils import set_mpl_style
+
 
 class Combinator2000(DL2DataProcessor):
 

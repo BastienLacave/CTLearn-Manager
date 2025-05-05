@@ -1,5 +1,5 @@
 import unittest
-import ctlearn_manager
+
 
 class TestVersion(unittest.TestCase):
     def test_version(self):

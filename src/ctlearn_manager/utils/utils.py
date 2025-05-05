@@ -1,24 +1,29 @@
-import numpy as np
+import fnmatch
 import glob
 from enum import Enum
+
 # from numba import njit
 # from astropy.coordinates import SkyCoord, AltAz
-# import astropy.units as u
+import astropy.units as u
+import ctadata
+import numpy as np
+from astropy.table import Table
+
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env']
+__all__ = ['get_cuts_info_plt', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 
 def set_mpl_style():
-    import matplotlib.pyplot as plt
-    import matplotlib.font_manager as font_manager
-    from matplotlib import rcParams
-    from .. import resources
-
-
     # font_path = "./resources/Outfit-Medium.ttf"
     import importlib.resources as pkg_resources
+
+    import matplotlib.font_manager as font_manager
+    import matplotlib.pyplot as plt
+    from matplotlib import rcParams
+
+    from .. import resources
 
     with pkg_resources.path(resources, 'Outfit-Medium.ttf') as font_path:
         font_manager.fontManager.addfont(font_path)
@@ -29,7 +34,8 @@ def set_mpl_style():
     with pkg_resources.path(resources, 'CTLearnStyle.mplstyle') as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
-    
+
+@u.quantity_input(ze1=u.deg, az1=u.deg, ze2=u.deg, az2=u.deg)
 def angular_distance(ze1, az1, ze2, az2):
     ze1, az1, ze2, az2 = map(np.radians, [ze1, az1, ze2, az2])
     delta_az = az2 - az1
@@ -39,31 +45,70 @@ def angular_distance(ze1, az1, ze2, az2):
     return c
 
 def get_dates_from_runs(runs):
+    # dates_ = np.empty(len(runs))
+    # for i, run in enumerate(runs):
+    #     pattern = f'/fefs/aswg/data/real/R0V/*/LST-1.1.Run{run:05d}.0000.fits.fz'
+    #     file = glob.glob(pattern)
+    #     date = file[0].split('/')[-2]
+    #     dates_[i] = int(date)
+    # return runs, dates_.astype(int)
+    import importlib.resources as pkg_resources
+
+    from .. import resources
+    with pkg_resources.path(resources, 'LST_source_catalog.ecsv') as catalog_file:
+        catalog_table = Table.read(catalog_file, format="ascii.ecsv")
     dates_ = np.empty(len(runs))
     for i, run in enumerate(runs):
-        pattern = f'/fefs/aswg/data/real/R0V/*/LST-1.1.Run{run:05d}.0000.fits.fz'
-        file = glob.glob(pattern)
-        date = file[0].split('/')[-2]
-        dates_[i] = int(date)
+        matching_row = catalog_table[catalog_table["Run ID"] == run]
+        if len(matching_row) == 0:
+            raise ValueError(f"Run {run} not found in the catalog table")
+        dates_[i] = int(matching_row["Date directory"][0].replace("-", ""))
     return runs, dates_.astype(int)
 
-def get_files(run, DL1_data_dir):
+def get_files_LST_cluster(run: int, DL1_data_dir="/fefs/aswg/data/real/DL1/"):
     date = get_dates_from_runs([run])[1][0]
-    testing_files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.10/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
-    print(f"{len(testing_files)} files found for run {run:05d}")
-    return testing_files
+    files = np.sort(glob.glob(f"{DL1_data_dir}/{date}/v0.10/tailcut84/dl1_LST-1.Run{run:05d}.*.h5"))
+    print(f"{len(files)} files found for run {run:05d}")
+    return files
 
-def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
-    from ctapipe.io import read_table
+def get_files_cscs(run: int, DL1_data_dir="/pnfs/cta.cscs.ch/lst/DL1/"):
+    date = get_dates_from_runs([run])[1][0]
+    try:
+        v = 'v0.10'
+        directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
+        all_files = ctadata.list_dir(directory)
+    except:
+        print("Version v0.10 not found, trying v0.9")
+        v = 'v0.9'
+        directory = f"{DL1_data_dir}/{date}/{v}/tailcut84/"
+        all_files = ctadata.list_dir(directory)
+    pattern = f"dl1_LST-1.Run{run:05d}.*.h5"
+    files = fnmatch.filter(all_files, pattern)
+    files = np.sort(files)
+    files = [f"{directory}/{file}" for file in files]
+    print(f"{len(files)} files found for run {run:05d}")
+    return files, v
+    
+
+def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', alt_key='alt_tel', az_key='az_tel'):
     import astropy.units as u
+    from ctapipe.io import read_table
     pointing = read_table(input_file, path=pointing_table)
-    avg_data_az = np.mean(pointing['az_tel']*180/np.pi)
-    avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi)
+    avg_data_az = np.mean(pointing[az_key]*180/np.pi) * u.deg
+    avg_data_ze = np.mean(90 - pointing[alt_key]*180/np.pi) * u.deg
     return avg_data_ze, avg_data_az
 
-def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None):
+def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None, use_gpu_cscs=True):
     if memory_mb==None:
         memory_mb = 64000
+
+    if use_gpu_cscs:
+        gpu_string = f'''
+#SBATCH --constraint=gpu
+#SBATCH --gres=gpu:{nodes}'''
+    else:
+        gpu_string = ""
+
     sbatch_predict_data_configs = {
     'camk': 
     f'''#!/bin/sh
@@ -82,11 +127,10 @@ srun {command}''',
 #SBATCH --job-name={job_name}
 #SBATCH --time={time}
 #SBATCH --partition={partition}
-#SBATCH --constraint=gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gres=gpu:{nodes}
-#SBATCH --mem={memory_mb}0mb
+{gpu_string}
+#SBATCH --mem={memory_mb}mb
 #SBATCH --output={sbatch_scripts_dir}/{job_name}.%x.%j.out
 #SBATCH --error={sbatch_scripts_dir}/{job_name}.%x.%j.err
 #SBATCH --account={account}
@@ -151,8 +195,8 @@ def get_current_env():
     import os
     return os.environ.get('CONDA_DEFAULT_ENV') or os.environ.get('VIRTUAL_ENV')
 
-class ClusterConfiguration():
-    def __init__(self, account=None, python_env=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
+class ClusterConfiguration:
+    def __init__(self, account=None, environment=None, use_cluster=True, partition=None, time=None, nodes=1, memory_mb=None):
         
 
         # self.current_env = 
@@ -160,7 +204,7 @@ class ClusterConfiguration():
         config = self.get_cluster()
         self.cluster = config['cluster']
         self.account = account if account!=None else config['account']
-        self.python_env = python_env if python_env!=None else get_current_env()
+        self.environment = environment if environment!=None else get_current_env()
         self.partition = partition if partition!=None else config['partition']
         self.time = time if time!=None else config['time']
         self.nodes = nodes
@@ -170,7 +214,7 @@ class ClusterConfiguration():
 
     def info(self):
         if self.use_cluster:
-            print(f"🔧 Using cluster {self.cluster} with account {self.account} and python environment {self.python_env}, partition {self.partition} and time limit {self.time}")
+            print(f"🔧 Using cluster {self.cluster} ||| Account : {self.account} ||| Environment : {self.environment} ||| Partition : {self.partition} ||| Time limit : {self.time} ||| Nodes : {self.nodes}")
         else:
             print("🔧 Not using any cluster")
 
@@ -190,7 +234,7 @@ class ClusterConfiguration():
                 time = '03:00:00'
             case "daint":
                 cluster = 'cscs'
-                account = 'cta03'
+                account = 'cta08'
                 partition = 'normal'
                 time = '24:00:00'
             case "cp02":
@@ -209,12 +253,13 @@ class ClusterConfiguration():
 
     
 
-    def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir):
+    def write_sbatch_script(self, job_name, cmd, sbatch_scripts_dir, use_gpu_cscs=True):
         import os
         if not os.path.exists(sbatch_scripts_dir):
             os.system(f"mkdir {sbatch_scripts_dir}")
-        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.python_env, self.time, self.partition, self.nodes, self.memory_mb)
+        sh_script = get_predict_data_sbatch_script(self.cluster, cmd, job_name, sbatch_scripts_dir, self.account, self.environment, self.time, self.partition, self.nodes, self.memory_mb, use_gpu_cscs=use_gpu_cscs)
         sbatch_file = f"{sbatch_scripts_dir}/{job_name}.sh"
+        os.makedirs(sbatch_scripts_dir, exist_ok=True)
         with open(sbatch_file, "w") as f:
             f.write(sh_script)
 
@@ -230,8 +275,8 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
 
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
-    start_flux = 1
-    flux_factor = start_flux * np.ones_like(cumul_excess)
+    start_flux = np.float64(1.)
+    flux_factor = start_flux * np.ones_like(cumul_excess).astype('float64')
 
     good_bin_mask = ((cumul_excess > min_exc*cumul_off) &
                     (cumul_off > min_off_events) &
@@ -264,8 +309,8 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
     # iterate to obtain the flux which gives exactly N_sigma:
     for iter in range(10):
         # print(iter)
-        tolerance_mask = np.abs(lima_signi-N_sigma)>0.001 # recalculate only what is needed
-        flux_factor[tolerance_mask] *= (N_sigma / lima_signi[tolerance_mask])
+        tolerance_mask = np.abs(lima_signi.astype('float64')-N_sigma)> 0.001 # recalculate only what is needed
+        flux_factor[tolerance_mask] *= (np.float64(N_sigma) / lima_signi[tolerance_mask].astype('float64'))
         # NOTE!!! float64 precision is essential here!!!!
         lima_signi[tolerance_mask] = li_ma_significance((time_factor*(flux_factor[tolerance_mask]*
                                                                     cumul_excess[tolerance_mask]+
@@ -305,3 +350,129 @@ class ParticleType(Enum):
     GAMMA_DIFFUSE = "gamma_diffuse"
     PROTON = "proton"
     ELECTRON = "electron"
+    # REAL_DATA = "real_data"
+    # ALL = "all"
+
+
+class DataSample:
+    """
+    A class to represent a training sample for CTLearn.
+    :param directory: The directory where training data is stored.
+    :type directory: str
+    :param pattern: The pattern to match training files.
+    :type pattern: str
+    :param zenith_distance: The zenith distance of the training sample.
+    :type zenith_distance: astropy.units.Quantity
+    :param azimuth: The azimuth of the training sample.
+    :type azimuth: astropy.units.Quantity
+    :param energy_range: The energy range of the training sample.
+    :type energy_range: list of astropy.units.Quantity
+    :param nsb_range: The NSB (Night Sky Background) range of the training sample.
+    :type nsb_range: list of astropy.units.Quantity
+    """
+
+    import astropy.units as u
+
+    @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
+    def __init__(self, directory, pattern, particle_type: ParticleType | None = None, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
+        """
+        Initialize the ModelManager.
+        :param directory: The directory where training data is stored.
+        :type directory: str
+        :param pattern: The pattern to match training files.
+        :type pattern: str
+        :param zenith_distance: The zenith distance for training data, defaults to NaN degrees.
+        :type zenith_distance: astropy.units.Quantity
+        :param azimuth: The azimuth for training data, defaults to NaN degrees.
+        :type azimuth: astropy.units.Quantity
+        :param energy_range: The energy range for training data, defaults to [NaN, NaN] TeV.
+        :type energy_range: list of astropy.units.Quantity
+        :param nsb_range: The NSB range for training data, defaults to [NaN, NaN] Hz.
+        :type nsb_range: list of astropy.units.Quantity
+        """
+        import astropy.units as u
+        from ctapipe.io import read_table
+        from tqdm import tqdm
+
+        self.directory = directory
+        self.pattern = pattern
+        self.energy_range = energy_range
+        self.nsb_range = nsb_range
+
+        files = np.sort(glob.glob(f"{directory}/{pattern}"))
+        if len(files) == 0:
+            raise ValueError(f"No files found matching {directory}/{pattern}")
+        
+        i = 0
+        for file in tqdm(files, desc="Checking files for particle type and pointing", unit="file"):
+            shower_parameters = read_table(file, "simulation/event/subarray/shower")
+            pointing = read_table(file, "configuration/telescope/pointing/tel_001") 
+            particle_id = np.unique(shower_parameters["true_shower_primary_id"])
+            
+            zenith_distance = np.unique(90 * u.deg - pointing["telescope_pointing_altitude"].to(u.deg))
+            azimuth = np.unique(pointing["telescope_pointing_azimuth"].to(u.deg))
+
+            assert len(zenith_distance) == 1, f"More than one zenith distance found in {file}"
+            assert len(azimuth) == 1, f"More than one azimuth found in {file}"
+            assert len(particle_id) == 1, f"More than one particle ID found in {file}"
+
+            if i == 0:  
+                first_particle_type = particle_id[0]
+                first_zenith_distance = zenith_distance[0]
+                first_azimuth = azimuth[0]
+            else:
+                assert first_particle_type == particle_id[0], f"Different particle types found in {file} and {files[0]}"
+                assert first_zenith_distance == zenith_distance[0], f"Different zenith distances found in {file} and {files[0]}"
+                assert first_azimuth == azimuth[0], f"Different azimuths found in {file} and {files[0]}"
+            i += 1
+
+        self.zenith_distance = np.round(first_zenith_distance.to(u.deg).value, 4) * u.deg
+        self.azimuth = np.round(first_azimuth.to(u.deg).value, 4) * u.deg
+
+        match particle_id[0]:
+            case 0:
+                run = read_table(file, "configuration/simulation/run")
+                max_viewcone = np.unique(run["max_viewcone_radius"])
+                if max_viewcone > 0.5 * u.deg:
+                    self.particle_type = ParticleType.GAMMA_DIFFUSE
+                else:
+                    self.particle_type = ParticleType.GAMMA_POINT
+            case 1:
+                self.particle_type = ParticleType.ELECTRON
+            case 101:
+                self.particle_type = ParticleType.PROTON
+            case _:
+                raise ValueError(f"Unknown particle ID: {particle_id}")
+        
+        print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
+
+        
+def get_cuts_info_plt(ax, gammaness_cut=None, theta_cut=None, efficiency_gammaness=None, efficiency_theta=None):
+
+    if gammaness_cut is not None:
+        gammaness_cut_type = f"Global gcut : {gammaness_cut}"
+    elif efficiency_gammaness is not None:
+        gammaness_cut_type = f"Energy dependent gcut : {efficiency_gammaness}eff."
+    else:
+        gammaness_cut_type = ""
+    
+    if theta_cut is not None:
+        theta_cut_type = f"Global theta cut : {theta_cut}"
+    elif efficiency_theta is not None:
+        theta_cut_type = f"Energy dependent theta cut : {efficiency_theta}eff."
+    else:
+        theta_cut_type = ""
+    
+    if gammaness_cut_type != "" and theta_cut_type != "" :
+        final_string = f"{gammaness_cut_type} | {theta_cut_type}"
+    else:
+        final_string = f"{gammaness_cut_type}{theta_cut_type}"
+
+    ax.text(
+        0.98, 0.02, final_string,
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment='bottom',
+        horizontalalignment='right',
+        bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white', alpha=0.8)
+    )

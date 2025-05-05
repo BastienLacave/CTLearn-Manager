@@ -12,7 +12,7 @@ axes.spines.right : True
 axes.spines.bottom : True
 axes.spines.left : True
 #axes.facecolor : (0.0, 0.0, 0.0, 0.0)
-legend.fontsize : 12
+legend.fontsize : 10
 
 # GRID
 axes.grid : False

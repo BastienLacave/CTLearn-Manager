@@ -1,10 +1,9 @@
+import astropy.units as u
+import numpy as np
+from numba import njit
+
 from ..model_manager import CTLearnModelManager
 from ..utils.utils import ClusterConfiguration
-from astropy.table import QTable
-import numpy as np
-import astropy.units as u
-from astropy.time import TimeDelta
-from numba import njit
 
 __all__ = ['load_model_from_index', 'load_DL2_data_MC', 'load_DL2_data', 'load_DL2_data_RF', 'load_true_shower_parameters']
 
@@ -22,8 +21,8 @@ def load_model_from_index(model_nickname, MODEL_INDEX_FILE, cluser_config=Cluste
 
 
 def load_DL2_data_MC(input_file, tel_id=None):
+    from astropy.table import hstack, join
     from ctapipe.io import read_table
-    from astropy.table import (join, hstack)
     subarray_string = "subarray" if tel_id==None else "telescope"
     tel_id_string = "" if tel_id==None else f"tel_{tel_id:03d}"
     pointing = read_table(input_file, f"dl1/monitoring/{subarray_string}/pointing/{tel_id_string}")
@@ -87,8 +86,8 @@ def load_DL2_data(input_file, DL2DataProcessor):
     reco_method = DL2DataProcessor.reconstruction_method
     path = "subarray" if DL2DataProcessor.stereo else "telescope"
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
+    from astropy.table import hstack, join
     from ctapipe.io import read_table
-    from astropy.table import (join, hstack)
     
     pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort('time')

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 
-class WhoIsBetter():
+
+class WhoIsBetter:
     def __init__(self, dl2_processors, labels):
         self.dl2_processors = dl2_processors
         self.labels = labels

@@ -30,7 +30,7 @@ RUN python -m pip install --no-cache-dir build \
 # second stage, copy and install wheel
 # We are using the official python 3.11 image
 # as base image in the slim variant to reduce image size.
-FROM python:3.11-slim
+FROM nvcr.io/nvidia/tensorflow:24.01-tf2-py3 
 COPY --from=builder /repo/dist /tmp/dist
 
 RUN python -m pip install --no-cache-dir /tmp/dist/* \
