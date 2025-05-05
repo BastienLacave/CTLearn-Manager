@@ -714,7 +714,7 @@ class CTLearnModelManager:
         print(f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}")
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_IRF_data(self, zenith, azimuth):
+    def get_IRF_data(self, zenith=None, azimuth=None):
         """
         Retrieve the Instrument Response Function (IRF) data for a given zenith and azimuth.
         :param zenith: The zenith angle for which to retrieve the IRF data.
@@ -726,6 +726,11 @@ class CTLearnModelManager:
         :raises IndexError: If no IRF data is found for the specified zenith and azimuth.
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if zenith is None or azimuth is None:
+            average_zenith = (self.validity.zenith_range[0] + self.validity.zenith_range[1]) / 2
+            average_azimuth = (self.validity.azimuth_range[0] + self.validity.azimuth_range[1]) / 2
+            return self.get_closest_IRF_data(average_zenith, average_azimuth)
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0]

@@ -1,3 +1,4 @@
+import ast
 from pathlib import Path
 
 import astropy.units as u
@@ -389,6 +390,9 @@ class CTLearnTriModelManager:
 
         dl2_subarray_string = " --dl2-subarray" if dl2_subarray else " --no-dl2-subarray"
         config_string = f"--config {config}" if config is not None else ""
+
+        allowed_tels = ast.literal_eval(self.direction_model.model_parameters_table['telescope_ids'][0])
+        # config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels # TODO pass allowed tels in a config file
          
         for input_file, output_file in zip(testing_files, output_files):
             if os.path.exists(output_file) and not overwrite:
@@ -426,7 +430,7 @@ class CTLearnTriModelManager:
                 os.system(cmd)
         
     
-    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, config_dir=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
+    def predict_lstchain_data(self, input_file, output_file, run=None, subrun=None, config_dir=None, overwrite=False, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', batch_size=64):
         """
         Predicts data using lstchain models and saves the output to a specified file.
         :param input_file: Path to the input file containing data to be predicted.
@@ -498,7 +502,7 @@ class CTLearnTriModelManager:
 --type_model {type_model_dir}/ctlearn_model.cpk \
 --energy_model {energy_model_dir}/ctlearn_model.cpk \
 --cameradirection_model {direction_model_dir}/ctlearn_model.cpk \
---config '{config_file}' \
+--config '{config_file}' --LST1PredictionTool.batch_size={batch_size} \
 -v"
             
         if self.cluster_configuration.use_cluster:
@@ -1526,6 +1530,8 @@ class CTLearnTriModelManager:
                 full_mask |= mask
             dl2 = data[full_mask]
         return dl2
+    
+    
 
 
         

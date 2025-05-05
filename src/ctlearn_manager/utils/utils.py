@@ -90,12 +90,12 @@ def get_files_cscs(run: int, DL1_data_dir="/pnfs/cta.cscs.ch/lst/DL1/"):
     return files, v
     
 
-def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam'):
+def get_avg_pointing(input_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', alt_key='alt_tel', az_key='az_tel'):
     import astropy.units as u
     from ctapipe.io import read_table
     pointing = read_table(input_file, path=pointing_table)
-    avg_data_az = np.mean(pointing['az_tel']*180/np.pi) * u.deg
-    avg_data_ze = np.mean(90 - pointing['alt_tel']*180/np.pi) * u.deg
+    avg_data_az = np.mean(pointing[az_key]*180/np.pi) * u.deg
+    avg_data_ze = np.mean(90 - pointing[alt_key]*180/np.pi) * u.deg
     return avg_data_ze, avg_data_az
 
 def get_predict_data_sbatch_script(cluster, command, job_name, sbatch_scripts_dir, account, env_name, time, partition, nodes=1, memory_mb=None, use_gpu_cscs=True):
@@ -275,8 +275,8 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
 
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
-    start_flux = 1
-    flux_factor = start_flux * np.ones_like(cumul_excess)
+    start_flux = np.float64(1.)
+    flux_factor = start_flux * np.ones_like(cumul_excess).astype('float64')
 
     good_bin_mask = ((cumul_excess > min_exc*cumul_off) &
                     (cumul_off > min_off_events) &
@@ -309,8 +309,8 @@ def calc_flux_for_N_sigma(N_sigma, cumul_excess, cumul_off,
     # iterate to obtain the flux which gives exactly N_sigma:
     for iter in range(10):
         # print(iter)
-        tolerance_mask = np.abs(lima_signi-N_sigma)>0.001 # recalculate only what is needed
-        flux_factor[tolerance_mask] *= (N_sigma / lima_signi[tolerance_mask])
+        tolerance_mask = np.abs(lima_signi.astype('float64')-N_sigma)> 0.001 # recalculate only what is needed
+        flux_factor[tolerance_mask] *= (np.float64(N_sigma) / lima_signi[tolerance_mask].astype('float64'))
         # NOTE!!! float64 precision is essential here!!!!
         lima_signi[tolerance_mask] = li_ma_significance((time_factor*(flux_factor[tolerance_mask]*
                                                                     cumul_excess[tolerance_mask]+
@@ -352,6 +352,7 @@ class ParticleType(Enum):
     ELECTRON = "electron"
     # REAL_DATA = "real_data"
     # ALL = "all"
+
 
 class DataSample:
     """

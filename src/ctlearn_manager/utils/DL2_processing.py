@@ -5,10 +5,12 @@ import astropy.units as u
 import numpy as np
 from astropy.coordinates import Angle, EarthLocation, SkyCoord
 from astropy.time import Time
+from astropy.io import fits
 from pyirf.statistics import li_ma_significance
 from tqdm import tqdm
 
 from ..tri_model import CTLearnTriModelManager
+from ..tri_model_collection import TriModelCollection
 from ..utils.utils import (
     calc_flux_for_N_sigma,
     find_68_percent_range,
@@ -67,21 +69,30 @@ class DL2DataProcessor:
         Computes the on-source and off-source counts, as well as the Li & Ma significance.
     """
     
-    def __init__(self, DL2_files, CTLearnTriModelManager: CTLearnTriModelManager, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), dl2_processed_dir=None, pointing_table='dl1/monitoring/telescope/pointing'):
+    def __init__(self, DL2_files: list[str], CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), pointing_table='dl1/monitoring/telescope/pointing/tel_001', edep_cuts=False):
         
         self.DL2_files = np.sort(DL2_files)
-        self.CTLearnTriModelManager = CTLearnTriModelManager
+        if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
+            self.CTLearnTriModelCollection = TriModelCollection([CTLearn_TriModel_Manager], cluster_configuration=CTLearn_TriModel_Manager.cluster_configuration)
+        else:
+            self.CTLearnTriModelCollection = CTLearn_TriModel_Manager
         self.source_position = source_position
-        self.dl2_processed_dir = dl2_processed_dir
-        self.telscope_names = CTLearnTriModelManager.telescope_names
-        self.stereo = CTLearnTriModelManager.stereo
+        self.telscope_names = self.CTLearnTriModelCollection.tri_models[0].telescope_names
+        self.stereo = self.CTLearnTriModelCollection.tri_models[0].stereo
         self.gammaness_cut = gammaness_cut
         self.pointing_table = pointing_table
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
-        self.telescope_id = CTLearnTriModelManager.telescope_ids if self.stereo else CTLearnTriModelManager.telescope_ids[0]
+        self.telescope_id = self.CTLearnTriModelCollection.tri_models[0].telescope_ids if self.stereo else self.CTLearnTriModelCollection.tri_models[0].telescope_ids[0] # FIXME other telescopes ?
         # self.irfs = CTLearnTriModelManager.irfs
         self.CTLearn = True
+        self.edep_cuts = edep_cuts
+        if self.edep_cuts:
+            # get E bins from IRFs cuts file
+            cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1]
+            with fits.open(cuts_file) as hdul:
+                self.E_bins = hdul['GH_CUTS'].data['low']
+                self.E_bins = np.append(self.E_bins, hdul['GH_CUTS'].data['high'][-1]) * u.TeV
         self.set_keys()
         
 
@@ -115,40 +126,42 @@ class DL2DataProcessor:
     def process_DL2_data(self):
 
         for DL2_file in self.DL2_files:
-            if self.dl2_processed_dir is None:
-                dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
-                reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
-                pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
-                I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
-                I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-            else:
-                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+            # if self.dl2_processed_dir is None:
+            dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
+            os.makedirs(dl2_processed_dir, exist_ok=True)
+                # dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+                # reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+                # pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+                # I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+                # I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
+            # else:
+            dl2_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            reco_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            pointing_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            I_g_on_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            I_g_off_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
 
             if (not os.path.exists(reco_output_file)) or (not os.path.exists(pointing_output_file)) or (not os.path.exists(dl2_output_file)) or (not os.path.exists(I_g_on_counts_output_file)) or (not os.path.exists(I_g_off_counts_output_file)):
                 if np.where(self.DL2_files == DL2_file)[0][0] == 0:
                     print("Preprocessing DL2 (~50min/run), only once")
-                self.CTLearnTriModelManager.cluster_configuration.info()
-                if self.CTLearnTriModelManager.cluster_configuration.use_cluster:
-                    if self.CTLearnTriModelManager.cluster_configuration.environment == 'ctlearn' and self.CTLearnTriModelManager.cluster_configuration.cluster == 'cscs':
+                self.CTLearnTriModelCollection.cluster_configuration.info()
+                if self.CTLearnTriModelCollection.cluster_configuration.use_cluster:
+                    if self.CTLearnTriModelCollection.cluster_configuration.environment == 'ctlearn' and self.CTLearnTriModelCollection.cluster_configuration.cluster == 'cscs':
                         print("⚠️⚠️⚠️The environment is set to ctlearn, be sure you change it to ctlearn_manager to use the apropriate image, ctlearn manager does not use ctlearn for DL2 processing.")
-                    processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
+                    processor_file = f"{dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
                         pickle.dump(self, f)
-                    self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir, use_gpu_cscs=False)
-                    os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
+                    self.CTLearnTriModelCollection.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", dl2_processed_dir, use_gpu_cscs=False)
+                    os.system(f"sbatch {dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
                 else:
                     # print(f"[NOT USING SLURM] Processing {DL2_file}")
 
-                    processor_file = f"{self.dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
+                    processor_file = f"{dl2_processed_dir}/{DL2_file.split('/')[-1]}_processor.pkl"
                     with open(processor_file, 'wb') as f:
                         pickle.dump(self, f)
-                    # self.CTLearnTriModelManager.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", self.dl2_processed_dir)
-                    # os.system(f"sbatch {self.dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
+                    # self.CTLearnTriModelCollection.cluster_configuration.write_sbatch_script(f"process_dl2_{DL2_file.split('/')[-1]}", f"process_dl2_file {DL2_file} {processor_file}", dl2_processed_dir)
+                    # os.system(f"sbatch {dl2_processed_dir}/process_dl2_{DL2_file.split('/')[-1]}.sh")
                     print(f"process_dl2_file {DL2_file} {processor_file}")
                     os.system(f"process_dl2_file {DL2_file} {processor_file}")
 
@@ -195,36 +208,36 @@ class DL2DataProcessor:
         self.dl2s = []
         # self.dl2s_cuts = []
         self.cuts_masks = []
+        self.cuts_masks_gammaness_only = []
         self.I_g_on_counts = []
         self.I_g_off_counts = []
+        self.corresponding_models = []
 
-        for DL2_file in tqdm(self.DL2_files, desc="Loading processed data", disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
-            if self.dl2_processed_dir is None:
-                dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
-                reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
-                pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
-                I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
-                I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-            else:
-                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+        for DL2_file in tqdm(self.DL2_files, desc="Loading processed data"):#, disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
+            corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(DL2_file, self.pointing_table, alt_key=self.pointing_alt_key, az_key=self.pointing_az_key, verbose=False)
+            self.corresponding_models.append(corresponding_model)
+            # if self.dl2_processed_dir is None:
+            #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+            #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+            #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+            #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+            #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
+            # else:
+            #     dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            #     reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            #     pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            #     I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            #     I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+            dl2_output_file = os.path.join(f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/", os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            reco_output_file = os.path.join(f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/", os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            pointing_output_file = os.path.join(f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/", os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            I_g_on_counts_output_file = os.path.join(f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/", os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            I_g_off_counts_output_file = os.path.join(f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/", os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
             if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
 
-                with open(dl2_output_file, 'rb') as f:
-                        dl2 = pickle.load(f)
-                if self.gammaness_key in dl2.colnames:
-                    dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
-                    cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
-                else:
-                    cut_mask = np.ones(len(dl2), dtype=bool)
-                self.cuts_masks.append(cut_mask)
-                self.dl2s.append(dl2)
+                
             
-            if (os.path.exists(reco_output_file)) and (os.path.exists(pointing_output_file)) and (os.path.exists(dl2_output_file)):
                 with open(reco_output_file, 'rb') as f:
                     transformed_reco_dict = pickle.load(f)
                 with open(pointing_output_file, 'rb') as f:
@@ -239,6 +252,23 @@ class DL2DataProcessor:
         
                 self.reco_directions.append(transformed_reco)
                 self.pointings.append(transformed_pointing)
+
+                with open(dl2_output_file, 'rb') as f:
+                        dl2 = pickle.load(f)
+                if  self.edep_cuts:
+                    dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
+                    cut_mask = self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco)
+                    cut_mask_gammaness_only = self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco, False)
+                elif self.gammaness_key in dl2.colnames:
+                    dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
+                    cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
+                    cut_mask_gammaness_only = cut_mask
+                else:
+                    cut_mask = np.ones(len(dl2), dtype=bool)
+                    cut_mask_gammaness_only = cut_mask
+                self.cuts_masks.append(cut_mask)
+                self.cuts_masks_gammaness_only.append(cut_mask_gammaness_only)
+                self.dl2s.append(dl2)
                 
 
                 
@@ -253,7 +283,40 @@ class DL2DataProcessor:
                 self.I_g_on_counts.append(I_g_on_counts)
                 self.I_g_off_counts.append(I_g_off_counts)
 
+    def get_energy_dependent_mask_data(self, data, tri_model, reco_coord, theta_cut=True):
+        # Apply cuts to the data
+        from astropy.io import fits
+        cuts_file = tri_model.direction_model.get_IRF_data()[1]
+        with fits.open(cuts_file) as hdul:
+            gammaness_cuts = hdul['GH_CUTS'].data['cut']
+            energy_low_gamma = hdul['GH_CUTS'].data['low']
+            energy_high_gamma = hdul['GH_CUTS'].data['high']
+            theta_cuts = hdul['RAD_MAX'].data['cut']
+            energy_low_theta = hdul['RAD_MAX'].data['low']
+            energy_high_theta = hdul['RAD_MAX'].data['high']
+            assert (energy_low_gamma == energy_low_theta).all(), "Energy low values for gammaness and theta cuts do not match"
+            assert (energy_high_gamma == energy_high_theta).all(), "Energy high values for gammaness and theta cuts do not match"
 
+            on_separation = reco_coord.separation(self.source_position)
+            data['angular_separation'] = on_separation
+
+            masks = []
+            for E_min, E_max, gcut, tcut in zip(energy_low_gamma, energy_high_gamma, gammaness_cuts, theta_cuts):
+                energy_mask = (data[self.energy_key] > E_min) & (data[self.energy_key] < E_max)
+                gammaness_mask = data[self.gammaness_key] > gcut
+                if theta_cut:
+                    theta_mask = data['angular_separation'] < tcut
+                    mask = energy_mask & gammaness_mask & theta_mask
+                else:
+                    mask = energy_mask & gammaness_mask
+
+                masks.append(mask)
+
+            full_mask = np.zeros(len(data), dtype=bool)
+            for mask in masks:
+                full_mask |= mask
+            # dl2 = data[full_mask]
+        return full_mask
 
     def plot_theta2_distribution(self, bins, n_off=3, output_file=None):
         import matplotlib.pyplot as plt
@@ -267,7 +330,7 @@ class DL2DataProcessor:
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             # eff time must be computed on all events, regardless on the requred cuts
@@ -301,8 +364,6 @@ class DL2DataProcessor:
             h_on += h_on_temp
             h_off += h_off_temp / n_off # To plot the average off source counts
 
-
-            
             t_eff += t_eff_temp
             t_elapsed += t_elapsed_temp
 
@@ -469,7 +530,7 @@ class DL2DataProcessor:
 
         LST_EPOCH = Time("2018-10-01T00:00:00", scale="utc")
 
-        for reco, cuts_mask, dl2, pointing in zip(self.reco_directions, self.cuts_masks, self.dl2s, self.pointings):
+        for reco, cuts_mask, dl2, pointing in zip(self.reco_directions, self.cuts_masks_gammaness_only, self.dl2s, self.pointings):
             # offsets = reco.spherical_offset_to(pointing)[cuts_mask]
             dl2 = dl2[cuts_mask]
 
@@ -626,14 +687,17 @@ class DL2DataProcessor:
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
 
-        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        if self.edep_cuts:
+            E_bins = self.E_bins
+        else:
+            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
         off_count = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing sensitivity", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing sensitivity", total=len(self.reco_directions)):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             # eff time must be computed on all events, regardless on the requred cuts
@@ -681,13 +745,14 @@ class DL2DataProcessor:
 
         flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
         flux_minus, lima_signi_minus = calc_flux_for_N_sigma(5, nexcess + backg_syst * off_count + (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
-        flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
+        flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count,   min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
 
 
         # Create a figure with subplots
         # fig = plt.figure(figsize=(10, 8))
         # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
         mask = np.where(flux_factor >=0)
+        mask = np.ones(len(flux_factor), dtype=bool)
 
 
         E = (E_bins[:-1] + E_bins[1:])/2
@@ -700,16 +765,21 @@ class DL2DataProcessor:
         # ax1 = fig.add_subplot(gs[0])
         if ax is None:
             fig, ax = plt.subplots()
+        print(flux_factor)
+        print(flux_minus)
+        print(flux_plus)
+        print(len(flux_factor), len(flux_factor[mask]))
+        print(len(flux_minus), len(flux_minus[mask]))
         ax.plot(E[mask], flux_factor[mask] * 100, marker='o', label=label, zorder=10, ls='--')
         ax.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
         ax.set_ylabel("Differential sensitivity [% Obs. Flux.]")
-        ax.set_xlim(0.03, 2)
+        # ax.set_xlim(0.03, 2)
         # ax.set_ylim(2, 60)
-        ax.set_yticks([1, 10])
-        ax.set_yticklabels(['1', '10'])
+        # ax.set_yticks([1, 10])
+        # ax.set_yticklabels(['1', '10'])
         ax.set_title('Differential sensitivity')
         ax.legend()
 
@@ -723,9 +793,10 @@ class DL2DataProcessor:
     def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
 
-
-
-        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        if self.edep_cuts:
+            E_bins = self.E_bins
+        else:
+            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         on_count = np.zeros(len(E_bins) - 1)
         off_count = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
@@ -735,7 +806,7 @@ class DL2DataProcessor:
         h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks), desc="Computing PSF", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
+        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing PSF", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             # eff time must be computed on all events, regardless on the requred cuts
@@ -803,7 +874,7 @@ class DL2DataProcessor:
         ax.set_xscale('log')
         # ax.yscale('log')
         # ax.legend()
-        ax.set_xlim(0.03, 2)
+        # ax.set_xlim(0.03, 2)
         # ax.ylim(bottom=0.1, top=0.5)
         ax.set_title('Point Spread Function')
 
@@ -963,12 +1034,15 @@ class DL2DataProcessor:
     def plot_excess_and_background_rates_vs_energy(self, n_off=3, output_file=None):
         import matplotlib.pyplot as plt
 
-        E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        if self.edep_cuts:
+            E_bins = self.E_bins
+        else:
+            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         excess_rates = np.zeros(len(E_bins) - 1)
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
 
-        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions), disable=self.CTLearnTriModelManager.cluster_configuration.use_cluster):
+        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
                 on_count, off_count, _, _, _ = self.compute_on_off_counts(
                     dl2, 

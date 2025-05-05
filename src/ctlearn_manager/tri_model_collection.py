@@ -19,8 +19,14 @@ class TriModelCollection:
         self.cluster_configuration = cluster_configuration
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
+        telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]
+        telescope_names = [tri_model.telescope_names for tri_model in self.tri_models]
+        stereos = [tri_model.stereo for tri_model in self.tri_models]
+        assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
+        # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
+        # assert len(set(telescope_names)) == 1, "All telescope_names in the collection must be the same."
 
-    def predict_lstchain_run(self, run: int, output_dir: str, DL1_data_dir=None, overwrite=False, plot=False):
+    def predict_lstchain_run(self, run: int, output_dir: str, DL1_data_dir=None, overwrite=False, plot=False, batch_size=64):
         os.makedirs(output_dir, exist_ok=True)
         if self.cluster_configuration.cluster == 'cscs':
             if DL1_data_dir is None:
@@ -40,7 +46,7 @@ class TriModelCollection:
                 # print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
-                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot)
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot, batch_size=batch_size)
 
         elif self.cluster_configuration.cluster == 'lst-cluster':
             if DL1_data_dir is None:
@@ -50,18 +56,18 @@ class TriModelCollection:
                 print(f"Predicting {input_file}")
                 subrun = int(input_file.split('.')[-2])
                 output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
-                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot)
+                self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot, batch_size=batch_size)
         else:
             raise ValueError(f"To predict LST data run-wise, the cluster must be either 'cscs' or 'lst-cluster'. Current cluster : {self.cluster_configuration.cluster}")
         
         
-    def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', config_dir=None, overwrite=False, run=None, subrun=None, plot=False):
+    def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', config_dir=None, overwrite=False, run=None, subrun=None, plot=False, batch_size=64):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table, plot=plot)
         if os.path.exists(output_file) and not overwrite:
             print(f"⚠️ Output file already exists and overwrite is set to False : {output_file}")
             return
         if closest_tri_model is not None:
-            closest_tri_model.predict_lstchain_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, run=run, subrun=subrun, pointing_table=pointing_table)
+            closest_tri_model.predict_lstchain_data(input_file, output_file, config_dir=config_dir, overwrite=overwrite, run=run, subrun=subrun, pointing_table=pointing_table, batch_size=batch_size)
         else:
             return
         
@@ -72,12 +78,12 @@ class TriModelCollection:
         else:
             return
         
-    def find_closest_model_to(self, input_file, pointing_table, plot=False):
+    def find_closest_model_to(self, input_file, pointing_table, plot=False, alt_key='alt_tel', az_key='az_tel', verbose=True):
         import astropy.units as u
 
         from ctlearn_manager.utils.utils import get_avg_pointing
         try:
-            avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table)
+            avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table, alt_key=alt_key, az_key=az_key)
         except:
             print(f"⚠️ Corrupted file, skipping : {input_file}")
             return
@@ -93,7 +99,8 @@ class TriModelCollection:
         closest_model_index = np.argmin(angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs))
         closest_model = self.tri_models[closest_model_index]
 
-        print(f"📁 File : {input_file.split('/')[-1]}      📡 Pointing : ({avg_data_ze.value:.3f}, {avg_data_az.value:.3f})      🧠 Closest Model : ({np.mean(closest_model.direction_model.validity.zenith_range).value:.3f}, {np.mean(closest_model.direction_model.validity.azimuth_range).value:.3f})")
+        if verbose:
+            print(f"📁 File : {input_file.split('/')[-1]}      📡 Pointing : ({avg_data_ze.value:.3f}, {avg_data_az.value:.3f})      🧠 Closest Model : ({np.mean(closest_model.direction_model.validity.zenith_range).value:.3f}, {np.mean(closest_model.direction_model.validity.azimuth_range).value:.3f})")
         # print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
         # print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
         # print(f"｜🧠 Using models {closest_model.direction_model.model_nickname}, {closest_model.energy_model.model_nickname} and {closest_model.type_model.model_nickname}")
