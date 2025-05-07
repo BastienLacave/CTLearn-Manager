@@ -16,6 +16,7 @@ axes.ymargin : 0.1
 #axes.facecolor : (0.0, 0.0, 0.0, 0.0)
 legend.fontsize : 10
 legend.markerscale : 1.
+patch.linewidth : 2
 
 # GRID
 axes.grid : False

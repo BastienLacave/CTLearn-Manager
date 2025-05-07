@@ -17,6 +17,7 @@ from .utils.utils import (
     IRFType,
     CutType,
     DefaultCuts,
+    CTLearnManagerStyle,
 )
 
 __all__ = [
@@ -666,7 +667,7 @@ class CTLearnTriModelManager:
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
             dl2_data = vstack(dl2_data)
-            plt.hist(dl2_data[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label=particle_type.value)
+            plt.hist(dl2_data[self.gammaness_key], bins=100, range=(0, 1), histtype="step", density=True, label=particle_type.value)
         plt.xlabel("Gammaness")
         plt.ylabel("Density")
         plt.legend()
@@ -696,7 +697,7 @@ class CTLearnTriModelManager:
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
             dl2_data = vstack(dl2_data)
-            plt.hist(dl2_data[self.reco_energy_key], bins=100, range=(0, 1), histtype="step", density=True, lw=2, label=particle_type.value)
+            plt.hist(dl2_data[self.reco_energy_key], bins=100, range=(0, 1), histtype="step", density=True, label=particle_type.value)
         plt.xlabel("Energy [TeV]")
         plt.ylabel("Density")
         plt.xscale("log")
@@ -735,12 +736,13 @@ class CTLearnTriModelManager:
             tel_id = None if self.stereo else self.telescope_ids[0]
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
-            dl2_data = vstack(dl2_data)[dl2_data[self.gammaness_key] > cuts.gammaness_cut]
+            dl2_data = vstack(dl2_data)
+            dl2_data = dl2_data[dl2_data[self.gammaness_key] > cuts.gammaness_cut]
             if len(particle_types) > 1:
                 ax = axs[i]
             else:
                 ax = axs
-            ax.scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color="red", label="Array pointing", marker="x", s=80)
+            ax.scatter(dl2_data[self.pointing_alt_key][0]/np.pi*180, dl2_data[self.pointing_az_key][0]/np.pi*180, color=CTLearnManagerStyle.ctlearn_accent_1.value, label="Array pointing", marker="x", s=80)
             ax.hist2d(dl2_data[self.reco_alt_key], dl2_data[self.reco_az_key], bins=100, zorder=0, cmap="viridis", norm=plt.cm.colors.LogNorm())
             ax.set_xlabel("Altitude [deg]")
             ax.set_ylabel("Azimuth [deg]")
@@ -798,7 +800,7 @@ class CTLearnTriModelManager:
             else:
                 ax = axs
             cuts.plot_cuts_info_plt(ax)
-            ax.plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color="red", ls="--")
+            ax.plot([log_bins[0], log_bins[-1]], [log_bins[0], log_bins[-1]], color=CTLearnManagerStyle.ctlearn_accent_1.value, ls="--")
             ax.hist2d(dl2_data[self.reco_energy_key], dl2_data[self.true_energy_key], bins=log_bins, cmap="viridis", norm=plt.cm.colors.LogNorm())
             ax.set_xlabel("CTLean Energy [TeV]")
             ax.set_ylabel("True Energy [TeV]")
