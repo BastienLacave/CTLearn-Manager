@@ -87,7 +87,9 @@ class DL2DataProcessor:
         # self.irfs = CTLearnTriModelManager.irfs
         self.CTLearn = True
         self.edep_cuts = edep_cuts
+        print(self.edep_cuts)
         if self.edep_cuts:
+            print(self.edep_cuts)
             # get E bins from IRFs cuts file
             cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1]
             with fits.open(cuts_file) as hdul:
@@ -697,7 +699,8 @@ class DL2DataProcessor:
         t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing sensitivity", total=len(self.reco_directions)):
+        for reco_direction, pointing_direction, dl2, cuts_mask, file in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, self.DL2_files), desc="Computing sensitivity", total=len(self.reco_directions)):
+            # print(file)
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             # eff time must be computed on all events, regardless on the requred cuts
@@ -1138,16 +1141,16 @@ class DL2DataProcessor:
         else:
             plt.show()
 
-    def plot_everything(self, output_directory):
+    def plot_everything(self, output_directory:str, suffix: str=""):
         
-        self.plot_sensitivity(output_file=f"{output_directory}/sensitivity.png")
-        self.plot_gammaness_distribution(output_file=f"{output_directory}/gammaness_distribution.png")
-        self.plot_skymap(output_file=f"{output_directory}/skymap.png")
-        self.plot_theta2_distribution(25, output_file=f"{output_directory}/theta2_distribution.png")
-        self.plot_bkg_discrimination_capability(output_file=f"{output_directory}/bkg_discrimination_capability.png")
-        self.plot_excess_vs_background_rates(output_file=f"{output_directory}/excess_vs_background_rates.png")
-        self.plot_excess_and_background_rates_vs_energy(output_file=f"{output_directory}/excess_and_background_rates_vs_energy.png")
-        self.plot_PSF(output_file=f"{output_directory}/psf.png")
+        self.plot_sensitivity(output_file=f"{output_directory}/sensitivity_{suffix}.png")
+        self.plot_gammaness_distribution(output_file=f"{output_directory}/gammaness_distribution_{suffix}.png")
+        self.plot_skymap(output_file=f"{output_directory}/skymap_{suffix}.png")
+        self.plot_theta2_distribution(25, output_file=f"{output_directory}/theta2_distribution_{suffix}.png")
+        self.plot_bkg_discrimination_capability(output_file=f"{output_directory}/bkg_discrimination_capability_{suffix}.png")
+        self.plot_excess_vs_background_rates(output_file=f"{output_directory}/excess_vs_background_rates_{suffix}.png")
+        self.plot_excess_and_background_rates_vs_energy(output_file=f"{output_directory}/excess_and_background_rates_vs_energy_{suffix}.png")
+        self.plot_PSF(output_file=f"{output_directory}/psf_{suffix}.png")
         
 
 

@@ -22,7 +22,7 @@ grid.linewidth : 0.6
 grid.color : "#363636"
 
 # LINES
-axes.prop_cycle : cycler('color', ['547eae', 'de5f7d', 'e3704b', 'edd142', '3e935c', '827eb2']) #hex colours
+axes.prop_cycle : cycler('color', ['016279', '00a693', '58c68b', '00c6ff', 'cf004b', '923e51']) #hex colours
 lines.linewidth : 1.5
 lines.markeredgewidth : 0.0
 lines.solid_capstyle : round

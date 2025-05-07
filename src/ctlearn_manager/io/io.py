@@ -88,8 +88,10 @@ def load_DL2_data(input_file, DL2DataProcessor):
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
     from astropy.table import hstack, join
     from ctapipe.io import read_table
+    from astropy.io.misc.hdf5 import read_table_hdf5
     
     pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
+    # pointing = read_table_hdf5(input_file, path=f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort('time')
     
     dl2 = None

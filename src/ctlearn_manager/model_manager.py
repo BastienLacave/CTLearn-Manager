@@ -10,6 +10,9 @@ from ctlearn_manager.utils.utils import (
     DataSample,
     ParticleType,
     set_mpl_style,
+    IRFType,
+    Cuts,
+    get_irf_type_from_config,
 )
 
 __all__ = [
@@ -116,6 +119,9 @@ class CTLearnModelManager:
             training_table_proton = read_table_hdf5(f"{self.model_index_file}", path=f"{self.model_nickname}/training/proton")
             if (len(training_table_proton['training_proton_patterns']) == 0) or (len(training_table_gamma['training_gamma_diffuse_patterns']) == 0):
                 raise ValueError("For reco type, training_proton_patterns and training_gamma_diffuse_patterns are required")
+            
+        if self.stereo and len(self.telescope_ids) < 2:
+            raise ValueError("For stereo mode, at least 2 telescopes are required")
         # Check that all gamma related lists are the same length
         # gamma_lengths = [len(training_table_gamma['training_gamma_diffuse_patterns']), len(training_table_gamma['training_gamma_diffuse_zenith_distances']), len(training_table_gamma['training_gamma_diffuse_azimuths'])]
         # if len(set(gamma_lengths)) != 1:
@@ -127,6 +133,7 @@ class CTLearnModelManager:
         #     raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
+        set_mpl_style()
 
         # current_model_dir = self.model_parameters_table['model_dir'][0]
         # if f"/{self.model_nickname}" not in current_model_dir:
@@ -389,7 +396,7 @@ class CTLearnModelManager:
 
         import matplotlib.pyplot as plt
         import pandas as pd
-        set_mpl_style()
+        
         training_logs = np.sort(glob.glob(f"{self.model_parameters_table['model_dir'][0]}/{self.model_nickname}*/training_log.csv"))
         losses_train = []
         losses_val = []
@@ -714,7 +721,7 @@ class CTLearnModelManager:
         print(f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}")
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_IRF_data(self, zenith=None, azimuth=None):
+    def get_IRF_data(self, zenith=None, azimuth=None, cuts: Cuts=None):
         """
         Retrieve the Instrument Response Function (IRF) data for a given zenith and azimuth.
         :param zenith: The zenith angle for which to retrieve the IRF data.
@@ -733,7 +740,23 @@ class CTLearnModelManager:
             return self.get_closest_IRF_data(average_zenith, average_azimuth)
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
-        match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0]
+        target_irf_type = cuts.irf_type
+        target_gamma_efficiency = cuts.efficiency_gammaness
+        target_theta_efficiency = cuts.efficiency_theta
+        
+        mask = [get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']]
+        if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
+            mask = [
+            mask[i] and 
+            abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency) < 1e-3 and 
+            abs(get_irf_type_from_config(config)[2] - target_theta_efficiency) < 1e-3
+            for i, config in enumerate(IRF_table['config'])
+            ]
+
+        if not any(mask):
+            raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
+        
+        match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0] [mask]
         if len(match) == 0:
             raise IndexError(f"No IRF data found for zenith {zenith} and azimuth {azimuth}")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
@@ -754,6 +777,8 @@ class CTLearnModelManager:
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
+        if len(match) > 1:
+            raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
         return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
@@ -806,7 +831,7 @@ class CTLearnModelManager:
           `self.model_index_file` and `self.model_nickname`.
         - The plot style is set using `set_mpl_style()`.
         """
-        set_mpl_style()
+        
         import astropy.units as u
         import matplotlib.pyplot as plt
         from astropy.io.misc.hdf5 import read_table_hdf5

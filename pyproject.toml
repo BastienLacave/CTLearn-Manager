@@ -14,13 +14,14 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "ctapipe",
+    "ctapipe==0.24.0",
     "gammapy",
     "pyirf",
     "ctaplot",
     "h5py",
     "ctadata",
     "ctlearn",
+    "astropy",
 ]
 
 # needed for setuptools_scm, we don"t define a static version

@@ -12,7 +12,42 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['get_cuts_info_plt', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['DefaultCuts', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+
+class CTLearnManagerStyle(Enum):
+    """
+    A class to manage predefined colors and plot styles for consistent visualization.
+    """
+
+
+
+    # def __init__(self):
+    #     # Predefined colors
+    #     self.colors = {
+    #         "ctlearn_1": "#016279" ,
+    #         "ctlearn_2": "#00a693" ,
+    #         "ctlearn_3": "#58c68b" ,
+    #         "ctlearn_highlight": "#00c6ff" ,
+    #         "ctlearn_accent_1": "#cf004b",
+    #         "ctlearn_accent_2": "#923e51",
+    #         "random_forest": "#000000" ,
+    #     }
+        # self.ctlearn_1 = "#016279" 
+        # self.ctlearn_2 = "#00a693" 
+        # self.ctlearn_3 = "#58c68b" 
+        # self.ctlearn_highlight = "#00c6ff" 
+        # self.ctlearn_accent_1 = "#cf004b"
+        # self.ctlearn_accent_2 = "#923e51"
+        # self.random_forest = "#000000" 
+    ctlearn_1 = "#016279" 
+    ctlearn_2 = "#00a693" 
+    ctlearn_3 = "#58c68b" 
+    ctlearn_highlight = "#00c6ff" 
+    ctlearn_accent_1 = "#cf004b"
+    ctlearn_accent_2 = "#923e51"
+    random_forest = "#000000" 
+        
+
 
 
 def set_mpl_style():
@@ -374,7 +409,7 @@ class DataSample:
     import astropy.units as u
 
     @u.quantity_input(zenith_distance=u.deg, azimuth=u.deg, energy_range=u.TeV, nsb_range=u.Hz)
-    def __init__(self, directory, pattern, particle_type: ParticleType | None = None, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
+    def __init__(self, directory: str, pattern: str, particle_type: ParticleType | None = None, zenith_distance=np.nan * u.deg, azimuth=np.nan * u.deg, energy_range=[np.nan, np.nan] * u.TeV, nsb_range=[np.nan, np.nan] * u.Hz):
         """
         Initialize the ModelManager.
         :param directory: The directory where training data is stored.
@@ -393,6 +428,7 @@ class DataSample:
         import astropy.units as u
         from ctapipe.io import read_table
         from tqdm import tqdm
+
 
         self.directory = directory
         self.pattern = pattern
@@ -447,32 +483,137 @@ class DataSample:
         print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
 
         
-def get_cuts_info_plt(ax, gammaness_cut=None, theta_cut=None, efficiency_gammaness=None, efficiency_theta=None):
 
-    if gammaness_cut is not None:
-        gammaness_cut_type = f"Global gcut : {gammaness_cut}"
-    elif efficiency_gammaness is not None:
-        gammaness_cut_type = f"Energy dependent gcut : {efficiency_gammaness}eff."
-    else:
-        gammaness_cut_type = ""
-    
-    if theta_cut is not None:
-        theta_cut_type = f"Global theta cut : {theta_cut}"
-    elif efficiency_theta is not None:
-        theta_cut_type = f"Energy dependent theta cut : {efficiency_theta}eff."
-    else:
-        theta_cut_type = ""
-    
-    if gammaness_cut_type != "" and theta_cut_type != "" :
-        final_string = f"{gammaness_cut_type} | {theta_cut_type}"
-    else:
-        final_string = f"{gammaness_cut_type}{theta_cut_type}"
 
-    ax.text(
-        0.98, 0.02, final_string,
-        transform=ax.transAxes,
-        fontsize=9,
-        verticalalignment='bottom',
-        horizontalalignment='right',
-        bbox=dict(boxstyle='round,pad=0.3', edgecolor='black', facecolor='white', alpha=0.8)
-    )
+
+
+class CutType(Enum):
+    GLOBAL = "global"
+    EFFICIENCY_OPTIMIZED = "energy_dependent_efficiency"
+    SENSITIVITY_OPTIMIZED = "sensitivity_optimized"
+
+class IRFType(Enum):
+    EFFICIENCY_OPTIMIZED = "energy_dependent_efficiency"
+    SENSITIVITY_OPTIMIZED = "sensitivity_optimized"
+
+
+
+
+
+class Cuts:
+    def __init__(self, cut_type: CutType=CutType.GLOBAL, gammaness_cut: float=0., theta_cut: float=None, efficiency_gammaness: float=0.7, efficiency_theta: float=0.7):
+        self.cut_type = cut_type
+
+        if gammaness_cut is not None:
+            if not (0 <= gammaness_cut <= 1):
+                raise ValueError("gammaness_cut must be between 0 and 1.")
+            
+        if efficiency_gammaness is not None:
+            if not (0 <= efficiency_gammaness <= 1):
+                raise ValueError("efficiency_gammaness must be between 0 and 1.")
+            
+        if efficiency_theta is not None:
+            if not (0 <= efficiency_theta <= 1):
+                raise ValueError("efficiency_theta must be between 0 and 1.")
+        
+        match cut_type:
+            case CutType.GLOBAL:
+                if gammaness_cut is None and theta_cut is None:
+                    raise ValueError("For GLOBAL cuts, at least one of gammaness_cut or theta_cut must be provided.")
+                self.gammaness_cut = gammaness_cut
+                self.theta_cut = theta_cut
+                self.efficiency_gammaness = None
+                self.efficiency_theta = None
+
+            case CutType.EFFICIENCY_OPTIMIZED:
+                if efficiency_gammaness is None and efficiency_theta is None:
+                    raise ValueError("For ENERGY_DEPENDENT cuts, at least one of efficiency_gammaness or efficiency_theta must be provided.")
+                self.gammaness_cut = None
+                self.theta_cut = None
+                self.efficiency_gammaness = efficiency_gammaness
+                self.efficiency_theta = efficiency_theta
+                self.irf_type = IRFType.EFFICIENCY_OPTIMIZED
+
+            case CutType.SENSITIVITY_OPTIMIZED:
+                if any(param is not None for param in [gammaness_cut, theta_cut, efficiency_gammaness, efficiency_theta]):
+                    raise ValueError("For SENSITIVITY_OPTIMIZED cuts, no additional parameters should be provided.")
+                self.gammaness_cut = None
+                self.theta_cut = None
+                self.efficiency_gammaness = None
+                self.efficiency_theta = None
+                self.irf_type = IRFType.SENSITIVITY_OPTIMIZED
+
+            case _:
+                raise ValueError(f"Invalid cut type: {cut_type}")
+
+    def __str__(self):
+        return (f"Cut Type: {self.cut_type.value}, "
+                f"Gammas cut: {self.gammaness_cut}, "
+                f"Theta cut: {self.theta_cut}, "
+                f"Efficiency gammaness: {self.efficiency_gammaness}, "
+                f"Efficiency theta: {self.efficiency_theta}")
+    
+    def plot_cuts_info_plt(self, ax):
+        final_string = self.get_label()
+
+        if final_string:
+            ax.text(
+            0.98, 0.02, final_string,
+            transform=ax.transAxes,
+            fontsize=9,
+            color=CTLearnManagerStyle.ctlearn_1.value,
+            verticalalignment='bottom',
+            horizontalalignment='right',
+            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2),
+            )
+
+    def get_label(self):
+        match self.cut_type:
+            case CutType.GLOBAL:
+                gammaness_cut_type = f"Glob. gcut : {self.gammaness_cut}" if self.gammaness_cut else ""
+                theta_cut_type = r"Glob. $\theta$ cut : " + f"{self.theta_cut}" if self.theta_cut else ""
+            case CutType.EFFICIENCY_OPTIMIZED:
+                gammaness_cut_type = f"E dep. gcut : {self.efficiency_gammaness}eff." if self.efficiency_gammaness else ""
+                theta_cut_type = r"E dep. $\theta$ cut : " + f"{self.efficiency_theta}eff." if self.efficiency_theta else ""
+            case CutType.SENSITIVITY_OPTIMIZED:
+                gammaness_cut_type = "Sensitivity optimized cuts"
+                theta_cut_type = ""
+            case _:
+                gammaness_cut_type = ""
+                theta_cut_type = ""
+
+        final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
+        return final_string
+    
+class DefaultCuts(Enum):
+    NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
+
+
+
+def get_irf_type_from_config(config):
+    """
+    Get the IRF type from the configuration.
+    :param config: The configuration object.
+    :type config: object
+    :return: The IRF type.
+    :rtype: IRFType
+    """
+    import yaml
+    with open(config, 'r') as file:
+        config_data = yaml.safe_load(file)
+    optimization_algorithm = config_data['EventSelectionOptimizer']['optimization_algorithm']
+
+    match optimization_algorithm:
+        case "PercentileCuts":
+            irf_type = IRFType.EFFICIENCY_OPTIMIZED
+            gammaness_efficiency = config_data['GhPercentileCutCalculator']['target_percentile'] / 100
+            theta_efficiency = config_data['ThetaPercentileCutCalculator']['target_percentile'] / 100
+            return irf_type, gammaness_efficiency, theta_efficiency
+        case "PointSourceSensitivityOptimizer":
+            irf_type = IRFType.SENSITIVITY_OPTIMIZED
+            gammaness_efficiency = None
+            theta_efficiency = None
+            return irf_type, gammaness_efficiency, theta_efficiency
+        case _:
+            raise ValueError(f"Unknown optimization algorithm: {optimization_algorithm}")
+        

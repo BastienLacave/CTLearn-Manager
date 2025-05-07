@@ -2,12 +2,14 @@ import os
 
 import ctadata
 import numpy as np
+from tqdm import tqdm
 
 from .utils.utils import (
     ClusterConfiguration,
     angular_distance,
     get_files_cscs,
     get_files_LST_cluster,
+    set_mpl_style,
 )
 
 __all__ = ['TriModelCollection']
@@ -23,6 +25,7 @@ class TriModelCollection:
         telescope_names = [tri_model.telescope_names for tri_model in self.tri_models]
         stereos = [tri_model.stereo for tri_model in self.tri_models]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
+        set_mpl_style()
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
         # assert len(set(telescope_names)) == 1, "All telescope_names in the collection must be the same."
 
@@ -85,7 +88,7 @@ class TriModelCollection:
         try:
             avg_data_ze, avg_data_az = get_avg_pointing(input_file, pointing_table=pointing_table, alt_key=alt_key, az_key=az_key)
         except:
-            print(f"⚠️ Corrupted file, skipping : {input_file}")
+            print(f"⚠️ Pointing not found at {pointing_table}, skipping : {input_file}")
             return
         
         avg_model_azs = []
@@ -122,3 +125,57 @@ class TriModelCollection:
         for tri_model in self.tri_models:
             tri_model.direction_model.plot_zenith_azimuth_ranges(ax)
         plt.show()
+
+    def plot_everything_dl2(self, output_directory: str, dl2_files: list[str], gammaness_cut: float=0.9, edep_cuts: bool=False, pointing_table: str='/dl1/monitoring/telescope/pointing/tel_001'):
+        """
+        Plot the angular resolution, energy resolution, and gammaness for DL2 data.
+        This function generates plots for the angular resolution, energy resolution,
+        and gammaness for the given DL2 files. It uses ctaplot to create the plots
+        and saves them in the specified output directory.
+
+        Parameters
+        ----------
+        output_directory : str
+            The directory where the plots will be saved.
+        dl2_files : list[str]
+            List of DL2 files to be processed.
+        dl2_processed_dir : str
+            The directory where the processed DL2 files are stored.
+        gammaness_cut : float, optional
+            The gammaness cut value to be applied. Default is 0.9.
+
+        Returns
+        -------
+        None
+        """
+        import os
+        import pickle
+
+        grouped_files = {tri_model: [] for tri_model in self.tri_models}
+
+        for dl2_file in tqdm(dl2_files, desc="Grouping DL2 files per model", unit="file"):
+            closest_tri_model = self.find_closest_model_to(dl2_file, pointing_table=pointing_table, plot=False, alt_key='altitude', az_key='azimuth', verbose=False)
+            if closest_tri_model is not None:
+                grouped_files[closest_tri_model].append(dl2_file)
+
+        # Filter out empty groups
+        grouped_files = {model: files for model, files in grouped_files.items() if files}
+
+        for tri_model, files in grouped_files.items():
+            print(f"Processing {len(files)} files 🧠🧠🧠 CTLearnTriModelManager ▮ {tri_model.direction_model.model_nickname} ▮ {tri_model.energy_model.model_nickname} ▮ {tri_model.type_model.model_nickname} ▮")
+            tri_model_file = f"{output_directory}/tri_model_{tri_model.direction_model.model_nickname}.pkl"
+            tri_model.dl2_data_files = files
+
+            use_cluster = tri_model.cluster_configuration.use_cluster
+            tri_model.cluster_configuration.use_cluster = False # if some DL2 files were not processed, they will be processed in the same job as the plotting job, and not submit multiple new jobs
+            with open(tri_model_file, 'wb') as f:
+                pickle.dump(tri_model, f)
+            tri_model.cluster_configuration.use_cluster = use_cluster
+            print(edep_cuts)
+            cmd = f"plot_dl2 --stereo_tri_model {tri_model_file} --output_directory {output_directory} --gammaness_cut {gammaness_cut} --edep_cuts={edep_cuts}"
+            print(cmd)
+            sbatch_file = tri_model.cluster_configuration.write_sbatch_script(f"dl2_plots_{tri_model.direction_model.model_nickname}", cmd, output_directory, use_gpu_cscs=False)
+            if self.cluster_configuration.use_cluster:
+                os.system(f"sbatch {sbatch_file}")
+            else:
+                os.system(cmd)
