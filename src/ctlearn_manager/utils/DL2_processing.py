@@ -15,6 +15,10 @@ from ..utils.utils import (
     calc_flux_for_N_sigma,
     find_68_percent_range,
     set_mpl_style,
+    CTLearnManagerStyle,
+    Cuts,
+    DefaultCuts,
+    CutType,
 )
 
 
@@ -69,7 +73,7 @@ class DL2DataProcessor:
         Computes the on-source and off-source counts, as well as the Li & Ma significance.
     """
     
-    def __init__(self, DL2_files: list[str], CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection, gammaness_cut=0.9, source_position=SkyCoord.from_name("Crab"), pointing_table='dl1/monitoring/telescope/pointing/tel_001', edep_cuts=False):
+    def __init__(self, DL2_files: list[str], CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection, cuts: list[Cuts]= [DefaultCuts.GH_0_9.value], source_position=SkyCoord.from_name("Crab"), pointing_table='dl1/monitoring/telescope/pointing/tel_001'):
         
         self.DL2_files = np.sort(DL2_files)
         if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
@@ -79,22 +83,27 @@ class DL2DataProcessor:
         self.source_position = source_position
         self.telscope_names = self.CTLearnTriModelCollection.tri_models[0].telescope_names
         self.stereo = self.CTLearnTriModelCollection.tri_models[0].stereo
-        self.gammaness_cut = gammaness_cut
+        self.cuts = cuts
+        # self.gammaness_cut = gammaness_cut
         self.pointing_table = pointing_table
         self.reconstruction_method = "CTLearn"
         self.reco_field_suffix = self.reconstruction_method if self.stereo else f"{self.reconstruction_method}_tel"
         self.telescope_id = self.CTLearnTriModelCollection.tri_models[0].telescope_ids if self.stereo else self.CTLearnTriModelCollection.tri_models[0].telescope_ids[0] # FIXME other telescopes ?
         # self.irfs = CTLearnTriModelManager.irfs
         self.CTLearn = True
-        self.edep_cuts = edep_cuts
-        print(self.edep_cuts)
-        if self.edep_cuts:
-            print(self.edep_cuts)
-            # get E bins from IRFs cuts file
-            cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1]
-            with fits.open(cuts_file) as hdul:
-                self.E_bins = hdul['GH_CUTS'].data['low']
-                self.E_bins = np.append(self.E_bins, hdul['GH_CUTS'].data['high'][-1]) * u.TeV
+        # self.edep_cuts = edep_cuts
+        # print(self.edep_cuts)
+        E_bins_tot = []
+        for cut in self.cuts:
+            if cut.cut_type == CutType.EFFICIENCY_OPTIMIZED or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED:
+                # print(self.edep_cuts)
+                # get E bins from IRFs cuts file
+                cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1]
+                with fits.open(cuts_file) as hdul:
+                    E_bins = hdul['GH_CUTS'].data['low']
+                    E_bins = np.append(self.E_bins, hdul['GH_CUTS'].data['high'][-1]) * u.TeV
+                    E_bins_tot.append(E_bins)
+        self.E_bins = E_bins_tot
         self.set_keys()
         
 
@@ -256,24 +265,28 @@ class DL2DataProcessor:
                 self.pointings.append(transformed_pointing)
 
                 with open(dl2_output_file, 'rb') as f:
-                        dl2 = pickle.load(f)
-                if  self.edep_cuts:
+                    dl2 = pickle.load(f)
+                if self.gammaness_key in dl2.colnames:
                     dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
-                    cut_mask = self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco)
-                    cut_mask_gammaness_only = self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco, False)
-                elif self.gammaness_key in dl2.colnames:
-                    dl2 = dl2[dl2[self.gammaness_key] > 0] # Remove unpredicted events
-                    cut_mask = dl2[self.gammaness_key] > self.gammaness_cut
-                    cut_mask_gammaness_only = cut_mask
+                    cut_mask = []
+                    cut_mask_gammaness_only = []
+                    for cut in self.cuts:
+                        match cut.cut_type:
+                            case CutType.GLOBAL:
+                                cut_mask.append(dl2[self.gammaness_key] > cut.gammaness_cut)
+                                cut_mask_gammaness_only.append(dl2[self.gammaness_key] > cut.gammaness_cut)
+
+                            case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                                cut_mask.append(self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco, cuts=cut))
+                                cut_mask_gammaness_only.append(self.get_energy_dependent_mask_data(dl2, corresponding_model, transformed_reco, False, cuts=cut))
                 else:
-                    cut_mask = np.ones(len(dl2), dtype=bool)
-                    cut_mask_gammaness_only = cut_mask
+                    cut_mask = [np.ones(len(dl2), dtype=bool)]
+                    cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
                 self.cuts_masks.append(cut_mask)
                 self.cuts_masks_gammaness_only.append(cut_mask_gammaness_only)
                 self.dl2s.append(dl2)
-                
-
-                
+            
+              
                 # self.dl2s_cuts.append(dl2_cuts)
             if (os.path.exists(I_g_on_counts_output_file)) and (os.path.exists(I_g_off_counts_output_file)):
 
@@ -284,11 +297,12 @@ class DL2DataProcessor:
                 
                 self.I_g_on_counts.append(I_g_on_counts)
                 self.I_g_off_counts.append(I_g_off_counts)
+            
 
-    def get_energy_dependent_mask_data(self, data, tri_model, reco_coord, theta_cut=True):
+    def get_energy_dependent_mask_data(self, data, tri_model, reco_coord, theta_cut=True, cuts: Cuts=DefaultCuts.EFF_70.value):
         # Apply cuts to the data
         from astropy.io import fits
-        cuts_file = tri_model.direction_model.get_IRF_data()[1]
+        cuts_file = tri_model.direction_model.get_IRF_data(cuts=cuts)[1]
         with fits.open(cuts_file) as hdul:
             gammaness_cuts = hdul['GH_CUTS'].data['cut']
             energy_low_gamma = hdul['GH_CUTS'].data['low']
@@ -320,7 +334,7 @@ class DL2DataProcessor:
             # dl2 = data[full_mask]
         return full_mask
 
-    def plot_theta2_distribution(self, bins, n_off=3, output_file=None):
+    def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
         
         on_count_tot = 0 #np.zeros(len(gammaness_cuts))
@@ -333,6 +347,7 @@ class DL2DataProcessor:
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
         for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
+            cuts_mask = cuts_mask[cuts_index] # Only the first cuts are applied for on-off counts
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
             # eff time must be computed on all events, regardless on the requred cuts
@@ -351,7 +366,7 @@ class DL2DataProcessor:
                 pointing_direction, 
                 n_off=n_off, 
                 theta2_cut=0.04*u.deg**2, 
-                gcut=self.gammaness_cut, 
+                gcut=self.cuts[cuts_index].gammaness_cut, 
                 E_min=0, 
                 E_max=100, 
                 I_min=None, 
@@ -374,21 +389,24 @@ class DL2DataProcessor:
                                             np.float64(off_count_tot), 
                                             alpha=1/n_off)
         fig, ax = plt.subplots()
+        self.cuts[cuts_index].plot_cuts_info_plt(ax)
         label = "$t_{eff}$ = "+f"{t_elapsed.to(u.h):.2f}"+"\n$N_{on}$ = "+f"{on_count_tot}\t"+r"$\overline{N}_{off}$ = "+f"{(off_count_tot/n_off):.1f}"+"\n$N_{excess}$ = "+f"{(on_count_tot - off_count_tot/n_off):.1f}\t"+r"$\sigma_{Li&Ma}$ = "+f"{lima_signi:.2f}"
-        props = dict(boxstyle='round', facecolor='none', alpha=0.95, edgecolor='k')
+        props = dict(boxstyle='round', facecolor=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2, edgecolor='none')
         txt = plt.text(0.12, 0.96, label, transform=ax.transAxes, fontsize=12,
-                    verticalalignment='top', bbox=props, color="k")
+                    verticalalignment='top', bbox=props, color=CTLearnManagerStyle.ctlearn_1.value)
         
-        plt.plot(angle2_center, h_off, label='off source', zorder=0)
+        plt.plot(angle2_center, h_off, label='off source', zorder=0, color=CTLearnManagerStyle.ctlearn_1.value)
         plt.fill_between(angle2_center,
                             h_off - np.sqrt(h_off),
                             h_off + np.sqrt(h_off),
-                            alpha=0.3, zorder=1)
+                            color=CTLearnManagerStyle.ctlearn_1.value,
+                            alpha=0.3, zorder=1, edgecolor="none")
         plt.fill_between(angle2_center, 
                         h_on - np.sqrt(h_on), 
                         h_on + np.sqrt(h_on), 
-                        alpha=0.3, zorder=1)
-        plt.plot(angle2_center, h_on, label='on source')
+                        color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                        alpha=0.3, zorder=1, edgecolor="none")
+        plt.plot(angle2_center, h_on, label='on source', color=CTLearnManagerStyle.ctlearn_accent_1.value)
         
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color='black', linestyle='--')
@@ -499,11 +517,10 @@ class DL2DataProcessor:
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
 
-    def plot_skymap(self, output_file=None):
+    def plot_skymap(self, output_file=None, cuts_index=0):
 
         import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(10, 8))
+        fig, ax = plt.subplots(figsize=(10, 8))
         plt.xlabel('RA (deg)')
         plt.ylabel('Dec (deg)')
         if len(self.DL2_files) == 1:
@@ -532,145 +549,27 @@ class DL2DataProcessor:
 
         LST_EPOCH = Time("2018-10-01T00:00:00", scale="utc")
 
-        for reco, cuts_mask, dl2, pointing in zip(self.reco_directions, self.cuts_masks_gammaness_only, self.dl2s, self.pointings):
+        for reco, cuts_mask, dl2, pointing, in zip(self.reco_directions, self.cuts_masks_gammaness_only, self.dl2s, self.pointings):
             # offsets = reco.spherical_offset_to(pointing)[cuts_mask]
+            cuts_mask = cuts_mask[cuts_index] # Only the first cuts are applied for sky maps since they cannot be overlayed
             dl2 = dl2[cuts_mask]
-
             ra_values.extend(reco[cuts_mask].ra.deg)
             dec_values.extend(reco[cuts_mask].dec.deg)
             pointings_ra.extend(pointing[cuts_mask].ra.deg)
             pointings_dec.extend(pointing[cuts_mask].dec.deg)
 
-    
-
-            ################################
-            # frame = AltAz(obstime=LST_EPOCH, location=self.telescope_location, pressure=100*u.hPa, temperature=20*u.deg_C, relative_humidity=0.1)
-            # reco_temp = SkyCoord(alt=dl2[self.reco_alt_key], az=dl2[self.reco_az_key], frame=frame)#, obstime=dl2["time"])
-            # pointing_temp = SkyCoord(alt=dl2[self.pointing_alt_key], az=dl2[self.pointing_az_key], frame=frame)#, obstime=dl2["time"])
-            # transformed_reco = reco_temp.transform_to(self.source_position)
-            # transformed_pointing = pointing_temp.transform_to(self.source_position)
-
-            # offsets = transformed_reco.spherical_offsets_to(transformed_pointing)
-            # new_recos.extend(pointing[cuts_mask].spherical_offsets_by(offsets[0], offsets[1]).transform_to(self.source_position))
-            ################################
-            # offsets = reco[cuts_mask].spherical_offsets_to(pointing[cuts_mask])
-            # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
-            # print(angles)
-
-            # offsets_x = np.cos(angles) * offsets[0] - np.sin(angles) * offsets[1]
-            # offsets_y = np.sin(angles) * offsets[0] + np.cos(angles) * offsets[1]
-
-            # new_recos.extend(pointing[cuts_mask].spherical_offsets_by(offsets_x, offsets_y).transform_to(self.source_position))
-            ################################
-            # old_pointing = SkyCoord(
-            #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
-            #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
-            #     frame="altaz",
-            #     location=self.telescope_location,
-            #     obstime=LST_EPOCH,
-            # )
-
-            # reco_direction = SkyCoord(
-            #     u.Quantity(dl2[self.reco_az_key], unit=u.deg),
-            #     u.Quantity(dl2[self.reco_alt_key], unit=u.deg),
-            #     frame="altaz",
-            #     location=self.telescope_location,
-            #     obstime=LST_EPOCH,
-            # )
-
-            # new_pointing = SkyCoord(
-            #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
-            #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
-            #     frame="altaz",
-            #     location=self.telescope_location,
-            #     obstime=dl2[self.time_key],
-            # )
-            # sky_offset = old_pointing.spherical_offsets_to(reco_direction)
-            # # better to make new object
-            # reco_spherical_offset_az = u.Quantity(sky_offset[0], unit=u.deg)
-            # reco_spherical_offset_alt = u.Quantity(sky_offset[1], unit=u.deg)
-
-            # # angles = (dl2[self.reco_az_key] - 100.893 * u.deg).to(u.rad)
-
-            # # rotated_reco_spherical_offset_az = np.cos(angles) * reco_spherical_offset_az - np.sin(angles) * reco_spherical_offset_alt
-            # # rotated_reco_spherical_offset_alt = np.sin(angles) * reco_spherical_offset_az + np.cos(angles) * reco_spherical_offset_alt
-            # rotated_reco_spherical_offset_az = reco_spherical_offset_az
-            # rotated_reco_spherical_offset_alt = reco_spherical_offset_alt
-
-            # # new_pointing = SkyCoord(
-            # #     u.Quantity(dl2[self.pointing_az_key], unit=u.deg),
-            # #     u.Quantity(dl2[self.pointing_alt_key], unit=u.deg),
-            # #     frame="altaz",
-            # #     location=self.telescope_location,
-            # #     obstime=dl2[self.time_key],
-            # # )
-            # new_reco_direction = new_pointing.spherical_offsets_by(
-            #     rotated_reco_spherical_offset_az, rotated_reco_spherical_offset_alt
-            # ).transform_to(self.source_position)
-            # new_recos.extend(new_reco_direction)
-            ################################
-
-
-
-
-
-
-            # az_values.extend(dl2[self.reco_az_key])  # Assuming 'az' is the azimuth key in dl2
-            
-
-            
-            
-            # sky_offset = pointing[cuts_mask].spherical_offsets_to(reco[cuts_mask])
-            # print(sky_offset)
-            # sky_offsets.extend([sky_offset[0].degree, sky_offset[1].degree])
-            # # angular_separation = pointing.separation(reco)
-            # # table.add_column(sky_offset[0], name="spherical_offset_az")
-            # # table.add_column(sky_offset[1], name="spherical_offset_alt")
-            # # table.add_column(angular_separation, name="angular_separation")
-            # rotation_angles.extend((sky_offset[0].radian - (100.893 * u.deg).to(u.rad).value))
-        # print(rotation_angles.shape)
-        # print(sky_offsets.shape)
-        # sky_offsets = np.array(sky_offsets)
-        # new_sky_offset = [[np.cos(rotation_angles), -np.sin(rotation_angles)], [np.sin(rotation_angles), np.cos(rotation_angles)]] @ sky_offsets
-
-
-        # new_sky_offset_x = []
-        # new_sky_offset_y = []
-        # for rot_angle, sky_offset in zip(rotation_angles, sky_offsets):
-        #     new_sky_offset_x.append(np.cos(rot_angle) * sky_offset[0] - np.sin(rot_angle) * sky_offset[1])
-        #     new_sky_offset_y.append(np.sin(rot_angle) * sky_offset[0] + np.cos(rot_angle) * sky_offset[1])
-
-        #     # table.remove_columns(
-        #     #     [
-        #     #         "telescope_pointing_azimuth",
-        #     #         "telescope_pointing_altitude",
-        #     #     ]
-        #     # )
-
-        # new_pos = SkyCoord(ra=pointings_ra * u.deg, dec=pointings_dec * u.deg, frame='icrs').spherical_offsets_by(new_sky_offset_x * u.deg, new_sky_offset_y * u.deg)
-        # new_recos_ra = [coord.ra.deg for coord in new_recos]
-        # new_recos_dec = [coord.dec.deg for coord in new_recos]
-
-        # plt.scatter(ra_values, new_recos_ra, s=1, label='Reconstructed', color='b')
-        # plt.show()
-
-        # plt.hist2d(new_recos_ra, new_recos_dec, bins=100, cmap='viridis', zorder=0)
+        
+        self.cuts[cuts_index].plot_cuts_info_plt(ax, text_color=CTLearnManagerStyle.ctlearn_highlight.value, background_color=CTLearnManagerStyle.ctlearn_1.value)
         plt.hist2d(ra_values, dec_values, bins=100, cmap='viridis', zorder=0)
-        # ax = plt.gca()
-        # divider = make_axes_locatable(ax)
-        # cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(label='Counts')
-
-        # plt.scatter(self.source_position.ra.deg, self.source_position.dec.deg, s=50, label='Source', marker='x', color='w', linewidths=2)
-        # plt.scatter(pointings_ra, pointings_dec, s=10, label='pointing', color='r')
-
-
         for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
+            cuts_mask = cuts_mask[cuts_index] # Only the first cuts are applied for sky maps since they cannot be overlayed
             pointing = pointing[cuts_mask]
             off_regions = self.compute_off_regions(pointing[0], n_off=3)
+            plt.scatter(pointing.ra.deg, pointing.dec.deg, label='pointing', color=CTLearnManagerStyle.ctlearn_accent_1.value, marker='x')
             for off_region in off_regions:
                 # print(off_region)
-                off_circle = plt.Circle((off_region.ra.deg, off_region.dec.deg), radius=0.2, color='w', fill=False, lw=1, ls='--')
+                off_circle = plt.Circle((off_region.ra.deg, off_region.dec.deg), radius=0.2, color='w', fill=False, lw=1, ls='--', alpha=0.9)
                 # plt.scatter(off_region.ra.deg, off_region.dec.deg, s=50, label='Off', marker='x', color='r', linewidths=2)
                 plt.gca().add_artist(off_circle)
 
@@ -688,93 +587,97 @@ class DL2DataProcessor:
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
-
-        if self.edep_cuts:
-            E_bins = self.E_bins
-        else:
-            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
-        on_count = np.zeros(len(E_bins) - 1)
-        off_count = np.zeros(len(E_bins) - 1)
-        t_eff = 0 * u.h
-        t_elapsed = 0 * u.h
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask, file in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, self.DL2_files), desc="Computing sensitivity", total=len(self.reco_directions)):
-            # print(file)
-            reco_direction = reco_direction[cuts_mask]
-            pointing_direction = pointing_direction[cuts_mask]
-            # eff time must be computed on all events, regardless on the requred cuts
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
-            # The mask is applied here
-            dl2 = dl2[cuts_mask]
-
-            for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
-                (
-                    on_count_temp,
-                    off_count_temp, 
-                    _, _, _
-                    ) = self.compute_on_off_counts( 
-                    dl2, 
-                    reco_direction, 
-                    pointing_direction, 
-                    n_off=n_off, 
-                    theta2_cut=0.04*u.deg**2, 
-                    gcut=self.gammaness_cut, 
-                    E_min=E_min, 
-                    E_max=E_max, 
-                    I_min=None, 
-                    I_max=None
-                )
-                on_count[i] += on_count_temp
-                off_count[i] += off_count_temp / n_off
-            t_eff += t_eff_temp
-            t_elapsed += t_elapsed_temp
-            # on_count_RF += df['on_count_RF'].to_numpy()
-            # off_count_RF += df['off_count_RF'].to_numpy()
-        
-        nexcess = on_count-off_count
-
-        min_signi = 3   # below this value (significance of the test source, Crab, for the *actual* observation 
-                # time of the sample and obtained with 1 off region) we ignore the corresponding cut 
-                # combination
-
-        min_exc = 0.002 # in fraction of off. Below this we ignore the corresponding cut combination. 
-        min_off_events = 10 # minimum number of off events in the actual observation used. Below this we 
-                            # ignore the corresponding cut combination.
-
-        backg_syst = 0.01
-        # t_eff = 0.33 * u.h
-        obs_time = 50. * u.h 
-
-        flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
-        flux_minus, lima_signi_minus = calc_flux_for_N_sigma(5, nexcess + backg_syst * off_count + (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
-        flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count,   min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
-
-
-        # Create a figure with subplots
-        # fig = plt.figure(figsize=(10, 8))
-        # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
-        mask = np.where(flux_factor >=0)
-        mask = np.ones(len(flux_factor), dtype=bool)
-
-
-        E = (E_bins[:-1] + E_bins[1:])/2
-
-        # Create figure and GridSpec layout
-        # fig = plt.figure(figsize=(10, 8))
-        # gs = GridSpec(1, 1, height_ratios=[1], hspace=0)  # Adjust hspace to remove space between plots
-
-        # Top subplot
-        # ax1 = fig.add_subplot(gs[0])
         if ax is None:
-            fig, ax = plt.subplots()
-        print(flux_factor)
-        print(flux_minus)
-        print(flux_plus)
-        print(len(flux_factor), len(flux_factor[mask]))
-        print(len(flux_minus), len(flux_minus[mask]))
-        ax.plot(E[mask], flux_factor[mask] * 100, marker='o', label=label, zorder=10, ls='--')
-        ax.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
+                fig, ax = plt.subplots()
+        if len(self.cuts) == 1:
+            self.cuts[0].plot_cuts_info_plt(ax)
+
+        for i, cut in enumerate(self.cuts):
+            match cut.cut_type:
+                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                    E_bins = self.E_bins[i]
+                case _:
+                    E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+            on_count = np.zeros(len(E_bins) - 1)
+            off_count = np.zeros(len(E_bins) - 1)
+            t_eff = 0 * u.h
+            t_elapsed = 0 * u.h
+            for reco_direction, pointing_direction, dl2, cuts_mask, file in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, self.DL2_files), desc=f"Computing sensitivity [{cut.get_label()}]", total=len(self.reco_directions)):
+                # print(file)
+                cuts_mask = cuts_mask[i]
+                reco_direction = reco_direction[cuts_mask]
+                pointing_direction = pointing_direction[cuts_mask]
+                # eff time must be computed on all events, regardless on the requred cuts
+                t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+                # The mask is applied here
+                dl2 = dl2[cuts_mask]
+
+                for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                    (
+                        on_count_temp,
+                        off_count_temp, 
+                        _, _, _
+                        ) = self.compute_on_off_counts( 
+                        dl2, 
+                        reco_direction, 
+                        pointing_direction, 
+                        n_off=n_off, 
+                        theta2_cut=0.04*u.deg**2, 
+                        gcut=cut.gammaness_cut, 
+                        E_min=E_min, 
+                        E_max=E_max, 
+                        I_min=None, 
+                        I_max=None
+                    )
+                    on_count[j] += on_count_temp
+                    off_count[j] += off_count_temp / n_off
+                t_eff += t_eff_temp
+                t_elapsed += t_elapsed_temp
+                # on_count_RF += df['on_count_RF'].to_numpy()
+                # off_count_RF += df['off_count_RF'].to_numpy()
+            
+            nexcess = on_count-off_count
+
+            min_signi = 3   # below this value (significance of the test source, Crab, for the *actual* observation 
+                    # time of the sample and obtained with 1 off region) we ignore the corresponding cut 
+                    # combination
+
+            min_exc = 0.002 # in fraction of off. Below this we ignore the corresponding cut combination. 
+            min_off_events = 10 # minimum number of off events in the actual observation used. Below this we 
+                                # ignore the corresponding cut combination.
+
+            backg_syst = 0.01
+            # t_eff = 0.33 * u.h
+            obs_time = 50. * u.h 
+
+            flux_factor, lima_signi = calc_flux_for_N_sigma(5, nexcess, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
+            flux_minus, lima_signi_minus = calc_flux_for_N_sigma(5, nexcess + backg_syst * off_count + (nexcess + 2*off_count)**0.5, off_count, min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)  
+            flux_plus, lima_signi_plus = calc_flux_for_N_sigma(5, nexcess - backg_syst * off_count - (nexcess + 2*off_count)**0.5, off_count,   min_signi, min_exc, min_off_events, 1, obs_time, t_eff, cond=False)
+
+
+            # Create a figure with subplots
+            # fig = plt.figure(figsize=(10, 8))
+            # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
+            mask = np.where(flux_factor >=0)
+            mask = np.ones(len(flux_factor), dtype=bool)
+
+
+            E = (E_bins[:-1] + E_bins[1:])/2
+
+            # Create figure and GridSpec layout
+            # fig = plt.figure(figsize=(10, 8))
+            # gs = GridSpec(1, 1, height_ratios=[1], hspace=0)  # Adjust hspace to remove space between plots
+
+            # Top subplot
+            # ax1 = fig.add_subplot(gs[0])
+            
+            if len(self.cuts) > 1:
+                ax.plot(E[mask], flux_factor[mask] * 100, marker='o', label=cut.get_label(), zorder=10, ls='--')
+            else:
+                ax.plot(E[mask], flux_factor[mask] * 100, marker='o', label=label, zorder=10, ls='--')
+            ax.fill_between(E[mask].value, flux_minus[mask]*100, flux_plus[mask]*100, alpha=0.2, zorder=0)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
@@ -796,81 +699,88 @@ class DL2DataProcessor:
     def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None):
         import matplotlib.pyplot as plt
 
-        if self.edep_cuts:
-            E_bins = self.E_bins
-        else:
-            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
-        on_count = np.zeros(len(E_bins) - 1)
-        off_count = np.zeros(len(E_bins) - 1)
-        t_eff = 0 * u.h
-        t_elapsed = 0 * u.h
-        angle_bins = np.linspace(0, 0.4, 25)
-        h_on = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
-        h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
-        # on_count_RF = np.zeros(len(gammaness_cuts_RF))
-        # off_count_RF = np.zeros(len(gammaness_cuts_RF))
-        for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing PSF", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
-            reco_direction = reco_direction[cuts_mask]
-            pointing_direction = pointing_direction[cuts_mask]
-            # eff time must be computed on all events, regardless on the requred cuts
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
-            # The mask is applied here
-            dl2 = dl2[cuts_mask]
-
-            for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
-                (
-                    on_count_temp,
-                    off_count_temp, 
-                    on_separation_temp, 
-                    all_off_separation_temp, 
-                    _
-                    ) = self.compute_on_off_counts( 
-                    dl2, 
-                    reco_direction, 
-                    pointing_direction, 
-                    n_off=n_off, 
-                    theta2_cut=0.04*u.deg**2, 
-                    gcut=self.gammaness_cut, 
-                    E_min=E_min, 
-                    E_max=E_max, 
-                    I_min=None, 
-                    I_max=None
-                )
-                on_count[i] += on_count_temp
-                off_count[i] += off_count_temp
-                h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value**2, bins=angle_bins)
-                h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value**2, bins=angle_bins)
-                h_on[i] += h_on_temp
-                h_off[i] += h_off_temp / n_off # To plot the average off source counts
-            t_eff += t_eff_temp
-            t_elapsed += t_elapsed_temp
-
-        nexcess = h_on-h_off
-
-        psf = np.zeros(len(E_bins)-1)
-        psf_min = np.zeros(len(E_bins)-1)
-        psf_max = np.zeros(len(E_bins)-1)
-
-        # bkg_condition = [False,  False,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False]
-        # bkg_condition_RF = [False,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True , True, False, False, False, False, False]
-        for i, E_min, E_max in zip(range(len(E_bins)-1), E_bins[:-1], E_bins[1:]):
-            # print(nexcess[i])
-            # print(angle_bins)
-            # print( find_68_percent_range(nexcess[i], angle_bins))
-            psf[i] = find_68_percent_range(nexcess[i], angle_bins)**0.5
-            psf_max[i] = find_68_percent_range(nexcess[i] + 0.01*h_off[i] + np.sqrt(nexcess[i] + 2*h_off[i]), angle_bins)**0.5
-            psf_min[i] = find_68_percent_range(nexcess[i] - 0.01*h_off[i] - np.sqrt(nexcess[i] + 2*h_off[i]), angle_bins)**0.5
-
-        E = (E_bins[:-1] + E_bins[1:])/2
-
         if ax is None:
-            fig, ax = plt.subplots()
+                fig, ax = plt.subplots()
+        if len(self.cuts) == 1:
+            self.cuts[0].plot_cuts_info_plt(ax)
 
-        ax.plot(E.value, psf, marker='o', label=label, zorder=10, ls='--')
-        ax.fill_between(E.value, 
-                        psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
-                        psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
-                        alpha=0.3, zorder=0)
+        for i, cut in enumerate(self.cuts):
+            match cut.cut_type:
+                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                    E_bins = self.E_bins[i]
+                case _:
+                    E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+            on_count = np.zeros(len(E_bins) - 1)
+            off_count = np.zeros(len(E_bins) - 1)
+            t_eff = 0 * u.h
+            t_elapsed = 0 * u.h
+            angle_bins = np.linspace(0, 0.4, 25)
+            h_on = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
+            h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
+            # on_count_RF = np.zeros(len(gammaness_cuts_RF))
+            # off_count_RF = np.zeros(len(gammaness_cuts_RF))
+            for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc=f"Computing PSF [{cut.get_label()}]", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
+                cuts_mask = cuts_mask[i]
+                reco_direction = reco_direction[cuts_mask]
+                pointing_direction = pointing_direction[cuts_mask]
+                # eff time must be computed on all events, regardless on the requred cuts
+                t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+                # The mask is applied here
+                dl2 = dl2[cuts_mask]
+
+                for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                    (
+                        on_count_temp,
+                        off_count_temp, 
+                        on_separation_temp, 
+                        all_off_separation_temp, 
+                        _
+                        ) = self.compute_on_off_counts( 
+                        dl2, 
+                        reco_direction, 
+                        pointing_direction, 
+                        n_off=n_off, 
+                        theta2_cut=0.04*u.deg**2, 
+                        gcut=cut.gammaness_cut, 
+                        E_min=E_min, 
+                        E_max=E_max, 
+                        I_min=None, 
+                        I_max=None
+                    )
+                    on_count[j] += on_count_temp
+                    off_count[j] += off_count_temp
+                    h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value**2, bins=angle_bins)
+                    h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value**2, bins=angle_bins)
+                    h_on[j] += h_on_temp
+                    h_off[j] += h_off_temp / n_off # To plot the average off source counts
+                t_eff += t_eff_temp
+                t_elapsed += t_elapsed_temp
+
+            nexcess = h_on-h_off
+
+            psf = np.zeros(len(E_bins)-1)
+            psf_min = np.zeros(len(E_bins)-1)
+            psf_max = np.zeros(len(E_bins)-1)
+
+            # bkg_condition = [False,  False,  True,  True,  True,  True,  True,  True,  True,  True,  True, False, False, False, False, False, False]
+            # bkg_condition_RF = [False,  True,  True,  True,  True,  True,  True,  True,  True,  True,  True , True, False, False, False, False, False]
+            for k, E_min, E_max in zip(range(len(E_bins)-1), E_bins[:-1], E_bins[1:]):
+                # print(nexcess[i])
+                # print(angle_bins)
+                # print( find_68_percent_range(nexcess[i], angle_bins))
+                psf[k] = find_68_percent_range(nexcess[k], angle_bins)**0.5
+                psf_max[k] = find_68_percent_range(nexcess[k] + 0.01*h_off[k] + np.sqrt(nexcess[k] + 2*h_off[k]), angle_bins)**0.5
+                psf_min[k] = find_68_percent_range(nexcess[k] - 0.01*h_off[k] - np.sqrt(nexcess[k] + 2*h_off[k]), angle_bins)**0.5
+
+            E = (E_bins[:-1] + E_bins[1:])/2
+            if len(self.cuts) > 1:
+                ax.plot(E.value, psf, marker='o', label=cut.get_label(), zorder=10, ls='--')
+            else:
+                ax.plot(E.value, psf, marker='o', label=label, zorder=10, ls='--')
+            ax.fill_between(E.value, 
+                            psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
+                            psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
+                            alpha=0.3, zorder=0)
         ax.legend()
         ax.set_ylabel('68% cont. [deg]')
         ax.set_xlabel('Reco Energy [TeV]')
@@ -1034,11 +944,11 @@ class DL2DataProcessor:
         else:
             plt.show()
 
-    def plot_excess_and_background_rates_vs_energy(self, n_off=3, output_file=None):
+    def plot_excess_and_background_rates_vs_energy(self, n_off=3, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
 
-        if self.edep_cuts:
-            E_bins = self.E_bins
+        if self.cuts[cuts_index].cut_type == CutType.EFFICIENCY_OPTIMIZED or self.cuts[cuts_index].cut_type == CutType.SENSITIVITY_OPTIMIZED:
+            E_bins = self.E_bins[cuts_index]
         else:
             E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         excess_rates = np.zeros(len(E_bins) - 1)
@@ -1053,7 +963,7 @@ class DL2DataProcessor:
                     pointing_direction, 
                     n_off=n_off, 
                     theta2_cut=0.04 * u.deg ** 2, 
-                    gcut=self.gammaness_cut, 
+                    gcut=self.cuts[cuts_index].gammaness_cut, 
                     E_min=E_min, 
                     E_max=E_max
                 )

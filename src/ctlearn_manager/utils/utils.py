@@ -553,7 +553,7 @@ class Cuts:
                 f"Efficiency gammaness: {self.efficiency_gammaness}, "
                 f"Efficiency theta: {self.efficiency_theta}")
     
-    def plot_cuts_info_plt(self, ax):
+    def plot_cuts_info_plt(self, ax, text_color=CTLearnManagerStyle.ctlearn_1.value, background_color=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2):
         final_string = self.get_label()
 
         if final_string:
@@ -561,10 +561,10 @@ class Cuts:
             0.98, 0.02, final_string,
             transform=ax.transAxes,
             fontsize=9,
-            color=CTLearnManagerStyle.ctlearn_1.value,
+            color=text_color,
             verticalalignment='bottom',
             horizontalalignment='right',
-            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2),
+            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=alpha),
             )
 
     def get_label(self):
@@ -585,9 +585,11 @@ class Cuts:
         final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
         return final_string
     
+    
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
     EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7)
+    GH_0_9 = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.9)
 
 
 

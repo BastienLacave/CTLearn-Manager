@@ -736,10 +736,10 @@ class CTLearnModelManager:
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
 
-        if zenith is None or azimuth is None:
+        if (zenith is None or azimuth is None):
             average_zenith = (self.validity.zenith_range[0] + self.validity.zenith_range[1]) / 2
             average_azimuth = (self.validity.azimuth_range[0] + self.validity.azimuth_range[1]) / 2
-            return self.get_closest_IRF_data(average_zenith, average_azimuth)
+            return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         target_irf_type = cuts.irf_type
@@ -767,7 +767,7 @@ class CTLearnModelManager:
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_closest_IRF_data(self, zenith, azimuth):
+    def get_closest_IRF_data(self, zenith, azimuth, cuts: Cuts=None):
         """
         Retrieve the closest Instrument Response Function (IRF) data based on the given zenith and azimuth angles.
         This function reads an HDF5 table containing IRF data and finds the entry with the closest matching zenith and azimuth angles to the provided values. It then returns the configuration, cuts file, IRF file, and benchmark file associated with the closest match.
@@ -781,6 +781,23 @@ class CTLearnModelManager:
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
+        if cuts is not None:
+            target_irf_type = cuts.irf_type
+            target_gamma_efficiency = cuts.efficiency_gammaness
+            target_theta_efficiency = cuts.efficiency_theta
+
+            mask_cuts = np.where([get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']])[0]
+            if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
+                mask_cuts = [
+                    i in mask_cuts and 
+                    abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency) < 1e-3 and 
+                    abs(get_irf_type_from_config(config)[2] - target_theta_efficiency) < 1e-3
+                    for i, config in enumerate(IRF_table['config'])
+                ]
+            if not np.any(mask_cuts):
+                raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
+            IRF_table = IRF_table[mask_cuts]
+
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
         if len(match) > 1:
             raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
