@@ -1084,7 +1084,7 @@ class CTLearnTriModelManager:
 
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_irfs(self, zenith, azimuth):
+    def plot_irfs(self, zenith, azimuth, cuts: Cuts=DefaultCuts.EFF_70.value):
         """
         Plot the Instrument Response Functions (IRFs) for given zenith and azimuth angles.
         This method reads the IRF data for the specified zenith and azimuth angles, and then
@@ -1101,7 +1101,7 @@ class CTLearnTriModelManager:
             EffectiveAreaTable2D,
             EnergyDispersion2D,
         )
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
+        irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[2]
         # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
         bkg = Background2D.read(irf_file, hdu="BACKGROUND")
