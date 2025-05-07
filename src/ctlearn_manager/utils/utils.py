@@ -501,7 +501,7 @@ class IRFType(Enum):
 
 
 class Cuts:
-    def __init__(self, cut_type: CutType=CutType.GLOBAL, gammaness_cut: float=0., theta_cut: float=None, efficiency_gammaness: float=0.7, efficiency_theta: float=0.7):
+    def __init__(self, cut_type: CutType=CutType.GLOBAL, gammaness_cut: float=0., theta_cut: float=None, efficiency_gammaness: float=0.7, efficiency_theta: float=None):
         self.cut_type = cut_type
 
         if gammaness_cut is not None:
@@ -531,7 +531,7 @@ class Cuts:
                 self.gammaness_cut = None
                 self.theta_cut = None
                 self.efficiency_gammaness = efficiency_gammaness
-                self.efficiency_theta = efficiency_theta
+                self.efficiency_theta = efficiency_theta if efficiency_theta is not None else efficiency_gammaness
                 self.irf_type = IRFType.EFFICIENCY_OPTIMIZED
 
             case CutType.SENSITIVITY_OPTIMIZED:
@@ -570,11 +570,11 @@ class Cuts:
     def get_label(self):
         match self.cut_type:
             case CutType.GLOBAL:
-                gammaness_cut_type = f"Glob. gcut : {self.gammaness_cut}" if self.gammaness_cut else ""
-                theta_cut_type = r"Glob. $\theta$ cut : " + f"{self.theta_cut}" if self.theta_cut else ""
+                gammaness_cut_type = f"G/H cut: {self.gammaness_cut}" if self.gammaness_cut else ""
+                theta_cut_type = r"$\theta$ cut: " + f"{self.theta_cut}" if self.theta_cut else ""
             case CutType.EFFICIENCY_OPTIMIZED:
-                gammaness_cut_type = f"E dep. gcut : {self.efficiency_gammaness}eff." if self.efficiency_gammaness else ""
-                theta_cut_type = r"E dep. $\theta$ cut : " + f"{self.efficiency_theta}eff." if self.efficiency_theta else ""
+                gammaness_cut_type = f"G/H cuts: {self.efficiency_gammaness}eff." if self.efficiency_gammaness else ""
+                theta_cut_type = r"$\theta$ cuts: " + f"{self.efficiency_theta}eff." if self.efficiency_theta else ""
             case CutType.SENSITIVITY_OPTIMIZED:
                 gammaness_cut_type = "Sensitivity optimized cuts"
                 theta_cut_type = ""
@@ -587,6 +587,7 @@ class Cuts:
     
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
+    EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7)
 
 
 

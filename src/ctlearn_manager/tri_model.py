@@ -206,7 +206,7 @@ class CTLearnTriModelManager:
                 testing_MC_DL2_data_sample=testing_MC_DL2_data_sample
             )
 
-    def errase_table_from_index(self, path: str):
+    def delete_table_from_index(self, path: str):
         """
         Erase the table from the index file.
         This method removes the specified table from the HDF5 index file of the direction model.
@@ -921,7 +921,7 @@ class CTLearnTriModelManager:
     
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_benchmark(self, zenith: float, azimuth: float, containments: list[int]=[68, 95], title: str=None):
+    def plot_benchmark(self, zenith: float, azimuth: float, cuts: list[Cuts]=[DefaultCuts.EFF_70.value], containments: list[int]=[68, 95], title: str=None):
         """
         Plot benchmark graphs for sensitivity, angular resolution, energy resolution, and energy bias 
         based on the given zenith and azimuth angles.
@@ -940,22 +940,38 @@ class CTLearnTriModelManager:
         
         import matplotlib.pyplot as plt
         from astropy.io import fits
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
-        hudl = fits.open(irf_file)
-        
-        energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
+        fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        for cut in cuts:
+            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            hudl = fits.open(irf_file)
+            energy_center = hudl['SENSITIVITY'].data['ENERG_LO'] + 0.5 * (hudl['SENSITIVITY'].data['ENERG_HI'] - hudl['SENSITIVITY'].data['ENERG_LO'])
+            if len(cuts) > 1:
+                plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:], label=cut.get_label())
+            else:
+                plt.plot(energy_center[0], hudl['SENSITIVITY'].data['ENERGY_FLUX_SENSITIVITY'][0,0,:])
         plt.xscale('log')
         plt.yscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Sensitivity [erg s$^{-1}$ cm$^{-2}$]')
+        if len(cuts) > 1:
+            plt.legend()
         if title is not None:
             plt.title(title)
         plt.show()
         
-        energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
-        for containment in containments:
-            plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data[f'ANGULAR_RESOLUTION_{containment}'][0,0,:], label=f'{containment}%')
+        fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        for cut, color in zip(cuts, default_colors[:len(cuts)]):
+            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            hudl = fits.open(irf_file)
+            energy_center = hudl['ANGULAR RESOLUTION '].data['ENERG_LO'] + 0.5 * (hudl['ANGULAR RESOLUTION '].data['ENERG_HI'] - hudl['ANGULAR RESOLUTION '].data['ENERG_LO'])
+            line_styles = ['-', '--', '-.', ':']
+            for containment, line_style in zip(containments, line_styles):
+                plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data[f'ANGULAR_RESOLUTION_{containment}'][0,0,:], color=color, ls=line_style)
 
         # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
         # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
@@ -964,31 +980,64 @@ class CTLearnTriModelManager:
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Angular resolution [deg]')
-        plt.legend()
+        # Create separate legends for cuts and containment percentages
+        # Create separate legends for cuts and containment percentages
+        cut_labels = [cut.get_label() for cut in cuts]
+        containment_labels = [f"{containment}%" for containment in containments]
+        cut_legend = ax.legend(handles=[plt.Line2D([0], [0], color=color, lw=2) for color in default_colors[:len(cuts)]],
+                       labels=cut_labels, loc='best')
+        containment_legend = ax.legend(handles=[plt.Line2D([0], [0], color='black', ls=ls, lw=2) for ls in line_styles[:len(containments)]],
+                           labels=containment_labels, loc='lower left', title="Containment")
+        if len(cuts) > 1:
+            ax.add_artist(cut_legend)
+        
         if title is not None:
             plt.title(title)
         plt.show()
-        
-        energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['RESOLUTION'][0,0,:])
+
+        fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        for cut in cuts:
+            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            hudl = fits.open(irf_file)
+            energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
+            if len(cuts) > 1:
+                plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['RESOLUTION'][0,0,:], label=cut.get_label())
+            else:
+                plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['RESOLUTION'][0,0,:])
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Energy resolution')
+        if len(cuts) > 1:
+            plt.legend()
         if title is not None:
             plt.title(title)
         plt.show()
         
-        energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
-        plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['BIAS'][0,0,:])
+
+        fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        for cut in cuts:
+            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            hudl = fits.open(irf_file)
+            energy_center = hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'] + 0.5 * (hudl['ENERGY BIAS RESOLUTION'].data['ENERG_HI'] - hudl['ENERGY BIAS RESOLUTION'].data['ENERG_LO'])
+            if len(cuts) > 1:
+                plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['BIAS'][0,0,:], label=cut.get_label())
+            else:
+                plt.plot(energy_center[0], hudl['ENERGY BIAS RESOLUTION'].data['BIAS'][0,0,:])
         plt.xscale('log')
         plt.xlabel('Energy [TeV]')
         plt.ylabel('Energy bias')
+        if len(cuts) > 1:
+            plt.legend()
         if title is not None:
             plt.title(title)
         plt.show()
         hudl.close() 
 
-    def plot_cuts(self, zenith: float, azimuth: float):
+    def plot_cuts(self, zenith: float, azimuth: float, cuts: list[Cuts]=[DefaultCuts.EFF_70.value]):
         """
         Plot the cuts for given zenith and azimuth angles.
         This method reads the cuts data from the specified IRF file and plots the cuts
@@ -1001,18 +1050,33 @@ class CTLearnTriModelManager:
         
         from astropy.io import fits
         import matplotlib.pyplot as plt
-        cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-        with fits.open(cuts_file) as hdul:
-            axs[0].plot(hdul['GH_CUTS'].data['center'], hdul['GH_CUTS'].data['cut'])
-            axs[0].set_xlabel("Energy [TeV]")
-            axs[0].set_ylabel("Gammaness cut")
-            axs[0].set_xscale('log')
+        
+        for cut in cuts:
+            cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[1]
+            print(cuts_file)
+            if len(cuts) > 1:
+                label = cut.get_label()
+            else:
+                label = ""
+            with fits.open(cuts_file) as hdul:
+                axs[0].plot(hdul['GH_CUTS'].data['center'], hdul['GH_CUTS'].data['cut'], label=label)
+                axs[0].set_xlabel("Energy [TeV]")
+                axs[0].set_ylabel("Gammaness cut")
+                axs[0].set_xscale('log')
 
-            axs[1].plot(hdul['RAD_MAX'].data['center'], hdul['RAD_MAX'].data['cut'])
-            axs[1].set_xlabel("Energy [TeV]")
-            axs[1].set_ylabel("Theta cut [deg]")
-            axs[1].set_xscale('log')
+                axs[1].plot(hdul['RAD_MAX'].data['center'], hdul['RAD_MAX'].data['cut'], label=label)
+                axs[1].set_xlabel("Energy [TeV]")
+                axs[1].set_ylabel("Theta cut [deg]")
+                axs[1].set_xscale('log')
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(axs[0])
+            cuts[0].plot_cuts_info_plt(axs[1])
+        else:
+            axs[0].legend()
+            axs[1].legend()
+            
+
         plt.tight_layout()
         plt.show()
 

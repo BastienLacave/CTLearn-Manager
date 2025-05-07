@@ -703,13 +703,15 @@ class CTLearnModelManager:
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
                                dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
+
         
-        match = np.where((IRF_table['config'] == config) or 
-                (IRF_table['cuts_file'] == cuts_file) or 
-                (IRF_table['irf_file'] == irf_file) or
-                (IRF_table['benckmark_file'] == bencmark_file) or
-                ((IRF_table['zenith'] == zenith) and
-                (IRF_table['azimuth'] == azimuth))
+        
+        match = np.where((IRF_table['config'] == config).any() and 
+                (IRF_table['cuts_file'] == cuts_file).any() and 
+                (IRF_table['irf_file'] == irf_file).any() and
+                (IRF_table['benckmark_file'] == bencmark_file).any() and
+                ((IRF_table['zenith'] == zenith).any() and
+                (IRF_table['azimuth'] == azimuth).any()).all()
                 )[0]
         if len(match) == 0:
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
@@ -744,21 +746,24 @@ class CTLearnModelManager:
         target_gamma_efficiency = cuts.efficiency_gammaness
         target_theta_efficiency = cuts.efficiency_theta
         
-        mask = [get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']]
+        mask_cuts = np.where([get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']])[0]
         if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-            mask = [
-            mask[i] and 
+            mask_cuts = [
+            i in mask_cuts and 
             abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency) < 1e-3 and 
             abs(get_irf_type_from_config(config)[2] - target_theta_efficiency) < 1e-3
             for i, config in enumerate(IRF_table['config'])
             ]
-
-        if not any(mask):
+        if not np.any(mask_cuts):
             raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
         
-        match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0] [mask]
-        if len(match) == 0:
+        mask_direction = (IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth)
+        if not np.any(mask_direction):
             raise IndexError(f"No IRF data found for zenith {zenith} and azimuth {azimuth}")
+        
+        match = np.where(np.array(mask_cuts) & np.array(mask_direction))[0]
+        if len(match) > 1:
+            raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)

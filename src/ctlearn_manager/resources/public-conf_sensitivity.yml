@@ -10,7 +10,7 @@ EventSelectionOptimizer:
   proton_target_spectrum: IRFDOC_PROTON_SPECTRUM
   electron_target_spectrum: IRFDOC_ELECTRON_SPECTRUM
   obs_time: 50 hour
-  optimization_algorithm: "PercentileCuts"  # Alternative: "PercentileCuts" "PointSourceSensitivityOptimizer"
+  optimization_algorithm: "PointSourceSensitivityOptimizer"  # Alternative: "PercentileCuts" "PointSourceSensitivityOptimizer"
 
 EventPreprocessor:
   energy_reconstructor: "CTLearn"
