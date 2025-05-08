@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 
+__all__ = ['WhoIsBetter']
 
 class WhoIsBetter:
     def __init__(self, dl2_processors, labels):

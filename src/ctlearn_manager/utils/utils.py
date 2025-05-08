@@ -428,6 +428,7 @@ class DataSample:
         import astropy.units as u
         from ctapipe.io import read_table
         from tqdm import tqdm
+        from pathlib import Path
 
 
         self.directory = directory
@@ -441,6 +442,8 @@ class DataSample:
         
         i = 0
         for file in tqdm(files, desc="Checking files for particle type and pointing", unit="file"):
+            if not Path(file).is_absolute():
+                raise ValueError(f"File {file} is not an absolute path. Please provide absolute paths for the files.")
             shower_parameters = read_table(file, "simulation/event/subarray/shower")
             pointing = read_table(file, "configuration/telescope/pointing/tel_001") 
             particle_id = np.unique(shower_parameters["true_shower_primary_id"])
@@ -483,10 +486,6 @@ class DataSample:
         print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
 
         
-
-
-
-
 class CutType(Enum):
     GLOBAL = "global"
     EFFICIENCY_OPTIMIZED = "energy_dependent_efficiency"

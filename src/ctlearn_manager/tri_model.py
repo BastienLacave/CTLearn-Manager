@@ -247,6 +247,7 @@ class CTLearnTriModelManager:
         flat_azimuths = [item for sublist in azimuths for item in sublist]
 
         coords = set(zip(flat_zeniths, flat_azimuths))
+        coords = sorted(coords, key=lambda x: x[0])
         if len(coords) > 0:
             print("Available testing directions:")
         for zenith, azimuth in coords:
@@ -256,9 +257,9 @@ class CTLearnTriModelManager:
                 if particle_available:
                     available_particles.append(particle_type.value)
             if len(available_particles) > 0:
-                print(f"(ZD, Az): ({zenith.value}, {azimuth.value})°\t{' | '.join(available_particles)}")
+                print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)\t{' | '.join(available_particles)}")
             else:
-                print(f"(ZD, Az): ({zenith.value}, {azimuth.value})°")
+                print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)")
 
     def get_available_MC_directions(self, verbose=True):
         """
@@ -302,6 +303,7 @@ class CTLearnTriModelManager:
         flat_azimuths = [item for sublist in azimuths for item in sublist]
 
         coords = set(zip(flat_zeniths, flat_azimuths))
+        coords = sorted(coords, key=lambda x: x[0])
         if verbose:
             if len(coords) > 0:
                 print("Available MC DL2 directions:")
@@ -312,9 +314,9 @@ class CTLearnTriModelManager:
                     if particle_available:
                         available_particles.append(particle_type.value)
                 if len(available_particles) > 0:
-                    print(f"(ZD, Az): ({zenith}, {azimuth}) \t {' | '.join(available_particles)}")
+                    print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg) \t {' | '.join(available_particles)}")
                 else:
-                    print(f"(ZD, Az): ({zenith}, {azimuth})")
+                    print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)")
         return coords
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)

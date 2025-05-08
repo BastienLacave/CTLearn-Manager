@@ -13,6 +13,7 @@ from ctlearn_manager.utils.utils import (
     IRFType,
     Cuts,
     get_irf_type_from_config,
+    CTLearnManagerStyle,
 )
 
 __all__ = [
@@ -174,6 +175,8 @@ class CTLearnModelManager:
             model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes', 'stereo'],
                         dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, int, bool])
             notes = model_parameters.get('notes', '')
+            if not Path(model_parameters.get('model_dir', '')).is_absolute():
+                raise ValueError("The 'model_dir' must be an absolute path.")
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
             telescope_names = model_parameters.get('telescope_names', [])
@@ -888,14 +891,14 @@ class CTLearnModelManager:
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], label='Training')
         else:
             if np.isnan(azimuth_min) and np.isnan(azimuth_max):
                 # Plot the area between the two circles
                 theta = np.linspace(0, 2 * np.pi, 100) * u.rad
                 r1 = np.full_like(theta, zenith_min).to(u.deg)
                 r2 = np.full_like(theta, zenith_max).to(u.deg)
-                ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0)
+                ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0, color=CTLearnManagerStyle.ctlearn_highlight.value)
                 ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
                 ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
             else:
@@ -903,7 +906,7 @@ class CTLearnModelManager:
                 r1 = np.full_like(theta, zenith_min).to(u.deg).value
                 r2 = np.full_like(theta, zenith_max).to(u.deg).value
                 theta = theta.value
-                ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0)
+                ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0, color=CTLearnManagerStyle.ctlearn_highlight.value)
                 ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
                 ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
                 ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
@@ -913,8 +916,34 @@ class CTLearnModelManager:
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], label='Training')
         
+        try:
+            testing_dl1_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma_point')
+            zeniths = testing_dl1_table['testing_gamma_point_zenith_distances']
+            azimuths = testing_dl1_table['testing_gamma_point_azimuths'].to(u.rad)
+            for zenith, azimuth in zip(zeniths, azimuths):
+                if (zenith == np.nan) or (azimuth == np.nan):
+                    continue    
+                else:
+                    ax.scatter(azimuth, zenith, s=50, facecolors='none', edgecolors=CTLearnManagerStyle.ctlearn_accent_1.value, label='Testing DL1', zorder=3)
+        except:
+            a = 1
+        
+        try:
+            mc_dl2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma_point')
+            zeniths = mc_dl2_table['testing_DL2_gamma_point_zenith_distances']
+            azimuths = mc_dl2_table['testing_DL2_gamma_point_azimuths'].to(u.rad)
+            for zenith, azimuth in zip(zeniths, azimuths):
+                if (zenith == np.nan) or (azimuth == np.nan):
+                    continue    
+                else:
+                    ax.scatter(azimuth, zenith, s=50, color=CTLearnManagerStyle.ctlearn_accent_2.value, label='Testing DL2', zorder=2)
+        except:
+            a = 1
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys())
         ax.set_theta_zero_location('E')
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
