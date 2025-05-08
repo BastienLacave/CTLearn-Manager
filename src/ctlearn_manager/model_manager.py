@@ -990,7 +990,7 @@ class CTLearnModelManager:
             if (zenith == np.nan) or (azimuth == np.nan):
                 continue    
             else:
-                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], label='Gammas', zorder=2)
+                ax.scatter(azimuth, zenith, s=50, color=CTLearnManagerStyle.ctlearn_1.value, label='Gammas', zorder=10)
                 i += 1
         if i == 0:
             print('Training nodes for gammas cannot be shown because the zenith or azimuth are not defined.')
@@ -1004,7 +1004,7 @@ class CTLearnModelManager:
                 if (zenith == np.nan) or (azimuth == np.nan):
                     continue
                 else:
-                    ax.scatter(azimuth, zenith, label='Protons', edgecolor=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], facecolors='w', zorder=1, s=100, lw=2)
+                    ax.scatter(azimuth, zenith, label='Protons', edgecolor=CTLearnManagerStyle.ctlearn_accent_1.value, facecolors='w', zorder=1, s=100, lw=2)
                     i += 1
             if i == 0:
                 print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
