@@ -25,13 +25,13 @@ EventPreprocessor:
       - ["valid energy reco", "CTLearn_is_valid"]
 
 DefaultRecoEnergyBins:
-  reco_energy_min: 0.5 TeV #0.015 TeV
-  reco_energy_max: 1000 TeV #150 TeV
+  reco_energy_min: 0.02 TeV
+  reco_energy_max: 20 TeV
   reco_energy_n_bins_per_decade: 5
 
 DefaultTrueEnergyBins:
-  true_energy_min: 0.5 TeV #0.015 TeV
-  true_energy_max: 1000 TeV #150 TeV
+  true_energy_min: 0.02 TeV #0.015 TeV
+  true_energy_max: 20 TeV #150 TeV
   true_energy_n_bins_per_decade: 10
 
 ThetaPercentileCutCalculator:

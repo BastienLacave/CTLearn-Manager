@@ -888,7 +888,7 @@ class CTLearnModelManager:
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
         else:
             if np.isnan(azimuth_min) and np.isnan(azimuth_max):
                 # Plot the area between the two circles
@@ -896,24 +896,24 @@ class CTLearnModelManager:
                 r1 = np.full_like(theta, zenith_min).to(u.deg)
                 r2 = np.full_like(theta, zenith_max).to(u.deg)
                 ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0)
-                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
             else:
                 theta = np.linspace(azimuth_min, azimuth_max, 100)
                 r1 = np.full_like(theta, zenith_min).to(u.deg).value
                 r2 = np.full_like(theta, zenith_max).to(u.deg).value
                 theta = theta.value
                 ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0)
-                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
                 
                 training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
         
         ax.set_theta_zero_location('E')
         ax.set_theta_direction(-1)
