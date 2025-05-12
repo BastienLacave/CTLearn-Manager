@@ -204,7 +204,7 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
         except:
             print(f"Model {model_nickname} not found in index")
 
-def remove_row_from_table_utils(self, index_file, table_path: str, row_index: int):
+def remove_row_from_table_utils(index_file, table_path: str, row_index: int):
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
         try:
