@@ -12,7 +12,7 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['DefaultCuts', 'remove_row_from_table', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['DefaultCuts', 'remove_row_from_table_utils', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 class CTLearnManagerStyle(Enum):
     """
@@ -204,7 +204,7 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
         except:
             print(f"Model {model_nickname} not found in index")
 
-def remove_row_from_table(self, index_file, table_path: str, row_index: int):
+def remove_row_from_table_utils(self, index_file, table_path: str, row_index: int):
         from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
         try:

@@ -14,7 +14,7 @@ from ctlearn_manager.utils.utils import (
     Cuts,
     get_irf_type_from_config,
     CTLearnManagerStyle,
-    remove_row_from_table
+    remove_row_from_table_utils
 )
 
 __all__ = [
@@ -1027,7 +1027,7 @@ class CTLearnModelManager:
         plt.show()
       
     def remove_row_from_table(self, table_path: str, row_index: int):
-        remove_row_from_table(self.model_index_file, table_path, row_index)
+        remove_row_from_table_utils(self.model_index_file, table_path, row_index)
 
         
 
