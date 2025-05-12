@@ -894,6 +894,7 @@ class CTLearnTriModelManager:
         
         electron_string = f" --electron-file {electron_file}" if electrons else ""
         proton_string = f" --proton-file {proton_file}" if protons else ""
+        do_background_string = " --do-background" if protons else "--no-do-background"
         cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
@@ -911,7 +912,7 @@ class CTLearnTriModelManager:
 --gamma-file {gamma_file} \
 {proton_string} \
 {electron_string} \
---do-background \
+{do_background_string} \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
 --no-spatial-selection-applied --overwrite --spatial-selection-applied"
