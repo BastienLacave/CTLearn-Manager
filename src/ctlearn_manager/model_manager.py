@@ -14,6 +14,7 @@ from ctlearn_manager.utils.utils import (
     Cuts,
     get_irf_type_from_config,
     CTLearnManagerStyle,
+    remove_row_from_table
 )
 
 __all__ = [
@@ -747,7 +748,7 @@ class CTLearnModelManager:
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         target_irf_type = cuts.irf_type
         target_gamma_efficiency = cuts.efficiency_gammaness
-        target_theta_efficiency = cuts.efficiency_theta
+        target_theta_efficiency = cuts.efficiency_theta if cuts.efficiency_theta is not None else cuts.efficiency_gammaness
         
         mask_cuts = np.where([get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']])[0]
         if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
@@ -881,7 +882,7 @@ class CTLearnModelManager:
                 ax.plot(theta, r, lw=3, zorder=0)
             elif azimuth_min == azimuth_max:
                 # Plot a point for that position
-                ax.scatter(azimuth_min, zenith_min, s=100, zorder=0)
+                ax.scatter(azimuth_min, zenith_min, s=100, zorder=0, label='Training', color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0])
             else:
                 # Plot a portion of a circle between the azimuth range at the correct zenith
                 theta = np.linspace(azimuth_min, azimuth_max, 100)
@@ -1025,7 +1026,8 @@ class CTLearnModelManager:
         plt.tight_layout()
         plt.show()
       
-
+    def remove_row_from_table(self, table_path: str, row_index: int):
+        remove_row_from_table(self.model_index_file, table_path, row_index)
 
         
 
@@ -1070,6 +1072,7 @@ class ModelRangeOfValidity:
         :vartype nsb_range: astropy.units.Quantity
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
+
         training_gamma_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/gamma_diffuse')
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
         

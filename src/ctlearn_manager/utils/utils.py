@@ -12,7 +12,7 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['DefaultCuts', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['DefaultCuts', 'remove_row_from_table', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 class CTLearnManagerStyle(Enum):
     """
@@ -204,6 +204,24 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
         except:
             print(f"Model {model_nickname} not found in index")
 
+def remove_row_from_table(self, index_file, table_path: str, row_index: int):
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+        try:
+            table = read_table_hdf5(index_file, path=table_path)
+        except Exception as e:
+            raise IOError(f"Error reading table at path {table_path}: {e}")
+        
+        if row_index < 0 or row_index >= len(table):
+            raise IndexError(f"Row index {row_index} is out of bounds for the table at path {table_path}.")
+        
+        table.remove_rows(row_index)
+        
+        try:
+            write_table_hdf5(table, index_file, path=table_path, append=True, overwrite=True, serialize_meta=True)
+            print(f"Row {row_index} successfully removed from table at path {table_path}.")
+        except Exception as e:
+            raise IOError(f"Error writing updated table to path {table_path}: {e}")
 
 # def write_sbatch_script(cluster_configuration: ClusterConfiguration, job_name, cmd, sbatch_scripts_dir):
 #     sh_script = get_predict_data_sbatch_script(cluster_configuration.cluster, cmd, job_name, sbatch_scripts_dir, cluster_configuration.account, cluster_configuration.env_name)
@@ -587,7 +605,7 @@ class Cuts:
     
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
-    EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7)
+    EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7, efficiency_theta=0.7)
     GH_0_9 = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.9)
 
 

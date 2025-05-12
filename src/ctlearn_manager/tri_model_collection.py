@@ -33,7 +33,7 @@ class TriModelCollection:
             assert len(model_labels) == len(self.tri_models), "Model labels must be the same length as the number of tri models."
             self.model_labels = model_labels
         else:
-            self.model_labels = [None for tri_model in self.tri_models]
+            self.model_labels = [f'Model_{j}'for j in range(len(self.tri_models))]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
         set_mpl_style()
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
@@ -144,7 +144,10 @@ class TriModelCollection:
 
     def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
         fig, ax = plt.subplots()
+        stored_efficiency_theta = cuts.efficiency_theta
+        cuts.efficiency_theta = None
         cuts.plot_cuts_info_plt(ax)
+        cuts.efficiency_theta = stored_efficiency_theta
         for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model"):
             l = tri_model.direction_model.model_nickname if label is None else label
             tri_model.plot_angular_resolution_DL2(cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
