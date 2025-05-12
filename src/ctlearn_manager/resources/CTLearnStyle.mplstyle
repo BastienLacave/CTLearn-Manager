@@ -11,8 +11,12 @@ axes.spines.top : True
 axes.spines.right : True
 axes.spines.bottom : True
 axes.spines.left : True
+#axes.xmargin : 0.1
+axes.ymargin : 0.1
 #axes.facecolor : (0.0, 0.0, 0.0, 0.0)
 legend.fontsize : 10
+legend.markerscale : 1.
+patch.linewidth : 2
 
 # GRID
 axes.grid : False
@@ -23,9 +27,11 @@ grid.color : "#363636"
 
 # LINES
 axes.prop_cycle : cycler('color', ['016279', '00a693', '58c68b', '00c6ff', 'cf004b', '923e51']) #hex colours
-lines.linewidth : 1.5
+lines.linewidth : 2
 lines.markeredgewidth : 0.0
 lines.solid_capstyle : round
+lines.dash_capstyle : round
+
 
 # SCATTER PLOT
 scatter.marker : o

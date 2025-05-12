@@ -4,19 +4,24 @@ import ctadata
 import numpy as np
 from tqdm import tqdm
 
+import matplotlib.pyplot as plt
+
 from .utils.utils import (
     ClusterConfiguration,
     angular_distance,
     get_files_cscs,
     get_files_LST_cluster,
     set_mpl_style,
+    ParticleType,
+    Cuts,
+    DefaultCuts,
 )
 
 __all__ = ['TriModelCollection']
 
 class TriModelCollection:
     
-    def __init__(self, tri_models: list, cluster_configuration=ClusterConfiguration()):
+    def __init__(self, tri_models: list, cluster_configuration:ClusterConfiguration=ClusterConfiguration(), model_labels: list[str]=None):
         self.tri_models = tri_models
         self.cluster_configuration = cluster_configuration
         for tri_model in self.tri_models:
@@ -24,6 +29,11 @@ class TriModelCollection:
         telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]
         telescope_names = [tri_model.telescope_names for tri_model in self.tri_models]
         stereos = [tri_model.stereo for tri_model in self.tri_models]
+        if model_labels is not None:
+            assert len(model_labels) == len(self.tri_models), "Model labels must be the same length as the number of tri models."
+            self.model_labels = model_labels
+        else:
+            self.model_labels = [None for tri_model in self.tri_models]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
         set_mpl_style()
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
@@ -62,8 +72,7 @@ class TriModelCollection:
                 self.predict_lstchain_data(input_file, output_file, config_dir=output_dir, overwrite=overwrite, run=run, subrun=subrun, plot=plot, batch_size=batch_size)
         else:
             raise ValueError(f"To predict LST data run-wise, the cluster must be either 'cscs' or 'lst-cluster'. Current cluster : {self.cluster_configuration.cluster}")
-        
-        
+         
     def predict_lstchain_data(self, input_file, output_file, pointing_table='/dl1/event/telescope/parameters/LST_LSTCam', config_dir=None, overwrite=False, run=None, subrun=None, plot=False, batch_size=64):
         closest_tri_model = self.find_closest_model_to(input_file, pointing_table, plot=plot)
         if os.path.exists(output_file) and not overwrite:
@@ -116,7 +125,6 @@ class TriModelCollection:
             plt.show()
         return closest_model
 
-
     def plot_zenith_azimuth_ranges(self):
         import matplotlib.pyplot as plt
 
@@ -125,6 +133,45 @@ class TriModelCollection:
         for tri_model in self.tri_models:
             tri_model.direction_model.plot_zenith_azimuth_ranges(ax)
         plt.show()
+
+    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
+        fig, ax = plt.subplots()
+        cuts.plot_cuts_info_plt(ax)
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model"):
+            l = tri_model.energy_model.model_nickname if label is None else label
+            tri_model.plot_energy_resolution_DL2(cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
+        plt.show()
+
+    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
+        fig, ax = plt.subplots()
+        cuts.plot_cuts_info_plt(ax)
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model"):
+            l = tri_model.direction_model.model_nickname if label is None else label
+            tri_model.plot_angular_resolution_DL2(cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
+        plt.show()
+
+    def plot_cuts(self, cuts: Cuts=DefaultCuts.EFF_70.value):
+        fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+        cuts.plot_cuts_info_plt(axs[0])
+        cuts.plot_cuts_info_plt(axs[1])
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting cuts", unit="model"):
+            l = tri_model.direction_model.model_nickname if label is None else label
+            tri_model.plot_cuts(cuts=[cuts], axs=axs, label=l)
+        axs[0].legend()
+        axs[1].legend()
+        plt.show()
+
+    # def plot_benchmark(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
+    #     fig, axs = plt.subplots(1, 2, figsize=(10, 4))
+    #     cuts.plot_cuts_info_plt(axs[0])
+    #     cuts.plot_cuts_info_plt(axs[1])
+    #     for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting benchmarking", unit="model"):
+    #         l = tri_model.direction_model.model_nickname if label is None else label
+    #         tri_model.plot_benchmark(cuts=[cuts], ylim=ylim, particle_type=particle_type, axs=axs, figsize=figsize, label=l)
+    #     axs[0].legend()
+    #     axs[1].legend()
+    #     plt.show()
+
 
     def plot_everything_dl2(self, output_directory: str, dl2_files: list[str], gammaness_cut: float=0.9, edep_cuts: bool=False, pointing_table: str='/dl1/monitoring/telescope/pointing/tel_001'):
         """

@@ -428,6 +428,7 @@ class DataSample:
         import astropy.units as u
         from ctapipe.io import read_table
         from tqdm import tqdm
+        from pathlib import Path
 
 
         self.directory = directory
@@ -441,6 +442,8 @@ class DataSample:
         
         i = 0
         for file in tqdm(files, desc="Checking files for particle type and pointing", unit="file"):
+            if not Path(file).is_absolute():
+                raise ValueError(f"File {file} is not an absolute path. Please provide absolute paths for the files.")
             shower_parameters = read_table(file, "simulation/event/subarray/shower")
             pointing = read_table(file, "configuration/telescope/pointing/tel_001") 
             particle_id = np.unique(shower_parameters["true_shower_primary_id"])
@@ -483,10 +486,6 @@ class DataSample:
         print(f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})")
 
         
-
-
-
-
 class CutType(Enum):
     GLOBAL = "global"
     EFFICIENCY_OPTIMIZED = "energy_dependent_efficiency"
@@ -501,7 +500,7 @@ class IRFType(Enum):
 
 
 class Cuts:
-    def __init__(self, cut_type: CutType=CutType.GLOBAL, gammaness_cut: float=0., theta_cut: float=None, efficiency_gammaness: float=0.7, efficiency_theta: float=0.7):
+    def __init__(self, cut_type: CutType=CutType.GLOBAL, gammaness_cut: float=0., theta_cut: float=None, efficiency_gammaness: float=0.7, efficiency_theta: float=None):
         self.cut_type = cut_type
 
         if gammaness_cut is not None:
@@ -531,7 +530,7 @@ class Cuts:
                 self.gammaness_cut = None
                 self.theta_cut = None
                 self.efficiency_gammaness = efficiency_gammaness
-                self.efficiency_theta = efficiency_theta
+                self.efficiency_theta = efficiency_theta if efficiency_theta is not None else efficiency_gammaness
                 self.irf_type = IRFType.EFFICIENCY_OPTIMIZED
 
             case CutType.SENSITIVITY_OPTIMIZED:
@@ -553,7 +552,7 @@ class Cuts:
                 f"Efficiency gammaness: {self.efficiency_gammaness}, "
                 f"Efficiency theta: {self.efficiency_theta}")
     
-    def plot_cuts_info_plt(self, ax):
+    def plot_cuts_info_plt(self, ax, text_color=CTLearnManagerStyle.ctlearn_1.value, background_color=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2):
         final_string = self.get_label()
 
         if final_string:
@@ -561,20 +560,20 @@ class Cuts:
             0.98, 0.02, final_string,
             transform=ax.transAxes,
             fontsize=9,
-            color=CTLearnManagerStyle.ctlearn_1.value,
+            color=text_color,
             verticalalignment='bottom',
             horizontalalignment='right',
-            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=CTLearnManagerStyle.ctlearn_highlight.value, alpha=0.2),
+            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=alpha),
             )
 
     def get_label(self):
         match self.cut_type:
             case CutType.GLOBAL:
-                gammaness_cut_type = f"Glob. gcut : {self.gammaness_cut}" if self.gammaness_cut else ""
-                theta_cut_type = r"Glob. $\theta$ cut : " + f"{self.theta_cut}" if self.theta_cut else ""
+                gammaness_cut_type = f"G/H cut: {self.gammaness_cut}" if self.gammaness_cut else ""
+                theta_cut_type = r"$\theta$ cut: " + f"{self.theta_cut}" if self.theta_cut else ""
             case CutType.EFFICIENCY_OPTIMIZED:
-                gammaness_cut_type = f"E dep. gcut : {self.efficiency_gammaness}eff." if self.efficiency_gammaness else ""
-                theta_cut_type = r"E dep. $\theta$ cut : " + f"{self.efficiency_theta}eff." if self.efficiency_theta else ""
+                gammaness_cut_type = f"G/H cuts: {self.efficiency_gammaness}eff." if self.efficiency_gammaness else ""
+                theta_cut_type = r"$\theta$ cuts: " + f"{self.efficiency_theta}eff." if self.efficiency_theta else ""
             case CutType.SENSITIVITY_OPTIMIZED:
                 gammaness_cut_type = "Sensitivity optimized cuts"
                 theta_cut_type = ""
@@ -585,8 +584,11 @@ class Cuts:
         final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
         return final_string
     
+    
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
+    EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7)
+    GH_0_9 = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.9)
 
 
 

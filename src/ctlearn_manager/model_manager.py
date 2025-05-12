@@ -13,6 +13,7 @@ from ctlearn_manager.utils.utils import (
     IRFType,
     Cuts,
     get_irf_type_from_config,
+    CTLearnManagerStyle,
 )
 
 __all__ = [
@@ -174,6 +175,8 @@ class CTLearnModelManager:
             model_table = QTable(names=['model_nickname', 'model_dir', 'reco', 'channels', 'telescope_names', 'telescope_ids', 'notes', 'max_training_epochs', 'min_telescopes', 'stereo'],
                         dtype=['S256', 'S256', 'S256', 'S256', 'S256', 'S256', 'S256', int, int, bool])
             notes = model_parameters.get('notes', '')
+            if not Path(model_parameters.get('model_dir', '')).is_absolute():
+                raise ValueError("The 'model_dir' must be an absolute path.")
             model_dir = f"{model_parameters.get('model_dir', '')}/{self.model_nickname}"
             reco = model_parameters.get('reco', 'default_reco')
             telescope_names = model_parameters.get('telescope_names', [])
@@ -703,13 +706,15 @@ class CTLearnModelManager:
         if len(IRF_table)==0:
             IRF_table = QTable(names=['config', 'cuts_file', 'irf_file', 'benckmark_file', 'zenith', 'azimuth'], 
                                dtype=['S256', 'S256', 'S256', 'S256', float, float], units=[None, None, None, None, 'deg', 'deg'])
+
         
-        match = np.where((IRF_table['config'] == config) or 
-                (IRF_table['cuts_file'] == cuts_file) or 
-                (IRF_table['irf_file'] == irf_file) or
-                (IRF_table['benckmark_file'] == bencmark_file) or
-                ((IRF_table['zenith'] == zenith) and
-                (IRF_table['azimuth'] == azimuth))
+        
+        match = np.where((IRF_table['config'] == config).any() and 
+                (IRF_table['cuts_file'] == cuts_file).any() and 
+                (IRF_table['irf_file'] == irf_file).any() and
+                (IRF_table['benckmark_file'] == bencmark_file).any() and
+                ((IRF_table['zenith'] == zenith).any() and
+                (IRF_table['azimuth'] == azimuth).any()).all()
                 )[0]
         if len(match) == 0:
             IRF_table.add_row([config, cuts_file, irf_file, bencmark_file, zenith, azimuth])
@@ -734,35 +739,38 @@ class CTLearnModelManager:
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
 
-        if zenith is None or azimuth is None:
+        if (zenith is None or azimuth is None):
             average_zenith = (self.validity.zenith_range[0] + self.validity.zenith_range[1]) / 2
             average_azimuth = (self.validity.azimuth_range[0] + self.validity.azimuth_range[1]) / 2
-            return self.get_closest_IRF_data(average_zenith, average_azimuth)
+            return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
         target_irf_type = cuts.irf_type
         target_gamma_efficiency = cuts.efficiency_gammaness
         target_theta_efficiency = cuts.efficiency_theta
         
-        mask = [get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']]
+        mask_cuts = np.where([get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']])[0]
         if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-            mask = [
-            mask[i] and 
+            mask_cuts = [
+            i in mask_cuts and 
             abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency) < 1e-3 and 
             abs(get_irf_type_from_config(config)[2] - target_theta_efficiency) < 1e-3
             for i, config in enumerate(IRF_table['config'])
             ]
-
-        if not any(mask):
+        if not np.any(mask_cuts):
             raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
         
-        match = np.where((IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth))[0] [mask]
-        if len(match) == 0:
+        mask_direction = (IRF_table['zenith'] == zenith) & (IRF_table['azimuth'] == azimuth)
+        if not np.any(mask_direction):
             raise IndexError(f"No IRF data found for zenith {zenith} and azimuth {azimuth}")
+        
+        match = np.where(np.array(mask_cuts) & np.array(mask_direction))[0]
+        if len(match) > 1:
+            raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
         return IRF_table['config'][match][0], IRF_table['cuts_file'][match][0], IRF_table['irf_file'][match][0], IRF_table['benckmark_file'][match][0]
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_closest_IRF_data(self, zenith, azimuth):
+    def get_closest_IRF_data(self, zenith, azimuth, cuts: Cuts=None):
         """
         Retrieve the closest Instrument Response Function (IRF) data based on the given zenith and azimuth angles.
         This function reads an HDF5 table containing IRF data and finds the entry with the closest matching zenith and azimuth angles to the provided values. It then returns the configuration, cuts file, IRF file, and benchmark file associated with the closest match.
@@ -776,6 +784,23 @@ class CTLearnModelManager:
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         IRF_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/IRF')
+        if cuts is not None:
+            target_irf_type = cuts.irf_type
+            target_gamma_efficiency = cuts.efficiency_gammaness
+            target_theta_efficiency = cuts.efficiency_theta
+
+            mask_cuts = np.where([get_irf_type_from_config(config)[0] == target_irf_type for config in IRF_table['config']])[0]
+            if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
+                mask_cuts = [
+                    i in mask_cuts and 
+                    abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency) < 1e-3 and 
+                    abs(get_irf_type_from_config(config)[2] - target_theta_efficiency) < 1e-3
+                    for i, config in enumerate(IRF_table['config'])
+                ]
+            if not np.any(mask_cuts):
+                raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
+            IRF_table = IRF_table[mask_cuts]
+
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
         if len(match) > 1:
             raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
@@ -866,33 +891,59 @@ class CTLearnModelManager:
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], label='Training')
         else:
             if np.isnan(azimuth_min) and np.isnan(azimuth_max):
                 # Plot the area between the two circles
                 theta = np.linspace(0, 2 * np.pi, 100) * u.rad
                 r1 = np.full_like(theta, zenith_min).to(u.deg)
                 r2 = np.full_like(theta, zenith_max).to(u.deg)
-                ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0)
-                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.fill_between(theta.value, r1.value, r2.value, alpha=0.3, zorder=0, color=CTLearnManagerStyle.ctlearn_highlight.value)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
             else:
                 theta = np.linspace(azimuth_min, azimuth_max, 100)
                 r1 = np.full_like(theta, zenith_min).to(u.deg).value
                 r2 = np.full_like(theta, zenith_max).to(u.deg).value
                 theta = theta.value
-                ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0)
-                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
-                ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], zorder=0)
+                ax.fill_between(theta, r1, r2, alpha=0.3, zorder=0, color=CTLearnManagerStyle.ctlearn_highlight.value)
+                ax.plot(theta, r1, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot(theta, r2, lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot((theta[0], theta[0]), (r1[0], r2[0]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
+                ax.plot((theta[-1], theta[-1]), (r1[-1], r2[-1]), lw=3, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], zorder=0)
                 
                 training_gamma_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/training/gamma_diffuse')
                 zeniths = training_gamma_table['training_gamma_diffuse_zenith_distances']
                 azimuths = training_gamma_table['training_gamma_diffuse_azimuths'].to(u.rad)
                 for zenith, azimuth in zip(zeniths, azimuths):
-                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1])
+                    ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], label='Training')
         
+        try:
+            testing_dl1_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/testing/gamma_point')
+            zeniths = testing_dl1_table['testing_gamma_point_zenith_distances']
+            azimuths = testing_dl1_table['testing_gamma_point_azimuths'].to(u.rad)
+            for zenith, azimuth in zip(zeniths, azimuths):
+                if (zenith == np.nan) or (azimuth == np.nan):
+                    continue    
+                else:
+                    ax.scatter(azimuth, zenith, s=50, facecolors='none', edgecolors=CTLearnManagerStyle.ctlearn_accent_1.value, label='Testing DL1', zorder=3)
+        except:
+            a = 1
+        
+        try:
+            mc_dl2_table = read_table_hdf5(self.model_index_file, path=f'{self.model_nickname}/DL2/MC/gamma_point')
+            zeniths = mc_dl2_table['testing_DL2_gamma_point_zenith_distances']
+            azimuths = mc_dl2_table['testing_DL2_gamma_point_azimuths'].to(u.rad)
+            for zenith, azimuth in zip(zeniths, azimuths):
+                if (zenith == np.nan) or (azimuth == np.nan):
+                    continue    
+                else:
+                    ax.scatter(azimuth, zenith, s=50, color=CTLearnManagerStyle.ctlearn_accent_2.value, label='Testing DL2', zorder=2)
+        except:
+            a = 1
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        ax.legend(by_label.values(), by_label.keys())
         ax.set_theta_zero_location('E')
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
@@ -939,7 +990,7 @@ class CTLearnModelManager:
             if (zenith == np.nan) or (azimuth == np.nan):
                 continue    
             else:
-                ax.scatter(azimuth, zenith, s=50, color=plt.rcParams['axes.prop_cycle'].by_key()['color'][1], label='Gammas', zorder=2)
+                ax.scatter(azimuth, zenith, s=50, color=CTLearnManagerStyle.ctlearn_1.value, label='Gammas', zorder=10)
                 i += 1
         if i == 0:
             print('Training nodes for gammas cannot be shown because the zenith or azimuth are not defined.')
@@ -953,7 +1004,7 @@ class CTLearnModelManager:
                 if (zenith == np.nan) or (azimuth == np.nan):
                     continue
                 else:
-                    ax.scatter(azimuth, zenith, label='Protons', edgecolor=plt.rcParams['axes.prop_cycle'].by_key()['color'][0], facecolors='w', zorder=1, s=100, lw=2)
+                    ax.scatter(azimuth, zenith, label='Protons', edgecolor=CTLearnManagerStyle.ctlearn_accent_1.value, facecolors='w', zorder=1, s=100, lw=2)
                     i += 1
             if i == 0:
                 print('Training nodes for protons cannot be shown because the zenith or azimuth are not defined.')  
