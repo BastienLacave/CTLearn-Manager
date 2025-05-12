@@ -868,6 +868,7 @@ class CTLearnTriModelManager:
         #         output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         #     except:
         #         raise ValueError("An output benchmark file must be provided, at least the first time.")
+        print("⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting.")
         
         if pointlike:
             gamma_files = self.direction_model.get_DL2_MC_files(zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT])[ParticleType.GAMMA_POINT.value]
@@ -1285,7 +1286,7 @@ class CTLearnTriModelManager:
                     reco_energy_min = np.min(reco_energy)
                     reco_energy_max = np.max(reco_energy)
 
-                    plt.xlim(reco_energy_min, reco_energy_max)
+                    # plt.xlim(reco_energy_min, reco_energy_max)
 
                     # Create bins with 5 bins per decade in log scale
                     bins_per_decade = 5
@@ -1412,7 +1413,7 @@ class CTLearnTriModelManager:
                     reco_energy_min = np.min(reco_energy)
                     reco_energy_max = np.max(reco_energy)
 
-                    plt.xlim(reco_energy_min, reco_energy_max)
+                    # plt.xlim(reco_energy_min, reco_energy_max)
 
                     # Create bins with 5 bins per decade in log scale
                     bins_per_decade = 5
