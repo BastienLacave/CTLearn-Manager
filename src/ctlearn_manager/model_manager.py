@@ -806,6 +806,8 @@ class CTLearnModelManager:
             IRF_table = IRF_table[mask_cuts]
 
         match = np.argmin(np.abs(IRF_table['zenith'] - zenith) + np.abs(IRF_table['azimuth'] - azimuth))
+        if type(match) == np.int64:  # noqa: E721
+            match = [match]
         if len(match) > 1:
             raise IndexError(f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data.")
         return IRF_table['config'][match], IRF_table['cuts_file'][match], IRF_table['irf_file'][match], IRF_table['benckmark_file'][match]

@@ -94,16 +94,26 @@ class DL2DataProcessor:
         # self.edep_cuts = edep_cuts
         # print(self.edep_cuts)
         E_bins_tot = []
+        GH_cuts_tot = []
+        Theta_cuts_tot = []
         for cut in self.cuts:
             if cut.cut_type == CutType.EFFICIENCY_OPTIMIZED or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED:
                 # print(self.edep_cuts)
                 # get E bins from IRFs cuts file
-                cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1]
-                with fits.open(cuts_file) as hdul:
+                cuts_file = self.CTLearnTriModelCollection.tri_models[0].direction_model.get_IRF_data()[1][0] # index 1 is the cut file table, index 0 is the first line (the path to the file)
+                with fits.open(cuts_file, mode='readonly') as hdul:
                     E_bins = hdul['GH_CUTS'].data['low']
-                    E_bins = np.append(self.E_bins, hdul['GH_CUTS'].data['high'][-1]) * u.TeV
+                    E_bins = np.append(E_bins, hdul['GH_CUTS'].data['high'][-1]) * u.TeV
                     E_bins_tot.append(E_bins)
+
+                    GH_cuts = hdul['GH_CUTS'].data['cut']
+                    GH_cuts_tot.append(GH_cuts)
+
+                    Theta_cuts = hdul['RAD_MAX'].data['cut']
+                    Theta_cuts_tot.append(Theta_cuts)
         self.E_bins = E_bins_tot
+        self.GH_cuts = GH_cuts_tot
+        self.Theta_cuts = Theta_cuts_tot
         self.set_keys()
         
 
@@ -302,7 +312,7 @@ class DL2DataProcessor:
     def get_energy_dependent_mask_data(self, data, tri_model, reco_coord, theta_cut=True, cuts: Cuts=DefaultCuts.EFF_70.value):
         # Apply cuts to the data
         from astropy.io import fits
-        cuts_file = tri_model.direction_model.get_IRF_data(cuts=cuts)[1]
+        cuts_file = tri_model.direction_model.get_IRF_data(cuts=cuts)[1][0] # index 1 is the cut file table, index 0 is the first line (the path to the file)
         with fits.open(cuts_file) as hdul:
             gammaness_cuts = hdul['GH_CUTS'].data['cut']
             energy_low_gamma = hdul['GH_CUTS'].data['low']
@@ -485,7 +495,7 @@ class DL2DataProcessor:
 
     def compute_on_off_counts(self, events, reco_coord, pointing_coord, n_off, theta2_cut=0.04*u.deg**2, gcut=0.5, E_min=0, E_max=100, I_min=None, I_max=None):
         if I_min == None or I_max == None:
-            mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max) & (events[self.gammaness_key] > gcut)
+            mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max) & (events[self.gammaness_key] > gcut) #TODO GCUT can be non in case of edep cut
         else:
             mask = (events['hillas_intensity'] > I_min) & (events['hillas_intensity'] < I_max) & (events[self.gammaness_key] > gcut)
 
@@ -598,13 +608,17 @@ class DL2DataProcessor:
             match cut.cut_type:
                 case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
                     E_bins = self.E_bins[i]
+                    GH_cuts = self.GH_cuts[i]
+                    Theta_cuts = self.Theta_cuts[i]
                 case _:
                     E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                    GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                    Theta_cuts = [0.04] * len(E_bins)
             on_count = np.zeros(len(E_bins) - 1)
             off_count = np.zeros(len(E_bins) - 1)
             t_eff = 0 * u.h
             t_elapsed = 0 * u.h
-            for reco_direction, pointing_direction, dl2, cuts_mask, file in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, self.DL2_files), desc=f"Computing sensitivity [{cut.get_label()}]", total=len(self.reco_directions)):
+            for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc=f"Computing sensitivity [{cut.get_label()}]", total=len(self.reco_directions)):
                 # print(file)
                 cuts_mask = cuts_mask[i]
                 reco_direction = reco_direction[cuts_mask]
@@ -614,7 +628,7 @@ class DL2DataProcessor:
                 # The mask is applied here
                 dl2 = dl2[cuts_mask]
 
-                for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                for j, E_min, E_max, GH_cut, Theta_cut in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts):
                     (
                         on_count_temp,
                         off_count_temp, 
@@ -624,8 +638,8 @@ class DL2DataProcessor:
                         reco_direction, 
                         pointing_direction, 
                         n_off=n_off, 
-                        theta2_cut=0.04*u.deg**2, 
-                        gcut=cut.gammaness_cut, 
+                        theta2_cut=(Theta_cut**2)*u.deg**2, 
+                        gcut=GH_cut, 
                         E_min=E_min, 
                         E_max=E_max, 
                         I_min=None, 
