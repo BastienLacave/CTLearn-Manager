@@ -124,6 +124,9 @@ class CTLearnModelManager:
             
         if self.stereo and len(self.telescope_ids) < 2:
             raise ValueError("For stereo mode, at least 2 telescopes are required")
+        
+        if self.model_parameters_table['reco'][0] == 'cameradirection' and self.stereo:
+            raise ValueError("For reco cameradirection, stereo mode is not supported, use skydirection instead.")
         # Check that all gamma related lists are the same length
         # gamma_lengths = [len(training_table_gamma['training_gamma_diffuse_patterns']), len(training_table_gamma['training_gamma_diffuse_zenith_distances']), len(training_table_gamma['training_gamma_diffuse_azimuths'])]
         # if len(set(gamma_lengths)) != 1:

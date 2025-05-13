@@ -91,7 +91,7 @@ class CTLearnTriModelManager:
             self.channels = direction_channels
         
         if not (self.direction_model.stereo == self.energy_model.stereo == self.type_model.stereo):
-            raise ValueError('All models must have the same stereo value')
+            raise ValueError(f'All models must have the same stereo value, direction model: {self.direction_model.stereo}, energy model: {self.energy_model.stereo}, type model: {self.type_model.stereo}')
         else:
             self.stereo = self.direction_model.stereo
         if not (self.direction_model.telescope_ids == self.energy_model.telescope_ids == self.type_model.telescope_ids):
