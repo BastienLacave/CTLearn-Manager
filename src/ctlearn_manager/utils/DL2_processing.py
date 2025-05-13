@@ -601,7 +601,7 @@ class DL2DataProcessor:
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
         if ax is None:
                 fig, ax = plt.subplots()
-        if len(self.cuts) == 1:
+        if len(self.cuts) == 1 and ax is None:
             self.cuts[0].plot_cuts_info_plt(ax)
 
         for i, cut in enumerate(self.cuts):
@@ -613,7 +613,10 @@ class DL2DataProcessor:
                 case _:
                     E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
                     GH_cuts = [cut.gammaness_cut] * len(E_bins)
-                    Theta_cuts = [0.04] * len(E_bins)
+                    if cut.theta_cut is None:
+                        Theta_cuts = [0.2] * len(E_bins)
+                    else:
+                        Theta_cuts = [cut.theta_cut] * len(E_bins)
             on_count = np.zeros(len(E_bins) - 1)
             off_count = np.zeros(len(E_bins) - 1)
             t_eff = 0 * u.h
@@ -715,15 +718,24 @@ class DL2DataProcessor:
 
         if ax is None:
                 fig, ax = plt.subplots()
-        if len(self.cuts) == 1:
+        if len(self.cuts) == 1 and ax is None:
             self.cuts[0].plot_cuts_info_plt(ax)
 
         for i, cut in enumerate(self.cuts):
+            stored_efficiency_theta = cut.efficiency_theta
+            cut.efficiency_theta = None
             match cut.cut_type:
                 case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
                     E_bins = self.E_bins[i]
+                    GH_cuts = self.GH_cuts[i]
+                    Theta_cuts = self.Theta_cuts[i]
                 case _:
                     E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                    GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                    if cut.theta_cut is None:
+                        Theta_cuts = [0.2] * len(E_bins)
+                    else:
+                        Theta_cuts = [cut.theta_cut] * len(E_bins)
             on_count = np.zeros(len(E_bins) - 1)
             off_count = np.zeros(len(E_bins) - 1)
             t_eff = 0 * u.h
@@ -742,7 +754,7 @@ class DL2DataProcessor:
                 # The mask is applied here
                 dl2 = dl2[cuts_mask]
 
-                for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
+                for j, E_min, E_max, GH_cut, Theta_cut in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts):
                     (
                         on_count_temp,
                         off_count_temp, 
@@ -754,8 +766,8 @@ class DL2DataProcessor:
                         reco_direction, 
                         pointing_direction, 
                         n_off=n_off, 
-                        theta2_cut=0.04*u.deg**2, 
-                        gcut=cut.gammaness_cut, 
+                        theta2_cut=(Theta_cut**2)*u.deg**2, 
+                        gcut=GH_cut, 
                         E_min=E_min, 
                         E_max=E_max, 
                         I_min=None, 
@@ -795,6 +807,7 @@ class DL2DataProcessor:
                             psf - 1/np.sqrt(np.sum(h_on, axis=1)), 
                             psf + 1/np.sqrt(np.sum(h_on, axis=1)), 
                             alpha=0.3, zorder=0)
+        cut.efficiency_theta = stored_efficiency_theta
         ax.legend()
         ax.set_ylabel('68% cont. [deg]')
         ax.set_xlabel('Reco Energy [TeV]')
@@ -802,7 +815,7 @@ class DL2DataProcessor:
         # ax.yscale('log')
         # ax.legend()
         # ax.set_xlim(0.03, 2)
-        # ax.ylim(bottom=0.1, top=0.5)
+        ax.set_ylim(bottom=0.0)
         ax.set_title('Point Spread Function')
 
         if output_file is not None:
