@@ -1,20 +1,21 @@
 import os
 
+import astropy.units as u
 import ctadata
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-import matplotlib.pyplot as plt
-
 from .utils.utils import (
     ClusterConfiguration,
+    Cuts,
+    DefaultCuts,
+    ParticleType,
     angular_distance,
     get_files_cscs,
     get_files_LST_cluster,
     set_mpl_style,
-    ParticleType,
-    Cuts,
-    DefaultCuts,
+    CTLearnManagerStyle,
 )
 
 __all__ = ['TriModelCollection']
@@ -134,23 +135,58 @@ class TriModelCollection:
             tri_model.direction_model.plot_zenith_azimuth_ranges(ax)
         plt.show()
 
-    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
+    @u.quantity_input(zenith=u.deg,azimuth=u.deg) 
+    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
         fig, ax = plt.subplots()
         cuts.plot_cuts_info_plt(ax)
+        if zenith is not None and azimuth is not None:
+            zeniths = np.array([zenith.value]) * zenith.unit
+            azimuths = np.array([azimuth.value]) * azimuth.unit
+            text_color=CTLearnManagerStyle.ctlearn_accent_2.value
+            background_color=CTLearnManagerStyle.ctlearn_accent_1.value
+            ax.text(
+            0.02, 0.02, f"Pointing: ({zenith.value:.1f}, {azimuth.value:.1f})°",
+            transform=ax.transAxes,
+            fontsize=9,
+            color=text_color,
+            verticalalignment='bottom',
+            horizontalalignment='left',
+            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=0.2),
+            )
+        else:
+            zeniths = None
+            azimuths = None
         for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model"):
             l = tri_model.energy_model.model_nickname if label is None else label
-            tri_model.plot_energy_resolution_DL2(cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
+            tri_model.plot_energy_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
         plt.show()
 
-    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
+    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
         fig, ax = plt.subplots()
         stored_efficiency_theta = cuts.efficiency_theta
         cuts.efficiency_theta = None
         cuts.plot_cuts_info_plt(ax)
         cuts.efficiency_theta = stored_efficiency_theta
+        if zenith is not None and azimuth is not None:
+            zeniths = np.array([zenith.value]) * zenith.unit
+            azimuths = np.array([azimuth.value]) * azimuth.unit
+            text_color=CTLearnManagerStyle.ctlearn_accent_2.value
+            background_color=CTLearnManagerStyle.ctlearn_accent_1.value
+            ax.text(
+            0.02, 0.02, f"Pointing: ({zenith.value:.1f}, {azimuth.value:.1f})°",
+            transform=ax.transAxes,
+            fontsize=9,
+            color=text_color,
+            verticalalignment='bottom',
+            horizontalalignment='left',
+            bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=0.2),
+            )
+        else:
+            zeniths = None
+            azimuths = None
         for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model"):
             l = tri_model.direction_model.model_nickname if label is None else label
-            tri_model.plot_angular_resolution_DL2(cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
+            tri_model.plot_angular_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
         plt.show()
 
     def plot_cuts(self, cuts: Cuts=DefaultCuts.EFF_70.value):

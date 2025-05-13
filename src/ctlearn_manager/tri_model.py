@@ -1236,17 +1236,20 @@ class CTLearnTriModelManager:
                 fig, ax = plt.subplots()
 
             if len(cuts) == 1:
+                stored_efficiency_theta = cuts[0].efficiency_theta
+                cuts[0].efficiency_theta = None
                 cuts[0].plot_cuts_info_plt(ax)
-
+                cuts[0].efficiency_theta = stored_efficiency_theta
         for i, coord in enumerate(coords):
             for cut in cuts:
-                
                 zenith, azimuth = coord
                 try:
                     testing_DL2_gamma_files = DL2_gamma_table[f'testing_DL2_{particle_type.value}_files'][
                         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == zenith) &
                         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_azimuths'] == azimuth)
                     ]
+                    if len(testing_DL2_gamma_files) == 0:
+                        continue
                     # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) and (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth)).all()]
                     dl2_gamma = []
                     shower_parameters_gamma = []
@@ -1254,7 +1257,12 @@ class CTLearnTriModelManager:
                     for file in testing_DL2_gamma_files:
                         dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
                         shower_parameters_gamma.append(load_true_shower_parameters(file))
+                    # try:
                     dl2_gamma = vstack(dl2_gamma)
+                    # except ValueError as e:
+                    #     print(e)
+                    #     print(f"No DL2 gamma files found for zenith {zenith} and azimuth {azimuth}, skipping this pair")
+                    #     continue
                     shower_parameters_gamma = vstack(shower_parameters_gamma)
                     dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
                     
@@ -1292,22 +1300,29 @@ class CTLearnTriModelManager:
                     bins_per_decade = 5
                     log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                         num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
-                    stored_efficiency_theta = cut.efficiency_theta
-                    cut.efficiency_theta = None
+                    
                     if len(cuts) == 1:
                         if i == closest_coord_index:
                             if label is None:
-                                label = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
-                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=label, markersize=8)
+                                l = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                            else:
+                                l =label
+                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8)
                         else:
                             if label is None:
-                                label = f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
-                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=label, alpha=0.5, marker='v')
+                                l = f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                            else:
+                                l = label
+                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, alpha=0.5, marker='v')
                     else:
                         if label is None:
-                            label = cut.get_label()
-                        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=label, markersize=8)
-                    cut.efficiency_theta = stored_efficiency_theta
+                            stored_efficiency_theta = cut.efficiency_theta
+                            cut.efficiency_theta = None
+                            l = cut.get_label()
+                            cut.efficiency_theta = stored_efficiency_theta
+                        else:
+                            l = label
+                        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8)
                 except IndexError as e:
                     print(e)
                     print("Skipping this zenith/azimuth pair")
@@ -1382,6 +1397,8 @@ class CTLearnTriModelManager:
                         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == zenith) &
                         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_azimuths'] == azimuth)
                     ]
+                    if len(testing_DL2_gamma_files) == 0:
+                        continue
                     # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
                     dl2_gamma = []
                     shower_parameters_gamma = []
@@ -1389,7 +1406,12 @@ class CTLearnTriModelManager:
                     for file in testing_DL2_gamma_files:
                         dl2_gamma.append(load_DL2_data_MC(file, tel_id))
                         shower_parameters_gamma.append(load_true_shower_parameters(file))
+                    # try:
                     dl2_gamma = vstack(dl2_gamma)
+                    # except ValueError as e:
+                    #     print(e)
+                    #     print(f"No DL2 gamma files found for zenith {zenith} and azimuth {azimuth}, skipping this pair")
+                    #     continue
                     shower_parameters_gamma = vstack(shower_parameters_gamma)
                     dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
 
@@ -1417,21 +1439,27 @@ class CTLearnTriModelManager:
 
                     # Create bins with 5 bins per decade in log scale
                     bins_per_decade = 5
-                    log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
+                    log_bins = np.logspace(np.log10(reco_energy_min), np.log10(reco_energy_max), 
                                         num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
                     if len(cuts) == 1:
                         if i == closest_coord_index:
                             if label is None:
-                                label = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
-                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=label, markersize=8)
+                                l = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                            else:
+                                l = label
+                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8)
                         else:
                             if label is None:
-                                label=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
-                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=label, alpha=0.5, marker='v')
+                                l=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
+                            else:
+                                l = label
+                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, alpha=0.5, marker='v')
                     else:
                         if label is None:
-                            label = cut.get_label()
-                        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=label, markersize=8)
+                            l = cut.get_label()
+                        else:
+                            l = label
+                        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8)
                 except IndexError as e:
                     print(e)
                     print("Skipping this zenith/azimuth pair")
