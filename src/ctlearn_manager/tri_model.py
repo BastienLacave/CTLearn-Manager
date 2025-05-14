@@ -1250,12 +1250,12 @@ class CTLearnTriModelManager:
                     e_bins, ang_res_err = self.get_angular_resolution_DL2(zenith, azimuth, cut, particle_type)
                 except:
                     continue
-                e = (e_bins[:-1] + e_bins[1:]) / 2
-                ang_res = [e_r[0] for e_r in ang_res_err]
-                ang_res_minus = [e_r[0] - e_r[1] for e_r in ang_res_err]
-                ang_res_plus = [e_r[2] - e_r[0] for e_r in ang_res_err]
-                ang_res_min = [e_r[1] for e_r in ang_res_err]
-                ang_res_max = [e_r[2] for e_r in ang_res_err]
+                e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                ang_res = [e_r[0].value for e_r in ang_res_err]
+                ang_res_minus = [e_r[0].value - e_r[1].value for e_r in ang_res_err]
+                ang_res_plus = [e_r[2].value - e_r[0].value for e_r in ang_res_err]
+                ang_res_min = [e_r[1].value for e_r in ang_res_err]
+                ang_res_max = [e_r[2].value for e_r in ang_res_err]
                 if len(cuts) == 1:
                     if i == closest_coord_index:
                         if label is None:
@@ -1290,6 +1290,7 @@ class CTLearnTriModelManager:
 
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
+        ax.set_xscale('log')
         ax.set_xlabel("True Energy [TeV]")
         ax.set_ylabel("Angular resolution [deg]")
         ax.legend()
@@ -1300,8 +1301,6 @@ class CTLearnTriModelManager:
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_DL2_tables(self, zenith: float, azimuth: float, cuts: Cuts=DefaultCuts.NO_CUTS.value, particle_type: ParticleType=ParticleType.GAMMA_POINT, apply_theta_cut=True):
         import astropy.units as u
-        import ctaplot
-        import matplotlib.pyplot as plt
         from astropy.io.misc.hdf5 import read_table_hdf5
         from astropy.table import join, vstack
         DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
@@ -1311,19 +1310,13 @@ class CTLearnTriModelManager:
         ]
         if len(testing_DL2_gamma_files) == 0:
             return
-        # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][((DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith) and (DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth)).all()]
         dl2_gamma = []
         shower_parameters_gamma = []
         tel_id = None if self.stereo else self.telescope_ids[0]
         for file in testing_DL2_gamma_files:
             dl2_gamma.append(load_DL2_data_MC(file, tel_id=tel_id))
             shower_parameters_gamma.append(load_true_shower_parameters(file))
-        # try:
         dl2_gamma = vstack(dl2_gamma)
-        # except ValueError as e:
-        #     print(e)
-        #     print(f"No DL2 gamma files found for zenith {zenith} and azimuth {azimuth}, skipping this pair")
-        #     continue
         shower_parameters_gamma = vstack(shower_parameters_gamma)
         dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
         
@@ -1341,10 +1334,6 @@ class CTLearnTriModelManager:
                 true_energy_max = np.max(true_energy)
                 reco_energy_min = np.min(reco_energy)
                 reco_energy_max = np.max(reco_energy)
-
-                # plt.xlim(reco_energy_min, reco_energy_max)
-
-                # Create bins with 5 bins per decade in log scale
                 bins_per_decade = 5
                 log_bins = np.logspace(np.log10(true_energy_min), np.log10(true_energy_max), 
                                     num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
@@ -1364,12 +1353,9 @@ class CTLearnTriModelManager:
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_angular_resolution_DL2(self, zenith: float = None, azimuth: float = None, cuts: Cuts=DefaultCuts.NO_CUTS.value, particle_type: ParticleType=ParticleType.GAMMA_POINT):
-
         import ctaplot
-
         true_energy, reco_energy, true_alt, reco_alt, true_az, reco_az, log_bins = self.get_DL2_tables(zenith, azimuth, cuts, particle_type, apply_theta_cut=False)
-        
-        e, ang_res = ctaplot.angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins)
+        e, ang_res = ctaplot.angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins * u.TeV)
         return e, ang_res
 
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)    
@@ -1399,9 +1385,7 @@ class CTLearnTriModelManager:
         else:
             assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
             coords = list(zip(zeniths, azimuths))
-
         assert len(coords) == 1 or len(cuts) == 1, "Either zeniths/azimuths or 'cuts' must have a length of 1"
-
         avg_model_az = np.mean(self.direction_model.validity.azimuth_range).to(u.deg)
         avg_model_ze = np.mean(self.direction_model.validity.zenith_range).to(u.deg)
         testing_azs = np.empty(len(coords)) * u.deg
@@ -1420,9 +1404,8 @@ class CTLearnTriModelManager:
 
             if len(cuts) == 1:
                 cuts[0].plot_cuts_info_plt(ax)
-           
-        # DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
-        ax.set_xscale('log')
+
+        
         for i, coord in enumerate(coords):
             for cut in cuts:
                 try:
@@ -1444,7 +1427,6 @@ class CTLearnTriModelManager:
                             l = label
                         ax.errorbar(e, e_res, yerr=[e_res_minus, e_res_plus], label=l, markersize=8, marker='o', ls='--')
                         ax.fill_between(e, e_res_min, e_res_max, alpha=0.2)
-                        # ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8, ax=ax)
                     else:
                         if label is None:
                             l=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
@@ -1452,7 +1434,6 @@ class CTLearnTriModelManager:
                             l = label
                         ax.errorbar(e, e_res, yerr=[e_res_minus, e_res_plus], label=l, alpha=0.5, marker='v', ls='--')
                         ax.fill_between(e, e_res_min, e_res_max, alpha=0.2)
-                        # ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, alpha=0.5, marker='v', ax=ax)
                 else:
                     if label is None:
                         l = cut.get_label()
@@ -1460,12 +1441,9 @@ class CTLearnTriModelManager:
                         l = label
                     ax.errorbar(e, e_res, yerr=[e_res_minus, e_res_plus], label=l, markersize=8, marker='o', ls='--')
                     ax.fill_between(e, e_res_min, e_res_max, alpha=0.2)
-                    # ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8, ax=ax)
-                # except IndexError as e:
-                #     print(e)
-                #     print("Skipping this zenith/azimuth pair")
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
+        ax.set_xscale('log')
         ax.set_xlabel("True Energy [TeV]")
         ax.set_ylabel("Energy resolution")
         ax.legend()
@@ -1475,70 +1453,10 @@ class CTLearnTriModelManager:
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_energy_resolution_DL2(self, zenith: float = None, azimuth: float = None, cuts: Cuts=DefaultCuts.NO_CUTS.value, particle_type: ParticleType=ParticleType.GAMMA_POINT):
-        # import astropy.units as u
         import ctaplot
-        # import matplotlib.pyplot as plt
-        # from astropy.io.misc.hdf5 import read_table_hdf5
-        # from astropy.table import join, vstack
- 
-        # DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
-        # try:
-        #     testing_DL2_gamma_files = DL2_gamma_table[f'testing_DL2_{particle_type.value}_files'][
-        #         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == zenith) &
-        #         (DL2_gamma_table[f'testing_DL2_{particle_type.value}_azimuths'] == azimuth)
-        #     ]
-        #     if len(testing_DL2_gamma_files) == 0:
-        #         return
-        #     # testing_DL2_gamma_files = DL2_gamma_table['testing_DL2_gamma_files'][DL2_gamma_table['testing_DL2_gamma_zenith_distances'] == zenith][DL2_gamma_table['testing_DL2_gamma_azimuths'] == azimuth]
-        #     dl2_gamma = []
-        #     shower_parameters_gamma = []
-        #     tel_id = None if self.stereo else self.telescope_ids[0]
-        #     for file in testing_DL2_gamma_files:
-        #         dl2_gamma.append(load_DL2_data_MC(file, tel_id))
-        #         shower_parameters_gamma.append(load_true_shower_parameters(file))
-        #     # try:
-        #     dl2_gamma = vstack(dl2_gamma)
-        #     # except ValueError as e:
-        #     #     print(e)
-        #     #     print(f"No DL2 gamma files found for zenith {zenith} and azimuth {azimuth}, skipping this pair")
-        #     #     continue
-        #     shower_parameters_gamma = vstack(shower_parameters_gamma)
-        #     dl2_gamma = join(dl2_gamma, shower_parameters_gamma, keys=["obs_id", "event_id"])
-
-        #     match cuts.cut_type:
-        #         case CutType.GLOBAL:
-        #             mask = dl2_gamma[self.gammaness_key] > cuts.gammaness_cut
-        #             reco_energy = dl2_gamma[self.reco_energy_key] [mask]
-        #             true_energy = dl2_gamma[self.true_energy_key] [mask]   
-        #             true_energy_min = np.min(true_energy)
-        #             true_energy_max = np.max(true_energy)
-        #             reco_energy_min = np.min(reco_energy)
-        #             reco_energy_max = np.max(reco_energy)
-        #             bins_per_decade = 5
-        #             log_bins = np.logspace(np.log10(reco_energy_min), np.log10(reco_energy_max), 
-        #                                 num=int(np.log10(true_energy_max/true_energy_min) * bins_per_decade) + 1) * u.TeV
-
-        #         case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-        #             cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[1]
-        #             dl2_gamma, log_bins = self.apply_energy_dependent_cuts_MC(dl2_gamma, cuts_file)
-        #             reco_energy = dl2_gamma[self.reco_energy_key]
-        #             true_energy = dl2_gamma[self.true_energy_key]  
-        #         case _:
-        #             raise ValueError(f"Unknown cut type: {cuts.cut_type}")   
-                
-            # Define the range of true energy values
-            
-
-            # plt.xlim(reco_energy_min, reco_energy_max)
-
         true_energy, reco_energy, true_alt, reco_alt, true_az, reco_az, log_bins = self.get_DL2_tables(zenith, azimuth, cuts, particle_type)
-        
         e, e_res = ctaplot.energy_resolution_per_energy(true_energy, reco_energy, bins=log_bins)
         return e, e_res
-        # except IndexError as e:
-        #     print(e)
-        #     print("Skipping this zenith/azimuth pair")
-
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_ROC_curve_DL2(self, zenith: float, azimuth: float, nbins: int=3):
@@ -1754,7 +1672,7 @@ class CTLearnTriModelManager:
             theta_cuts = hdul['RAD_MAX'].data['cut']
             energy_low_theta = hdul['RAD_MAX'].data['low']
             energy_high_theta = hdul['RAD_MAX'].data['high']
-            E_bins = np.concatenate((energy_low_gamma, [energy_high_gamma[-1]]))
+            E_bins = np.concatenate((energy_low_gamma, [energy_high_gamma[-1]])) #* u.TeV
             assert (energy_low_gamma == energy_low_theta).all(), "Energy low values for gammaness and theta cuts do not match"
             assert (energy_high_gamma == energy_high_theta).all(), "Energy high values for gammaness and theta cuts do not match"
 
