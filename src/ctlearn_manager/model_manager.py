@@ -224,15 +224,19 @@ class CTLearnModelManager:
             print(f"✅ Model nickname {self.model_nickname} added to table")
         
         
-    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, trainable_backbone=True, config_file=None, batch_size=64):
+    def launch_training(self, n_epochs, save_best_validation_only=None, transfer_learning_model_cpk=None, trainable_backbone=True, force_dl1_lookup=False, config_file=None, batch_size=64):
         """
         Launches the training process for the model.
         :param n_epochs: Number of epochs to train the model.
         :type n_epochs: int
+        :param save_best_validation_only: Whether to save only the best validation model, defaults to None.
+        :type save_best_validation_only: bool, optional
         :param transfer_learning_model_cpk: Path to the checkpoint file for transfer learning, defaults to None.
         :type transfer_learning_model_cpk: str, optional
         :param frozen_backbone: Whether to freeze the backbone of the model during training, defaults to False.
         :type frozen_backbone: bool, optional
+        :param force_dl1_lookup: Whether to force the use of DL1 lookup tables, defaults to False.
+        :type force_dl1_lookup: bool, optional
         :param config_file: Path to the configuration file, defaults to None.
         :type config_file: str, optional
         :return: None
@@ -333,6 +337,7 @@ class CTLearnModelManager:
             config['TrainCTLearnModel']['DLImageReader'] = {}
             config['TrainCTLearnModel']['DLImageReader']['allowed_tels'] = allowed_tels
             config['TrainCTLearnModel']['DLImageReader']['min_telescopes'] = int(self.min_telescopes)
+            config['TrainCTLearnModel']['DLImageReader']['force_dl1_lookup'] = force_dl1_lookup
             config['TrainCTLearnModel']['DLImageReader']['mode'] = stereo_mode
             config['TrainCTLearnModel']['DLImageReader']['channels'] = channels
             

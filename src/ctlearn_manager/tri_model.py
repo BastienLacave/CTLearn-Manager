@@ -320,7 +320,7 @@ class CTLearnTriModelManager:
         return coords
         
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, dl2_subarray=True, overwrite=False, config=None):
+    def launch_testing(self, zenith: float, azimuth: float, output_dirs: list[str], config_dir: str | None = None, launch_particle_types:list[ParticleType]=[ParticleType.GAMMA_POINT], batch_size=64, dl2_subarray=True, force_dl1_lookup=False, overwrite=False, config=None):
         """
         Launch testing for the given zenith and azimuth angles.
         This function checks the testing files for gamma and proton particles, ensures they match across models,
@@ -338,6 +338,8 @@ class CTLearnTriModelManager:
         :param launch_particle_type: Type of particles to launch testing for. Must be 'gamma', 'proton', or 'both'.
                                         Defaults to 'both'.
         :type launch_particle_type: str
+        :param force_dl1_lookup: If True, forces the use of DL1 files for lookup, defaults to False.
+        :type force_dl1_lookup: bool, optional
         :raises ValueError: If `launch_particle_type` is not 'gamma', 'proton', or 'both'.
         :raises ValueError: If the testing directories for gamma or proton particles do not match across models.
         :raises ValueError: If no matching directory is found for the given zenith and azimuth angles.
@@ -397,6 +399,7 @@ class CTLearnTriModelManager:
         direction_model_dir = np.sort(glob.glob(f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}*"))[-1]
 
         dl2_subarray_string = " --dl2-subarray" if dl2_subarray else " --no-dl2-subarray"
+        force_dl1_lookup_string = "--DLImageReader.force_dl1_lookup=True" if force_dl1_lookup else ""
         config_string = f"--config {config}" if config is not None else ""
 
         allowed_tels = ast.literal_eval(self.direction_model.model_parameters_table['telescope_ids'][0])
@@ -415,7 +418,7 @@ class CTLearnTriModelManager:
 --use-HDF5Merger \
 --no-dl1-images --no-true-images --output {output_file} \
 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes={self.min_telescopes} \
---PredictCTLearnModel.overwrite_tables=True -v {channels_string} \
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
 {config_string}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
@@ -426,7 +429,7 @@ class CTLearnTriModelManager:
 --cameradirection_model={direction_model_dir}/ctlearn_model.cpk \
 --no-dl1-images --no-true-images --output {output_file} \
 --use-HDF5Merger{dl2_subarray_string} \
---PredictCTLearnModel.overwrite_tables=True -v {channels_string} \
+--PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
 {config_string}"
             
             if self.cluster_configuration.use_cluster:
