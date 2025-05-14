@@ -137,9 +137,9 @@ class TriModelCollection:
         plt.show()
 
     @u.quantity_input(zenith=u.deg,azimuth=u.deg) 
-    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with_index=None):
-
-        if compare_with_index is not None:
+    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with: str=None):
+        compare_with_index = np.where(self.model_labels == compare_with)[0]
+        if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
             ax_rel.set_xlabel("Energy (TeV)")
             ax_rel.set_ylabel("Relative Improvement (%)")
@@ -167,11 +167,15 @@ class TriModelCollection:
         for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model"):
             l = tri_model.energy_model.model_nickname if label is None else label
             tri_model.plot_energy_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
-        if compare_with_index is not None:
+        if compare_with is not None:
             # ax.set_xscale(ax_rel.get_xscale())
             ax.set_xticks([])
             ax.set_xlabel("")
             fig.subplots_adjust(hspace=0)
+            
+
+
+
         if plot_RF and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED and zenith is not None:
             from astropy.io import fits
             import importlib
