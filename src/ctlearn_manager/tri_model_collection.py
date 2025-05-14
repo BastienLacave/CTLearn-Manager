@@ -189,7 +189,7 @@ class TriModelCollection:
                     ref_e = RF_e
                     ref_e_res = RF_e_res
                     ax_rel.plot(ref_e, [0] * len(ref_e), label=f"{compare_with} vs {compare_with}", color='k', zorder=0)
-                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution improvment", unit="model"):
+                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution improvment", unit="model", total=len(self.tri_models)):
                     try:
                         e_bins, e_res_err = tri_model.get_energy_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
                     except:
@@ -210,11 +210,13 @@ class TriModelCollection:
             azimuths = None
 
         
-        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model"):
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model", total=len(self.tri_models)):
             l = tri_model.energy_model.model_nickname if label is None else label
             tri_model.plot_energy_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
         
-        ax_rel.set_xlim(ax.get_xlim())
+        if compare_with is not None:
+            ax_rel.set_xlim(ax.get_xlim())
+            ax_rel.set_ylim(bottom=0)
         ax.legend()
         plt.show()
 
@@ -267,19 +269,19 @@ class TriModelCollection:
                 fig.subplots_adjust(hspace=0)
                 if len(compare_with_index) > 0:
                     ref_e_bins, ref_ang_res_err = self.tri_models[compare_with_index[0]].get_angular_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
-                    ref_e = (ref_e_bins[:-1] + ref_e_bins[1:]) / 2
-                    ref_ang_res = [e_r[0] for e_r in ref_ang_res_err]
+                    ref_e = (ref_e_bins[:-1].value + ref_e_bins[1:].value) / 2
+                    ref_ang_res = [e_r[0].value for e_r in ref_ang_res_err]
                 elif compare_with == 'RF' and plot_RF:
                     ref_e = RF_e
                     ref_ang_res = RF_ang_res
                     ax_rel.plot(ref_e, [0] * len(ref_e), label=f"{compare_with} vs {compare_with}", color='k', zorder=0)
-                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution improvment", unit="model"):
+                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution improvment", unit="model", total=len(self.tri_models)):
                     try:
                         e_bins, e_res_err = tri_model.get_angular_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
                     except:
                         continue
-                    e = (e_bins[:-1] + e_bins[1:]) / 2
-                    e_res = [e_r[0] for e_r in e_res_err]
+                    e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                    e_res = [e_r[0].value for e_r in e_res_err]
                     if not np.array_equal(e, ref_e):
                         ref_e_res_interp = np.interp(e, ref_e, ref_ang_res)
                     else:
@@ -289,11 +291,13 @@ class TriModelCollection:
         else:
             zeniths = None
             azimuths = None
-        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model"):
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model", total=len(self.tri_models)):
             l = tri_model.direction_model.model_nickname if label is None else label
             tri_model.plot_angular_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
         
-        ax_rel.set_xlim(ax.get_xlim())
+        if compare_with is not None:
+            ax_rel.set_xlim(ax.get_xlim())
+            ax_rel.set_ylim(bottom=0)
         ax.legend()
         plt.show()
 
