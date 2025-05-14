@@ -1310,13 +1310,13 @@ class CTLearnTriModelManager:
                                 l = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
                             else:
                                 l =label
-                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8)
+                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8, ax=ax)
                         else:
                             if label is None:
                                 l = f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
                             else:
                                 l = label
-                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, alpha=0.5, marker='v')
+                            ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, alpha=0.5, marker='v', ax=ax)
                     else:
                         if label is None:
                             stored_efficiency_theta = cut.efficiency_theta
@@ -1325,16 +1325,16 @@ class CTLearnTriModelManager:
                             cut.efficiency_theta = stored_efficiency_theta
                         else:
                             l = label
-                        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8)
+                        ctaplot.plot_angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins, label=l, markersize=8, ax=ax)
                 except IndexError as e:
                     print(e)
                     print("Skipping this zenith/azimuth pair")
 
         if ylim is not None:
-            plt.ylim(ylim[0], ylim[1])
-        plt.xlabel("True Energy [TeV]")
-        plt.legend()
-        plt.grid(False, which='both')
+            ax.set_ylim(ylim[0], ylim[1])
+        ax.set_xlabel("True Energy [TeV]")
+        ax.legend()
+        ax.grid(False, which='both')
         if ax is None:
             plt.show()
 
@@ -1450,27 +1450,27 @@ class CTLearnTriModelManager:
                                 l = f"Closest to training data\n{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°" if len(coords) > 1 else f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
                             else:
                                 l = label
-                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8)
+                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8, ax=ax)
                         else:
                             if label is None:
                                 l=f"{particle_type.value} ({zenith.value:.1f}, {azimuth.value:.1f})°"
                             else:
                                 l = label
-                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, alpha=0.5, marker='v')
+                            ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, alpha=0.5, marker='v', ax=ax)
                     else:
                         if label is None:
                             l = cut.get_label()
                         else:
                             l = label
-                        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8)
+                        ctaplot.plot_energy_resolution(true_energy, reco_energy, bins=log_bins, label=l, markersize=8, ax=ax)
                 except IndexError as e:
                     print(e)
                     print("Skipping this zenith/azimuth pair")
         if ylim is not None:
-            plt.ylim(ylim[0], ylim[1])
+            ax.set_ylim(ylim[0], ylim[1])
         
-        plt.legend()
-        plt.grid(False, which='both')
+        ax.legend()
+        ax.grid(False, which='both')
         if ax is None:
             plt.show()
         

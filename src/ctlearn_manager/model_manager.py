@@ -847,7 +847,7 @@ class CTLearnModelManager:
             DL2_files[particle_type.value] = _DL2_files
         return DL2_files
       
-    def plot_zenith_azimuth_ranges(self, ax=None):
+    def plot_zenith_azimuth_ranges(self, ax=None, plot_testing_nodes=True):
         """
         Plot the zenith and azimuth ranges on a polar plot.
         This method visualizes the zenith and azimuth ranges defined in the 
@@ -934,7 +934,7 @@ class CTLearnModelManager:
             zeniths = testing_dl1_table['testing_gamma_point_zenith_distances']
             azimuths = testing_dl1_table['testing_gamma_point_azimuths'].to(u.rad)
             for zenith, azimuth in zip(zeniths, azimuths):
-                if (zenith == np.nan) or (azimuth == np.nan):
+                if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
                     continue    
                 else:
                     ax.scatter(azimuth, zenith, s=50, facecolors='none', edgecolors=CTLearnManagerStyle.ctlearn_accent_1.value, label='Testing DL1', zorder=3)
@@ -946,7 +946,7 @@ class CTLearnModelManager:
             zeniths = mc_dl2_table['testing_DL2_gamma_point_zenith_distances']
             azimuths = mc_dl2_table['testing_DL2_gamma_point_azimuths'].to(u.rad)
             for zenith, azimuth in zip(zeniths, azimuths):
-                if (zenith == np.nan) or (azimuth == np.nan):
+                if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
                     continue    
                 else:
                     ax.scatter(azimuth, zenith, s=50, color=CTLearnManagerStyle.ctlearn_accent_2.value, label='Testing DL2', zorder=2)
