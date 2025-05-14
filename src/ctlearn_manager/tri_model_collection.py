@@ -275,7 +275,7 @@ class TriModelCollection:
                     ax_rel.plot(ref_e, [0] * len(ref_e), label=f"{compare_with} vs {compare_with}", color='k', zorder=0)
                 for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution improvment", unit="model"):
                     try:
-                        e_bins, e_res_err = tri_model.get_energy_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
+                        e_bins, e_res_err = tri_model.get_angular_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
                     except:
                         continue
                     e = (e_bins[:-1] + e_bins[1:]) / 2
