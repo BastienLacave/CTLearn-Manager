@@ -145,6 +145,8 @@ class TriModelCollection:
             ax_rel.set_ylabel("Rel. Impr. (%)")
             ax_rel.grid(True, linestyle='--', alpha=0.5)
             ax_rel.set_xscale('log')
+            ax_rel.set_ymargin(0.05)
+            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
         else:
             fig, ax = plt.subplots()
         cuts.plot_cuts_info_plt(ax)
@@ -154,14 +156,19 @@ class TriModelCollection:
             import importlib.resources as pkg_resources
             module_name = f"ctlearn_manager.resources.irfs.LST1"
             RF_bechmpark = importlib.import_module(module_name)
+            available_zeniths = [10.00, 23.63, 32.06, 43.20]
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
             
-            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{zenith.value:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
+            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{closest_zenith:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
                 # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
                 hudl = fits.open(irf_file)  
                 # plt.plot(hudl['ANGULAR_RESOLUTION'].data['true_energy_center'],hudl['ANGULAR_RESOLUTION'].data['angular_resolution'])
                 RF_e = hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center']
                 RF_e_res = hudl['ENERGY_BIAS_RESOLUTION'].data['resolution']
-                ax.plot(RF_e, RF_e_res, label='RF', color='k', zorder=0)
+                l = f'RF {closest_zenith:.1f}°'
+                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                    l = 'RF'
+                ax.plot(RF_e, RF_e_res, label=l, color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
@@ -218,6 +225,8 @@ class TriModelCollection:
             ax_rel.set_xlim(ax.get_xlim())
             ax_rel.set_ylim(bottom=0)
         ax.legend()
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=.0)
         plt.show()
 
     def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with: str=None):
@@ -228,6 +237,8 @@ class TriModelCollection:
             ax_rel.set_ylabel("Rel. Impr. (%)")
             ax_rel.grid(True, linestyle='--', alpha=0.5)
             ax_rel.set_xscale('log')
+            ax_rel.set_ymargin(0.05)
+            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
         else:
             fig, ax = plt.subplots()
         stored_efficiency_theta = cuts.efficiency_theta
@@ -240,13 +251,17 @@ class TriModelCollection:
             import importlib.resources as pkg_resources
             module_name = f"ctlearn_manager.resources.irfs.LST1"
             RF_bechmpark = importlib.import_module(module_name)
-            
-            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{zenith.value:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
+            available_zeniths = [10.00, 23.63, 32.06, 43.20]
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
+            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{closest_zenith:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
                 # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
                 hudl = fits.open(irf_file)  
                 RF_e = hudl['ANGULAR_RESOLUTION'].data['true_energy_center']
                 RF_ang_res = hudl['ANGULAR_RESOLUTION'].data['angular_resolution']
-                ax.plot(RF_e, RF_ang_res, label='RF', color='k', zorder=0)
+                l = f'RF {closest_zenith:.1f}°'
+                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                    l = 'RF'
+                ax.plot(RF_e, RF_ang_res, label=l, color='k', zorder=0)
             # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
@@ -288,6 +303,7 @@ class TriModelCollection:
                         ref_e_res_interp = ref_ang_res
                     relative_improvement = 100 * (np.array(ref_e_res_interp) - np.array(e_res)) / np.array(ref_e_res_interp)
                     ax_rel.plot(e, relative_improvement, label=f"{label} vs {compare_with}")
+                    # ax_rel.text(e[np.where(relative_improvement == np.max(relative_improvement))][0], np.max(relative_improvement), f"{int(np.max(relative_improvement))}", fontsize=8)
         else:
             zeniths = None
             azimuths = None
@@ -299,6 +315,8 @@ class TriModelCollection:
             ax_rel.set_xlim(ax.get_xlim())
             ax_rel.set_ylim(bottom=0)
         ax.legend()
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=.0)
         plt.show()
 
     def plot_cuts(self, cuts: Cuts=DefaultCuts.EFF_70.value):
@@ -310,6 +328,7 @@ class TriModelCollection:
             tri_model.plot_cuts(cuts=[cuts], axs=axs, label=l)
         axs[0].legend()
         axs[1].legend()
+        plt.tight_layout()
         plt.show()
 
     # def plot_benchmark(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):
