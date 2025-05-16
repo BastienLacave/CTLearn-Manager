@@ -73,7 +73,7 @@ class DL2DataProcessor:
         Computes the on-source and off-source counts, as well as the Li & Ma significance.
     """
     
-    def __init__(self, DL2_files: list[str], CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection, cuts: list[Cuts]= [DefaultCuts.GH_0_9.value], source_position=SkyCoord.from_name("Crab"), pointing_table='dl1/monitoring/telescope/pointing/tel_001'):
+    def __init__(self, DL2_files: list[str], CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection, cuts: list[Cuts]= [DefaultCuts.GH_0_9.value], source_position=SkyCoord.from_name("Crab"), pointing_table='dl1/monitoring/telescope/pointing/tel_001', default_E_bins=np.logspace(np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)) * u.TeV):
         
         self.DL2_files = np.sort(DL2_files)
         if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
@@ -111,6 +111,9 @@ class DL2DataProcessor:
 
                     Theta_cuts = hdul['RAD_MAX'].data['cut']
                     Theta_cuts_tot.append(Theta_cuts)
+            else:
+                E_bins = default_E_bins
+                E_bins_tot.append(E_bins)
         self.E_bins = E_bins_tot
         self.GH_cuts = GH_cuts_tot
         self.Theta_cuts = Theta_cuts_tot
@@ -309,7 +312,7 @@ class DL2DataProcessor:
                 self.I_g_off_counts.append(I_g_off_counts)
             
 
-    def get_energy_dependent_mask_data(self, data, tri_model, reco_coord, theta_cut=True, cuts: Cuts=DefaultCuts.EFF_70.value):
+    def get_energy_dependent_mask_data(self, data, tri_model: CTLearnTriModelManager, reco_coord, theta_cut=True, cuts: Cuts=DefaultCuts.EFF_70.value):
         # Apply cuts to the data
         from astropy.io import fits
         cuts_file = tri_model.direction_model.get_IRF_data(cuts=cuts)[1][0] # index 1 is the cut file table, index 0 is the first line (the path to the file)
@@ -356,6 +359,19 @@ class DL2DataProcessor:
         t_eff = 0 * u.h
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
+        E_bins = self.E_bins[cuts_index]
+        match self.cuts[cuts_index].cut_type:
+                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                    # E_bins = self.E_bins[i]
+                    GH_cuts = self.GH_cuts[cuts_index]
+                    Theta_cuts = self.Theta_cuts[cuts_index]
+                case _:
+                    # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                    GH_cuts = [self.cuts[cuts_index].gammaness_cut] * len(E_bins)
+                    if self.cuts[cuts_index].theta_cut is None:
+                        Theta_cuts = [0.2] * len(E_bins)
+                    else:
+                        Theta_cuts = [self.cuts[cuts_index].theta_cut] * len(E_bins)
         for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             cuts_mask = cuts_mask[cuts_index] # Only the first cuts are applied for on-off counts
             reco_direction = reco_direction[cuts_mask]
@@ -376,14 +392,14 @@ class DL2DataProcessor:
                 pointing_direction, 
                 n_off=n_off, 
                 theta2_cut=0.04*u.deg**2, 
-                gcut=self.cuts[cuts_index].gammaness_cut, 
+                gcut=0, 
                 E_min=0, 
-                E_max=100, 
+                E_max=1000, 
                 I_min=None, 
                 I_max=None
             )
-            # print(on_separation_temp)
-            # print(all_off_separation_temp)
+                # print(on_separation_temp)
+                # print(all_off_separation_temp)
             on_count_tot += on_count_temp
             off_count_tot += off_count_temp
             h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value**2, bins=angle2_bins)
@@ -605,13 +621,14 @@ class DL2DataProcessor:
             self.cuts[0].plot_cuts_info_plt(ax)
 
         for i, cut in enumerate(self.cuts):
+            E_bins = self.E_bins[i]
             match cut.cut_type:
                 case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                    E_bins = self.E_bins[i]
+                    # E_bins = self.E_bins[i]
                     GH_cuts = self.GH_cuts[i]
                     Theta_cuts = self.Theta_cuts[i]
                 case _:
-                    E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                    # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
                     GH_cuts = [cut.gammaness_cut] * len(E_bins)
                     if cut.theta_cut is None:
                         Theta_cuts = [0.2] * len(E_bins)
@@ -724,13 +741,14 @@ class DL2DataProcessor:
         for i, cut in enumerate(self.cuts):
             stored_efficiency_theta = cut.efficiency_theta
             cut.efficiency_theta = None
+            E_bins = self.E_bins[i]
             match cut.cut_type:
                 case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                    E_bins = self.E_bins[i]
+                    # E_bins = self.E_bins[i]
                     GH_cuts = self.GH_cuts[i]
                     Theta_cuts = self.Theta_cuts[i]
                 case _:
-                    E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                    # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
                     GH_cuts = [cut.gammaness_cut] * len(E_bins)
                     if cut.theta_cut is None:
                         Theta_cuts = [0.2] * len(E_bins)
@@ -973,11 +991,11 @@ class DL2DataProcessor:
 
     def plot_excess_and_background_rates_vs_energy(self, n_off=3, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
-
-        if self.cuts[cuts_index].cut_type == CutType.EFFICIENCY_OPTIMIZED or self.cuts[cuts_index].cut_type == CutType.SENSITIVITY_OPTIMIZED:
-            E_bins = self.E_bins[cuts_index]
-        else:
-            E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        E_bins = self.E_bins[cuts_index]
+        # if self.cuts[cuts_index].cut_type == CutType.EFFICIENCY_OPTIMIZED or self.cuts[cuts_index].cut_type == CutType.SENSITIVITY_OPTIMIZED:
+        #     E_bins = self.E_bins[cuts_index]
+        # else:
+        #     E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
         excess_rates = np.zeros(len(E_bins) - 1)
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
