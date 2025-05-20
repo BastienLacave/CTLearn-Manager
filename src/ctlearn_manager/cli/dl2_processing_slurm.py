@@ -65,6 +65,7 @@ def process_dl2_file():
     if processor.gammaness_key in dl2.colnames:
         dl2 = dl2[dl2[processor.gammaness_key] > 0] # Remove unpredicted events
     print(f"Loaded {len(dl2)} events", flush=True)
+    print(dl2.colnames, flush=True)
     # cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
     # dl2_cuts = dl2[cut_mask]
     # print(f"{len(dl2_cuts)} events after cuts", flush=True)

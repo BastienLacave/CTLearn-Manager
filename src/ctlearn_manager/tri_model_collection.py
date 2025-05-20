@@ -137,16 +137,38 @@ class TriModelCollection:
         plt.show()
 
     @u.quantity_input(zenith=u.deg,azimuth=u.deg) 
-    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with_index=None):
-
-        if compare_with_index is not None:
+    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=False, compare_with: str=None):
+        compare_with_index = [i for i, label in enumerate(self.model_labels) if label == compare_with]
+        if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
-            ax_rel.set_xlabel("Energy (TeV)")
-            ax_rel.set_ylabel("Relative Improvement (%)")
+            ax_rel.set_xlabel("True Energy (TeV)")
+            ax_rel.set_ylabel("Rel. Impr. (%)")
             ax_rel.grid(True, linestyle='--', alpha=0.5)
+            ax_rel.set_xscale('log')
+            ax_rel.set_ymargin(0.05)
+            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
         else:
             fig, ax = plt.subplots()
         cuts.plot_cuts_info_plt(ax)
+        if plot_RF and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED and zenith is not None:
+            from astropy.io import fits
+            import importlib
+            import importlib.resources as pkg_resources
+            module_name = f"ctlearn_manager.resources.irfs.LST1"
+            RF_bechmpark = importlib.import_module(module_name)
+            available_zeniths = [10.00, 23.63, 32.06, 43.20]
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
+            
+            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{closest_zenith:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
+                # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
+                hudl = fits.open(irf_file)  
+                # plt.plot(hudl['ANGULAR_RESOLUTION'].data['true_energy_center'],hudl['ANGULAR_RESOLUTION'].data['angular_resolution'])
+                RF_e = hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center']
+                RF_e_res = hudl['ENERGY_BIAS_RESOLUTION'].data['resolution']
+                l = f'RF {closest_zenith:.1f}°'
+                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                    l = 'RF'
+                ax.plot(RF_e, RF_e_res, label=l, color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
@@ -161,38 +183,86 @@ class TriModelCollection:
             horizontalalignment='left',
             bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=0.2),
             )
+            if compare_with is not None:
+                # ax.set_xscale(ax_rel.get_xscale())
+                ax.set_xticks([])
+                ax.set_xlabel("")
+                fig.subplots_adjust(hspace=0)
+                if len(compare_with_index) > 0:
+                    ref_e_bins, ref_e_res_err = self.tri_models[compare_with_index[0]].get_energy_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
+                    ref_e = (ref_e_bins[:-1] + ref_e_bins[1:]) / 2
+                    ref_e_res = [e_r[0] for e_r in ref_e_res_err]
+                elif compare_with == 'RF' and plot_RF:
+                    ref_e = RF_e
+                    ref_e_res = RF_e_res
+                    ax_rel.plot(ref_e, [0] * len(ref_e), label=f"{compare_with} vs {compare_with}", color='k', zorder=0)
+                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution improvment", unit="model", total=len(self.tri_models)):
+                    try:
+                        e_bins, e_res_err = tri_model.get_energy_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
+                    except:
+                        continue
+                    e = (e_bins[:-1] + e_bins[1:]) / 2
+                    e_res = [e_r[0] for e_r in e_res_err]
+                    if not np.array_equal(e, ref_e):
+                        ref_e_res_interp = np.interp(e, ref_e, ref_e_res)
+                    else:
+                        ref_e_res_interp = ref_e_res
+                    relative_improvement = 100 * (np.array(ref_e_res_interp) - np.array(e_res)) / np.array(ref_e_res_interp)
+                    ax_rel.plot(e, relative_improvement, label=f"{label} vs {compare_with}")
+
         else:
+            if compare_with is not None:
+                raise ValueError("If you want to compare with another model, you need to provide zenith and azimuth.")
             zeniths = None
             azimuths = None
-        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model"):
+
+        
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting energy resolution", unit="model", total=len(self.tri_models)):
             l = tri_model.energy_model.model_nickname if label is None else label
             tri_model.plot_energy_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
-        if compare_with_index is not None:
-            # ax.set_xscale(ax_rel.get_xscale())
-            ax.set_xticks([])
-            ax.set_xlabel("")
-            fig.subplots_adjust(hspace=0)
-        if plot_RF and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED and zenith is not None:
-            from astropy.io import fits
-            import importlib
-            import importlib.resources as pkg_resources
-            module_name = f"ctlearn_manager.resources.irfs.LST1"
-            RF_bechmpark = importlib.import_module(module_name)
-            
-            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{zenith.value:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
-                # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
-                hudl = fits.open(irf_file)  
-                # plt.plot(hudl['ANGULAR_RESOLUTION'].data['true_energy_center'],hudl['ANGULAR_RESOLUTION'].data['angular_resolution'])
-                ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
-            ax.legend()
+        
+        if compare_with is not None:
+            ax_rel.set_xlim(ax.get_xlim())
+            ax_rel.set_ylim(bottom=0)
+        ax.legend()
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=.0)
         plt.show()
 
-    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True):
-        fig, ax = plt.subplots()
+    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=False, compare_with: str=None):
+        compare_with_index = [i for i, label in enumerate(self.model_labels) if label == compare_with]
+        if compare_with is not None:
+            fig, (ax, ax_rel) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
+            ax_rel.set_xlabel("True Energy (TeV)")
+            ax_rel.set_ylabel("Rel. Impr. (%)")
+            ax_rel.grid(True, linestyle='--', alpha=0.5)
+            ax_rel.set_xscale('log')
+            ax_rel.set_ymargin(0.05)
+            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
+        else:
+            fig, ax = plt.subplots()
         stored_efficiency_theta = cuts.efficiency_theta
         cuts.efficiency_theta = None
         cuts.plot_cuts_info_plt(ax)
         cuts.efficiency_theta = stored_efficiency_theta
+        if plot_RF and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED and zenith is not None:
+            from astropy.io import fits
+            import importlib
+            import importlib.resources as pkg_resources
+            module_name = f"ctlearn_manager.resources.irfs.LST1"
+            RF_bechmpark = importlib.import_module(module_name)
+            available_zeniths = [10.00, 23.63, 32.06, 43.20]
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
+            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{closest_zenith:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
+                # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
+                hudl = fits.open(irf_file)  
+                RF_e = hudl['ANGULAR_RESOLUTION'].data['true_energy_center']
+                RF_ang_res = hudl['ANGULAR_RESOLUTION'].data['angular_resolution']
+                l = f'RF {closest_zenith:.1f}°'
+                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                    l = 'RF'
+                ax.plot(RF_e, RF_ang_res, label=l, color='k', zorder=0)
+            # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
@@ -207,25 +277,46 @@ class TriModelCollection:
             horizontalalignment='left',
             bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=0.2),
             )
+            if compare_with is not None:
+                # ax.set_xscale(ax_rel.get_xscale())
+                ax.set_xticks([])
+                ax.set_xlabel("")
+                fig.subplots_adjust(hspace=0)
+                if len(compare_with_index) > 0:
+                    ref_e_bins, ref_ang_res_err = self.tri_models[compare_with_index[0]].get_angular_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
+                    ref_e = (ref_e_bins[:-1].value + ref_e_bins[1:].value) / 2
+                    ref_ang_res = [e_r[0].value for e_r in ref_ang_res_err]
+                elif compare_with == 'RF' and plot_RF:
+                    ref_e = RF_e
+                    ref_ang_res = RF_ang_res
+                    ax_rel.plot(ref_e, [0] * len(ref_e), label=f"{compare_with} vs {compare_with}", color='k', zorder=0)
+                for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution improvment", unit="model", total=len(self.tri_models)):
+                    try:
+                        e_bins, e_res_err = tri_model.get_angular_resolution_DL2(zenith=zenith, azimuth=azimuth, cuts=cuts, particle_type=particle_type)
+                    except:
+                        continue
+                    e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                    e_res = [e_r[0].value for e_r in e_res_err]
+                    if not np.array_equal(e, ref_e):
+                        ref_e_res_interp = np.interp(e, ref_e, ref_ang_res)
+                    else:
+                        ref_e_res_interp = ref_ang_res
+                    relative_improvement = 100 * (np.array(ref_e_res_interp) - np.array(e_res)) / np.array(ref_e_res_interp)
+                    ax_rel.plot(e, relative_improvement, label=f"{label} vs {compare_with}")
+                    # ax_rel.text(e[np.where(relative_improvement == np.max(relative_improvement))][0], np.max(relative_improvement), f"{int(np.max(relative_improvement))}", fontsize=8)
         else:
             zeniths = None
             azimuths = None
-        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model"):
+        for tri_model, label in tqdm(zip(self.tri_models, self.model_labels), desc="Plotting angular resolution", unit="model", total=len(self.tri_models)):
             l = tri_model.direction_model.model_nickname if label is None else label
             tri_model.plot_angular_resolution_DL2(zeniths=zeniths, azimuths=azimuths, cuts=[cuts], ylim=ylim, particle_type=particle_type, ax=ax, figsize=figsize, label=l)
-        if plot_RF and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED and zenith is not None:
-            from astropy.io import fits
-            import importlib
-            import importlib.resources as pkg_resources
-            module_name = f"ctlearn_manager.resources.irfs.LST1"
-            RF_bechmpark = importlib.import_module(module_name)
-            
-            with pkg_resources.path(RF_bechmpark, f'irfs_zen_{zenith.value:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz') as irf_file:
-                # irf_file = "/users/blacave/PhD/Software/CTLearn-Manager/src/ctlearn_manager/resources/irfs/LST1/irfs_zen_10.00_gh-eff_0.7.fits.gz"
-                hudl = fits.open(irf_file)  
-                plt.plot(hudl['ANGULAR_RESOLUTION'].data['true_energy_center'],hudl['ANGULAR_RESOLUTION'].data['angular_resolution'], label='RF', color='k', zorder=0)
-            # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
-            ax.legend()
+        
+        if compare_with is not None:
+            ax_rel.set_xlim(ax.get_xlim())
+            ax_rel.set_ylim(bottom=0)
+        ax.legend()
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=.0)
         plt.show()
 
     def plot_cuts(self, cuts: Cuts=DefaultCuts.EFF_70.value):
@@ -237,6 +328,7 @@ class TriModelCollection:
             tri_model.plot_cuts(cuts=[cuts], axs=axs, label=l)
         axs[0].legend()
         axs[1].legend()
+        plt.tight_layout()
         plt.show()
 
     # def plot_benchmark(self, cuts: Cuts=DefaultCuts.GH_0_9.value, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None):

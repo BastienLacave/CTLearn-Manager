@@ -605,7 +605,9 @@ class Cuts:
     
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
+    EFF_40 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.4, efficiency_theta=0.7)
     EFF_70 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.7, efficiency_theta=0.7)
+    EFF_90 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.9, efficiency_theta=0.7)
     GH_0_9 = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.9)
 
 
