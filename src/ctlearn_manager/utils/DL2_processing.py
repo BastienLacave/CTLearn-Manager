@@ -999,6 +999,7 @@ class DL2DataProcessor:
         excess_rates = np.zeros(len(E_bins) - 1)
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
+        self.cuts[cuts_index].plot_cuts_info_plt()
 
         for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Computing excess and background rates", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             for i, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]):
