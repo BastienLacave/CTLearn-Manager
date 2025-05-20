@@ -137,7 +137,7 @@ class TriModelCollection:
         plt.show()
 
     @u.quantity_input(zenith=u.deg,azimuth=u.deg) 
-    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with: str=None):
+    def plot_energy_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=False, compare_with: str=None):
         compare_with_index = [i for i, label in enumerate(self.model_labels) if label == compare_with]
         if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
@@ -229,7 +229,7 @@ class TriModelCollection:
         plt.subplots_adjust(hspace=.0)
         plt.show()
 
-    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=True, compare_with: str=None):
+    def plot_angular_resolution_DL2(self, cuts: Cuts=DefaultCuts.GH_0_9.value, zenith: float=None, azimuth: float=None, ylim=None, particle_type: ParticleType=ParticleType.GAMMA_POINT, figsize=None, plot_RF=False, compare_with: str=None):
         compare_with_index = [i for i, label in enumerate(self.model_labels) if label == compare_with]
         if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
