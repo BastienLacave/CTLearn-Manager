@@ -360,18 +360,18 @@ class DL2DataProcessor:
         t_elapsed = 0 * u.h
         # print("Computing on-off counts...")
         E_bins = self.E_bins[cuts_index]
-        match self.cuts[cuts_index].cut_type:
-                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                    # E_bins = self.E_bins[i]
-                    GH_cuts = self.GH_cuts[cuts_index]
-                    Theta_cuts = self.Theta_cuts[cuts_index]
-                case _:
-                    # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
-                    GH_cuts = [self.cuts[cuts_index].gammaness_cut] * len(E_bins)
-                    if self.cuts[cuts_index].theta_cut is None:
-                        Theta_cuts = [0.2] * len(E_bins)
-                    else:
-                        Theta_cuts = [self.cuts[cuts_index].theta_cut] * len(E_bins)
+        # match self.cuts[cuts_index].cut_type:
+        #         case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+        #             # E_bins = self.E_bins[i]
+        #             GH_cuts = self.GH_cuts[cuts_index]
+        #             Theta_cuts = self.Theta_cuts[cuts_index]
+        #         case _:
+        #             # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        #             GH_cuts = [self.cuts[cuts_index].gammaness_cut] * len(E_bins)
+        #             if self.cuts[cuts_index].theta_cut is None:
+        #                 Theta_cuts = [0.2] * len(E_bins)
+        #             else:
+        #                 Theta_cuts = [self.cuts[cuts_index].theta_cut] * len(E_bins)
         for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only), desc="Computing on-off counts", total=len(self.reco_directions), disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             cuts_mask = cuts_mask[cuts_index] # Only the first cuts are applied for on-off counts
             reco_direction = reco_direction[cuts_mask]
@@ -1020,22 +1020,6 @@ class DL2DataProcessor:
 
         E = (E_bins[:-1] + E_bins[1:]) / 2
 
-        # fig, axs = plt.subplots(2, 1, figsize=(10, 10), sharex=True)
-        
-        # axs[0].plot(E.value, excess_rates, marker='o', linestyle='-')
-        # axs[0].set_ylabel('Excess Rate [Hz]')
-        # axs[0].set_xscale('log')
-        # axs[0].set_yscale('log')
-        # # axs[0].set_title('Excess Rate vs Energy')
-
-        # axs[1].plot(E.value, background_rates, marker='o', linestyle='-')
-        # axs[1].set_xlabel('Reco Energy [TeV]')
-        # axs[1].set_ylabel('Background Rate [Hz]')
-        # axs[1].set_xscale('log')
-        # axs[1].set_yscale('log')
-        # # axs[1].set_title('Background Rate vs Energy')
-
-        # plt.setp(axs[0].get_xticklabels(), visible=False
 
         plt.plot(E.value, excess_rates, marker='o', linestyle='-', label='Excess Rate')
         plt.plot(E.value, background_rates, marker='o', linestyle='-', label='Background Rate')
