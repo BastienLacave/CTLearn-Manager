@@ -35,4 +35,5 @@ python:
       extra_requirements:
         - docs # If you have specific dependencies for docs in setup.py
    
+    - requirements: docs/requirements.txt
         
