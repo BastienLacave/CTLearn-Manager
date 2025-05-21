@@ -1,16 +1,14 @@
-6. DL1 to DL2 on real data
+7. DL1 to DL2 on real data
 ==========================
 
-As usual, create a TriModelManager object with the three models you want to use.
 
-.. code-block:: python
+There are two cases for predicting real data:
 
-    MODEL_INDEX_FILE = "/home/user/CTLearn/Software/CTLearn-Manager/ctearn_models_index.h5"
-    energy_model = load_model_from_index("energy_stereo_20deg", MODEL_INDEX_FILE)
-    direction_model = load_model_from_index("direction_stereo_20deg", MODEL_INDEX_FILE)
-    type_model = load_model_from_index("type_stereo_20deg", MODEL_INDEX_FILE)
-    Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
+1. Predicting data with one signle model
 
+2. Predicting data with a collection of models, each one applying to a restricted region of the sky.
+
+In the first case, you can use the ``CTLearnTriModelManager`` class. In the second case, you can use the ``TriModelCollection`` class.
 
 
 Standard data
@@ -18,14 +16,14 @@ Standard data
 
 .. code-block:: python
 
-    Stereo_Tri_Model.predict_data(input_file, output_file)
+    Tri_Model.predict_data(input_file, output_file)
 
 lstchain data
 -------------
 
 .. code-block:: python
 
-    Stereo_Tri_Model.predict_lstchain_data(input_file, output_file)
+    Tri_Model.predict_lstchain_data(input_file, output_file)
 
 Tri-Model Collection
 --------------------
@@ -35,15 +33,19 @@ The Manager will used the relevant model for each file based on its average poin
 
 .. code-block:: python
 
-    MODEL_INDEX_FILE = "/home/bastien.lacave/PhD/Analysis/CTLearnManager/ctlearn_models_index.h5"
+    MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
     tri_models = []
+    Cluster_config = ClusterConfiguration(time="00:20:00", partition="normal", account="cta08", use_cluster=True, environment="ctlearn") # Set the amount of time etc.
+
     for i in range(10):
-        energy_model = load_model_from_index(f"LST1_energy_CRABdec_{i}", MODEL_INDEX_FILE)
-        direction_model = load_model_from_index(f"LST1_direction_CRABdec_{i}", MODEL_INDEX_FILE)
-        type_model = load_model_from_index(f"LST1_type_CRABdec_{i}", MODEL_INDEX_FILE)
-        Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
-        tri_models.append(Stereo_Tri_Model)
-    CRAB_dec_triModels = TriModelCollection(tri_models)
+        energy_model = load_model_from_index(f"energy_model_nickname_{i}", MODEL_INDEX_FILE)
+        direction_model = load_model_from_index(f"direction_model_nickname_{i}", MODEL_INDEX_FILE)
+        type_model = load_model_from_index(f"type_model_nickname_{i}", MODEL_INDEX_FILE)
+        Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model, cluster_configuration=Cluster_config)
+        tri_models.append(Tri_Model)
+    
+    CRAB_dec_triModels = TriModelCollection(tri_models, cluster_configuration=Cluster_config)
+    Cluster_config.info()
 
 You can plot the range of validity for the whole collection of Tri-Models :
 

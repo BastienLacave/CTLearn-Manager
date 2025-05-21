@@ -26,6 +26,7 @@ extensions = [
     'sphinx.ext.coverage', # Measure documentation coverage
     'sphinx.ext.mathjax', # Render math equations
     'sphinx.ext.autosummary',  # Create neat summary tables
+    'sphinx_copybutton',
 
 ]
 

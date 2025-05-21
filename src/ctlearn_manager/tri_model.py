@@ -18,6 +18,7 @@ from .utils.utils import (
     CutType,
     DefaultCuts,
     CTLearnManagerStyle,
+    plot_pointing_on_ax,
 )
 
 __all__ = [
@@ -1243,13 +1244,16 @@ class CTLearnTriModelManager:
                 cuts[0].efficiency_theta = None
                 cuts[0].plot_cuts_info_plt(ax)
                 cuts[0].efficiency_theta = stored_efficiency_theta
+            if len(coords) == 1:
+                plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
+                
         for i, coord in enumerate(coords):
             for cut in cuts:
                 zenith, azimuth = coord
-                try:
-                    e_bins, ang_res_err = self.get_angular_resolution_DL2(zenith, azimuth, cut, particle_type)
-                except:
-                    continue
+                # try:
+                e_bins, ang_res_err = self.get_angular_resolution_DL2(zenith, azimuth, cut, particle_type)
+                # except:
+                #     continue
                 e = (e_bins[:-1].value + e_bins[1:].value) / 2
                 ang_res = [e_r[0].value for e_r in ang_res_err]
                 ang_res_minus = [e_r[0].value - e_r[1].value for e_r in ang_res_err]
@@ -1346,7 +1350,7 @@ class CTLearnTriModelManager:
                 true_alt = dl2_gamma[self.true_alt_key].to(u.deg)
                 true_az = dl2_gamma[self.true_az_key].to(u.deg)
                 reco_energy = dl2_gamma[self.reco_energy_key]
-                true_energy = dl2_gamma[self.true_energy_key]    
+                true_energy = dl2_gamma[self.true_energy_key]   
             case _:
                 raise ValueError(f"Unknown cut type: {cuts.cut_type}")                          
         return true_energy, reco_energy, true_alt, reco_alt, true_az, reco_az, log_bins
@@ -1355,7 +1359,7 @@ class CTLearnTriModelManager:
     def get_angular_resolution_DL2(self, zenith: float = None, azimuth: float = None, cuts: Cuts=DefaultCuts.NO_CUTS.value, particle_type: ParticleType=ParticleType.GAMMA_POINT):
         import ctaplot
         true_energy, reco_energy, true_alt, reco_alt, true_az, reco_az, log_bins = self.get_DL2_tables(zenith, azimuth, cuts, particle_type, apply_theta_cut=False)
-        e, ang_res = ctaplot.angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins * u.TeV)
+        e, ang_res = ctaplot.angular_resolution_per_energy(true_alt, reco_alt, true_az, reco_az, true_energy, bins=log_bins)
         return e, ang_res
 
     @u.quantity_input(zeniths=u.deg,azimuths=u.deg)    
@@ -1404,7 +1408,8 @@ class CTLearnTriModelManager:
 
             if len(cuts) == 1:
                 cuts[0].plot_cuts_info_plt(ax)
-
+            if len(coords) == 1:
+                plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
         
         for i, coord in enumerate(coords):
             for cut in cuts:
@@ -1412,7 +1417,7 @@ class CTLearnTriModelManager:
                     e_bins, e_res_err = self.get_energy_resolution_DL2(zenith=coord[0], azimuth=coord[1], cuts=cut, particle_type=particle_type)
                 except:
                     continue
-                e = (e_bins[:-1] + e_bins[1:]) / 2
+                e = (e_bins[:-1].value + e_bins[1:].value) / 2
                 e_res = [e_r[0] for e_r in e_res_err]
                 e_res_minus = [e_r[0] - e_r[1] for e_r in e_res_err]
                 e_res_plus = [e_r[2] - e_r[0] for e_r in e_res_err]
@@ -1672,7 +1677,7 @@ class CTLearnTriModelManager:
             theta_cuts = hdul['RAD_MAX'].data['cut']
             energy_low_theta = hdul['RAD_MAX'].data['low']
             energy_high_theta = hdul['RAD_MAX'].data['high']
-            E_bins = np.concatenate((energy_low_gamma, [energy_high_gamma[-1]])) #* u.TeV
+            E_bins = np.concatenate((energy_low_gamma, [energy_high_gamma[-1]])) * u.TeV
             assert (energy_low_gamma == energy_low_theta).all(), "Energy low values for gammaness and theta cuts do not match"
             assert (energy_high_gamma == energy_high_theta).all(), "Energy high values for gammaness and theta cuts do not match"
 

@@ -1,4 +1,4 @@
-7. Real data DL2 analysis
+8. Real data DL2 analysis
 =========================
 
 
@@ -28,12 +28,13 @@ As usual, have your Tri-Model ready.
 
 .. code-block:: python
 
-    MODEL_INDEX_FILE = "/home/user/PhD/Analysis/CTLearnManager/ctlearn_models_index.h5"
-    cluster_config = ClusterConfiguration(python_env='ctlearn', partition='short', time='2:00:00', use_cluster=True)
-    energy_model = load_model_from_index(f"LST1_energy_CRABdec_4", MODEL_INDEX_FILE)
-    direction_model = load_model_from_index(f"LST1_direction_CRABdec_4", MODEL_INDEX_FILE)
-    type_model = load_model_from_index(f"LST1_type_CRABdec_4", MODEL_INDEX_FILE)
+    MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
+    energy_model = load_model_from_index("energy_model_nickname", MODEL_INDEX_FILE)
+    direction_model = load_model_from_index("direction_model_nickname", MODEL_INDEX_FILE)
+    type_model = load_model_from_index("type_model_nickname", MODEL_INDEX_FILE)
+    Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
     Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model, cluster_configuration=cluster_config)
+    
 
 DL2DataProcessor
 ----------------
@@ -46,20 +47,18 @@ The first step is to process the DL2 data, using slurm is recommended, to extrac
 as well as compute the sky coordinates of all events. They are stored and pickled in a directory of choice. 
 **This is needed only once per file.**
 
+Note that you need to pass the cuts you want to apply to the data.
+
 .. code-block:: python
 
-    DL2Processor = DL2DataProcessor(
-        ["Your DL2 files"],
-        Stereo_Tri_Model, 
-        gammaness_cut=0.9, 
-        dl2_processed_dir="Processed_dir")
+    DL2Processor = DL2DataProcessor(DL2_files, Tri_Model, cuts=[Cuts(gammaness_cut=0.9), Cuts(gammaness_cut=0.7)])
 
 Once the rocessing is done, reload the DL2DataProcessor, it will now read the data from the processed files and should drastically reduce the time for reading large numbers of files.
 
 .. code-block:: python
 
     DL2Processor.plot_skymap()
-    DL2Processor.plot_theta2_distribution(25)
+    DL2Processor.plot_theta2_distribution()
 
 .. image:: images/DL2SkyMap.png
     :width: 400

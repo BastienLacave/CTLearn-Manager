@@ -1,2 +1,3 @@
 sphinx-rtd-theme
 sphinx-material
+sphinx-copybutton

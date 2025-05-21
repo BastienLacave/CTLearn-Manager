@@ -1,7 +1,7 @@
 1. Creating CTLearn Model Managers
 ==================================
 
-The first step is to create your ``ctlearn_model_index`` file. It is a HDF5 file containing a table per model.
+The first step is to create your ``ctlearn_model_index`` file (the Manager will create it for you if it does not exist). It is a HDF5 file containing a table per model.
 It contains one table per model, regardless of the task it is used for. The ``parameters`` table contains the general information about your model, such as its name, directory, reconstruction task, channels, telescopes, and training epochs.
 Other tables store the training and testing data, the IRFs, and the DL2 files for MC and real data. That way, CTLearn Manager can easily retrieve all relevant data for the plots and IRF production explained below, without the user needing to remember.
 
@@ -13,31 +13,32 @@ First, define a model index where the Manager's data will be stored.
 .. code-block:: python
 
     # Where all the models are stored
-    MODEL_INDEX_FILE = "/home/user/CTLearn/Software/CTLearn-Manager/ctlearn_models_index.h5"
+    MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
 
-Then, create a series of ``TrainingSamples`` for your model. Each ``TrainingSample`` contains the path to the training files, the pattern to search for, and the zenith distance of the training data. Put them all in arrays for gamma and proton and pass them to the ``CTLearnModelManager``.
+::
+    model_dir
+    ├── model_nickname
+    │   ├── model_nickname_v0
+    │   ├── model_nickname_v1
+    │   ├── model_nickname_v2
+    
+Your model needs training data.
+Create a series of ``TrainingSamples`` for your model. Each ``TrainingSample`` contains the path to the training files.
 
-.. note::
+.. warning::
 
-    The azimuth is optional, but it is recommended to include it if you have it.
+    Each ``TrainingSample`` must contain files from only one type of particle (see the ``ParticleType`` class for supported particles).
+    Each ``TrainingSample`` must also contain files with the same pointing. If you wish to train your model on multiple pointings, you need to create a ``TrainingSample`` for each pointing.
 
 .. code-block:: python
 
     # Training samples
-    gamma_training_samples = [
-        TrainingSample(
-            directory='/home/user/CTLearn/Data/DL1/SST1M/MC/Gamma_diffuse/20deg/merged/training/',
-            pattern=["gamma_diffuse*.h5"],
-            zenith_distance= 20 * u.deg,
-            azimuth = 180 * u.deg, # Optional
-        )]
-    proton_training_samples = [
-        TrainingSample(
-            directory='/home/user/CTLearn/Data/DL1/SST1M/MC/Proton_diffuse/20deg/merged/training/',
-            pattern=["proton*.h5"],
-            zenith_distance= 20 * u.deg,
-            azimuth = 180 * u.deg, # Optional
-        )]
+    training_samples = [
+        DataSample(directory='/path/to/your/MC/Gamma_diffuse/20deg/merged/training/',
+                pattern="gamma_diffuse*.h5"),
+        DataSample(directory='/path/to/your/MC/Proton_diffuse/20deg/merged/training/',
+                pattern="proton*.h5"),
+    ]
 
 
 Finally, create the ``CTLearnModelManager`` object with the general parameters of your model.
@@ -46,24 +47,32 @@ Finally, create the ``CTLearnModelManager`` object with the general parameters o
 
     The model_dir is the parent directory. A new dirctory will be created inside, with your 
     model nickname. Inside this directory, new directories will be created for each versions of your model, if you train in multiple times.
+    ::
+        model_dir
+        ├── model_nickname
+        │   ├── model_nickname_v0
+        │   ├── model_nickname_v1
+        │   ├── model_nickname_v2
 
 .. code-block:: python
 
     # General parameters
+    reco = 'type' # ['energy', 'type', 'cameradirection', 'skydirection']
     model_parameters = {
-        'model_nickname' : "type_tel2_20deg",
-        'model_dir' : "/home/user/CTLearn/Data/CTLearn_Models_SST1M/", # Where the model is stored
-        'notes' : "Tel2 model for 20deg zenith distance",
-        'reco' : 'type', #["energy", "direction", "type"]
-        'channels' : ['cleaned_image', 'cleaned_relative_peak_time'], # Order matters
-        'telescope_names' : ['SST1M_2'],
-        'telescope_ids' : [2],
-        'max_training_epochs' : 15, 
-        'gamma_training_samples' : gamma_training_samples,
-        'proton_training_samples' : proton_training_samples, 
+        'model_nickname' : f"{reco}_tel2_20deg",
+        'model_dir' : "/path/to/your/CTLearn_Models/", # Main directory, will contain a nw directory with you model, named after the model_nickname
+        'reco' : reco, #['energy', 'type', 'cameradirection', 'skydirection']
+        'telescope_names' : ['IACT_2'], # List of telescopes names
+        'telescope_ids' : [2], # List of telescope ids
+        'max_training_epochs' : 5, # Can be changed later for training.
+        'training_samples' : training_samples,
+        'stereo' : False, # True if stereo reconstruction, False if mono.
+    #### OPTIONAL PARAMETERS
+        # 'channels' : ['cleaned_image', 'cleaned_relative_peak_time'], # Order matters.
+        # 'min_telescopes' : 1, # Minimum number of triggered telescopes for each events to be used in the model, if >=2, model will be stereo.
+        # 'notes' : "Tel2 model for 20deg zenith distance",
     }
 
-    # Create the model manager
     new_model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE)
 
 

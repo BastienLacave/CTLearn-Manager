@@ -12,7 +12,7 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['DefaultCuts', 'remove_row_from_table_utils', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['DefaultCuts', 'plot_pointing_on_ax', 'remove_row_from_table_utils', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 class CTLearnManagerStyle(Enum):
     """
@@ -610,7 +610,20 @@ class DefaultCuts(Enum):
     EFF_90 = Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=0.9, efficiency_theta=0.7)
     GH_0_9 = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.9)
 
+@u.quantity_input(zenith=u.deg, azimuth=u.deg)
+def plot_pointing_on_ax(ax, zenith, azimuth):
 
+    text_color=CTLearnManagerStyle.ctlearn_accent_2.value
+    background_color=CTLearnManagerStyle.ctlearn_accent_1.value
+    ax.text(
+        0.02, 0.02, f"Pointing: ({zenith.value:.1f}, {azimuth.value:.1f})°",
+        transform=ax.transAxes,
+        fontsize=9,
+        color=text_color,
+        verticalalignment='bottom',
+        horizontalalignment='left',
+        bbox=dict(boxstyle='round,pad=0.3', edgecolor='none', facecolor=background_color, alpha=0.2),
+        )
 
 def get_irf_type_from_config(config):
     """

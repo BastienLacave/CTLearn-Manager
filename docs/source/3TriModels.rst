@@ -9,11 +9,11 @@ The main difference is that you need to pass the three models to the ``TriModelM
 
 .. code-block:: python
 
-    MODEL_INDEX_FILE = "/home/user/CTLearn/Software/CTLearn-Manager/ctearn_models_index.h5"
-    energy_model = load_model_from_index("energy_stereo_20deg", MODEL_INDEX_FILE)
-    direction_model = load_model_from_index("direction_stereo_20deg", MODEL_INDEX_FILE)
-    type_model = load_model_from_index("type_stereo_20deg", MODEL_INDEX_FILE)
-    Stereo_Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
+    MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
+    energy_model = load_model_from_index("energy_model_nickname", MODEL_INDEX_FILE)
+    direction_model = load_model_from_index("direction_model_nickname", MODEL_INDEX_FILE)
+    type_model = load_model_from_index("type_model_nickname", MODEL_INDEX_FILE)
+    Tri_Model = CTLearnTriModelManager(direction_model=direction_model, energy_model=energy_model, type_model=type_model)
 
 
 One can plot the loss function evolution for the tree models:
