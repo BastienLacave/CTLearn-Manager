@@ -411,7 +411,7 @@ class CTLearnModelManager:
         """
         Launch the training process for the model.
 
-        Parameters.
+        Parameters
         ----------
         n_epochs : int
             Number of epochs to train the model. If set to 0, training will not proceed.
