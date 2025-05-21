@@ -39,6 +39,8 @@ A series of notebooks allows the user to go through the full range of functional
    5MCDL2
    6PredictData
    7DataDL2
+
+   _autosummary/
    
 
 
