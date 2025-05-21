@@ -5,56 +5,89 @@ from numba import njit
 from ..model_manager import CTLearnModelManager
 from ..utils.utils import ClusterConfiguration
 
-__all__ = ['load_model_from_index', 'load_DL2_data_MC', 'load_DL2_data', 'load_DL2_data_RF', 'load_true_shower_parameters']
+__all__ = [
+    "load_model_from_index",
+    "load_DL2_data_MC",
+    "load_DL2_data",
+    "load_DL2_data_RF",
+    "load_true_shower_parameters",
+]
 
-def load_model_from_index(model_nickname, MODEL_INDEX_FILE, cluser_config=ClusterConfiguration()):
+
+def load_model_from_index(
+    model_nickname, MODEL_INDEX_FILE, cluser_config=ClusterConfiguration()
+):
     # models_table = QTable.read(MODEL_INDEX_FILE)
     # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
-    model_parameters = {'model_nickname': model_nickname}
+    model_parameters = {"model_nickname": model_nickname}
     from astropy.io.misc.hdf5 import read_table_hdf5
+
     try:
         read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
     except:
         raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
-    model = CTLearnModelManager(model_parameters, MODEL_INDEX_FILE, load=True, cluster_configuration=cluser_config)
+    model = CTLearnModelManager(
+        model_parameters,
+        MODEL_INDEX_FILE,
+        load=True,
+        cluster_configuration=cluser_config,
+    )
     return model
 
 
 def load_DL2_data_MC(input_file, tel_id=None):
     from astropy.table import hstack, join
     from ctapipe.io import read_table
-    subarray_string = "subarray" if tel_id==None else "telescope"
-    tel_id_string = "" if tel_id==None else f"tel_{tel_id:03d}"
-    pointing = read_table(input_file, f"dl1/monitoring/{subarray_string}/pointing/{tel_id_string}")
-    key_tel = "" if tel_id==None else "tel_"
+
+    subarray_string = "subarray" if tel_id == None else "telescope"
+    tel_id_string = "" if tel_id == None else f"tel_{tel_id:03d}"
+    pointing = read_table(
+        input_file, f"dl1/monitoring/{subarray_string}/pointing/{tel_id_string}"
+    )
+    key_tel = "" if tel_id == None else "tel_"
 
     dl2_tables = []
 
     try:
-        dl2_classification = read_table(input_file, f"dl2/event/{subarray_string}/classification/CTLearn/{tel_id_string}")
+        dl2_classification = read_table(
+            input_file,
+            f"dl2/event/{subarray_string}/classification/CTLearn/{tel_id_string}",
+        )
         dl2_classification = hstack([dl2_classification, pointing])
-        dl2_classification = dl2_classification[~np.isnan(dl2_classification[f"CTLearn_{key_tel}prediction"])]
+        dl2_classification = dl2_classification[
+            ~np.isnan(dl2_classification[f"CTLearn_{key_tel}prediction"])
+        ]
         dl2_tables.append(dl2_classification)
     except:
-        print(f"Classification table not found for dl2/event/{subarray_string}/classification/CTLearn/{tel_id_string}")
-    
+        print(
+            f"Classification table not found for dl2/event/{subarray_string}/classification/CTLearn/{tel_id_string}"
+        )
+
     try:
-        dl2_energy = read_table(input_file, f"dl2/event/{subarray_string}/energy/CTLearn/{tel_id_string}")
+        dl2_energy = read_table(
+            input_file, f"dl2/event/{subarray_string}/energy/CTLearn/{tel_id_string}"
+        )
         if len(dl2_tables) == 0:
             dl2_energy = hstack([dl2_energy, pointing])
         dl2_energy = dl2_energy[~np.isnan(dl2_energy[f"CTLearn_{key_tel}energy"])]
         dl2_tables.append(dl2_energy)
     except:
-        print(f"Energy table not found for dl2/event/{subarray_string}/energy/CTLearn/{tel_id_string}")
+        print(
+            f"Energy table not found for dl2/event/{subarray_string}/energy/CTLearn/{tel_id_string}"
+        )
 
     try:
-        dl2_geometry = read_table(input_file, f"dl2/event/{subarray_string}/geometry/CTLearn/{tel_id_string}")
+        dl2_geometry = read_table(
+            input_file, f"dl2/event/{subarray_string}/geometry/CTLearn/{tel_id_string}"
+        )
         if len(dl2_tables) == 0:
             dl2_geometry = hstack([dl2_geometry, pointing])
         dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry[f"CTLearn_{key_tel}alt"])]
         dl2_tables.append(dl2_geometry)
     except:
-        print(f"Geometry table not found for dl2/event/{subarray_string}/geometry/CTLearn/{tel_id_string}")
+        print(
+            f"Geometry table not found for dl2/event/{subarray_string}/geometry/CTLearn/{tel_id_string}"
+        )
     # dl2 = join(dl2_classification, dl2_energy, keys=["obs_id", "event_id"])
     # dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
     if len(dl2_tables) > 0:
@@ -66,8 +99,10 @@ def load_DL2_data_MC(input_file, tel_id=None):
 
     return dl2
 
+
 def load_true_shower_parameters(input_file):
     from ctapipe.io import read_table
+
     true_shower_parameters = read_table(input_file, "simulation/event/subarray/shower")
     return true_shower_parameters
 
@@ -81,6 +116,7 @@ def compute_diff(arr):
         diff[i] = arr[i] - arr[i - 1]
     return diff
 
+
 def load_DL2_data(input_file, DL2DataProcessor):
     tel_id = DL2DataProcessor.telescope_id
     reco_method = DL2DataProcessor.reconstruction_method
@@ -88,45 +124,61 @@ def load_DL2_data(input_file, DL2DataProcessor):
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
     from astropy.table import hstack, join
     from ctapipe.io import read_table
-    from astropy.io.misc.hdf5 import read_table_hdf5
-    
+
     pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
     # pointing = read_table_hdf5(input_file, path=f"dl1/monitoring/{path}/pointing/{tel}")
-    pointing.sort('time')
-    
+    pointing.sort("time")
+
     dl2 = None
-    
+
     try:
-        dl2_classification = read_table(input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}")
+        dl2_classification = read_table(
+            input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}"
+        )
         dl2 = dl2_classification
     except:
         print(f"Classification table not found for {reco_method}/{tel}")
-    
+
     try:
-        dl2_energy = read_table(input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}")
-        dl2 = join(dl2, dl2_energy, keys=["obs_id", "event_id"]) if dl2 is not None else dl2_energy
+        dl2_energy = read_table(
+            input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}"
+        )
+        dl2 = (
+            join(dl2, dl2_energy, keys=["obs_id", "event_id"])
+            if dl2 is not None
+            else dl2_energy
+        )
     except:
         print(f"Energy table not found for {reco_method}/{tel}")
-    
+
     try:
-        dl2_geometry = read_table(input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}")
-        dl2 = join(dl2, dl2_geometry, keys=["obs_id", "event_id"]) if dl2 is not None else dl2_geometry
+        dl2_geometry = read_table(
+            input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}"
+        )
+        dl2 = (
+            join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+            if dl2 is not None
+            else dl2_geometry
+        )
     except:
         print(f"Geometry table not found for {reco_method}/{tel}")
-    
-    dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[["obs_id", "event_id", "hillas_intensity"]]
+
+    dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[
+        ["obs_id", "event_id", "hillas_intensity"]
+    ]
     dl2 = join(dl2, dl1, keys=["obs_id", "event_id"]) if dl2 is not None else dl1
-    
-    dl2.sort('event_id')
+
+    dl2.sort("event_id")
     dl2 = hstack([dl2, pointing])
-    dl2.sort('time')
-    
+    dl2.sort("time")
+
     print("Computing time differences...")
-    t_diff = compute_diff(dl2['time'].to_value('unix'))
-    dl2['delta_t'] = t_diff
-    
+    t_diff = compute_diff(dl2["time"].to_value("unix"))
+    dl2["delta_t"] = t_diff
+
     print(f"Loaded {len(dl2)} events")
     return dl2
+
 
 # def load_DL2_data(input_file, DL2DataProcessor):
 #     tel_id = DL2DataProcessor.telescope_id
@@ -156,12 +208,14 @@ def load_DL2_data(input_file, DL2DataProcessor):
 #     print(f"Loaded {len(dl2)} events")
 #     return dl2
 
+
 def load_DL2_data_RF(input_file, DL2DataProcessor):
     # tel_id = DL2DataProcessor.telescope_id
     # reco_method = DL2DataProcessor.reconstruction_method
     path = "subarray" if DL2DataProcessor.stereo else "telescope"
     # tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
     from ctapipe.io import read_table
+
     # from astropy.table import (join, hstack)
     # pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
     # pointing.sort('time')
@@ -182,24 +236,36 @@ def load_DL2_data_RF(input_file, DL2DataProcessor):
     # print(f"Loaded {len(dl2)} events")
     # print(dl2.columns)
 
-    useful_cols = ['obs_id','event_id','intensity','alt_tel','az_tel','dragon_time','delta_t','reco_energy','reco_alt','reco_az','gammaness']
-    
-    dl2 = dl2[dl2['event_type'] == 32]
-    dl2 = dl2[useful_cols]
-    dl2.rename_column('intensity', 'hillas_intensity')
-    dl2.rename_column('alt_tel', 'altitude')
-    dl2.rename_column('az_tel', 'azimuth')
-    dl2.rename_column('dragon_time', 'time')
-    dl2.rename_column('reco_energy', 'RF_tel_energy')
-    dl2.rename_column('reco_alt', 'RF_tel_alt')
-    dl2.rename_column('reco_az', 'RF_tel_az')
-    dl2.rename_column('gammaness', 'RF_tel_prediction')
+    useful_cols = [
+        "obs_id",
+        "event_id",
+        "intensity",
+        "alt_tel",
+        "az_tel",
+        "dragon_time",
+        "delta_t",
+        "reco_energy",
+        "reco_alt",
+        "reco_az",
+        "gammaness",
+    ]
 
-    dl2['altitude'] = dl2['altitude'] * u.rad
-    dl2['azimuth'] = dl2['azimuth'] * u.rad
-    dl2['RF_tel_energy'] = dl2['RF_tel_energy'] * u.TeV
-    dl2['RF_tel_alt'] = dl2['RF_tel_alt'] * u.rad
-    dl2['RF_tel_az'] = dl2['RF_tel_az'] * u.rad
-    dl2['delta_t'] = dl2['delta_t'] * u.s
-    dl2 = dl2[dl2['hillas_intensity'] > 50]
+    dl2 = dl2[dl2["event_type"] == 32]
+    dl2 = dl2[useful_cols]
+    dl2.rename_column("intensity", "hillas_intensity")
+    dl2.rename_column("alt_tel", "altitude")
+    dl2.rename_column("az_tel", "azimuth")
+    dl2.rename_column("dragon_time", "time")
+    dl2.rename_column("reco_energy", "RF_tel_energy")
+    dl2.rename_column("reco_alt", "RF_tel_alt")
+    dl2.rename_column("reco_az", "RF_tel_az")
+    dl2.rename_column("gammaness", "RF_tel_prediction")
+
+    dl2["altitude"] = dl2["altitude"] * u.rad
+    dl2["azimuth"] = dl2["azimuth"] * u.rad
+    dl2["RF_tel_energy"] = dl2["RF_tel_energy"] * u.TeV
+    dl2["RF_tel_alt"] = dl2["RF_tel_alt"] * u.rad
+    dl2["RF_tel_az"] = dl2["RF_tel_az"] * u.rad
+    dl2["delta_t"] = dl2["delta_t"] * u.s
+    dl2 = dl2[dl2["hillas_intensity"] > 50]
     return dl2

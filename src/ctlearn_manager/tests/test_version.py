@@ -6,5 +6,6 @@ class TestVersion(unittest.TestCase):
         expected_version = "0.1.dev1+g4ad0be7"  # Replace with the expected version
         # self.assertEqual(ctlearn_manager.__version__, expected_version)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

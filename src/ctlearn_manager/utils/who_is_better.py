@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 
-__all__ = ['WhoIsBetter']
+__all__ = ["WhoIsBetter"]
+
 
 class WhoIsBetter:
     def __init__(self, dl2_processors, labels):
@@ -11,17 +12,15 @@ class WhoIsBetter:
         self.cuts = cuts[0]
         self.labels = labels
 
-
     def plot_theta2_distribution(self):
         for dl2_processor in self.dl2_processors:
             dl2_processor.plot_theta2_distribution()
-    
+
     def plot_skymap(self):
         for dl2_processor in self.dl2_processors:
             dl2_processor.plot_skymap()
 
     def plot_sensitivity(self):
-        
         fig, ax = plt.subplots()
         if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
@@ -47,5 +46,3 @@ class WhoIsBetter:
             dl2_processor.plot_bkg_discrimination_capability(axs=axs, label=label)
 
         plt.show()
-
-    

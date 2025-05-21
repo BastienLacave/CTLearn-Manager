@@ -5,50 +5,50 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-import sphinx_rtd_theme
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
-project = 'CTLearn Manager'
-copyright = '2025, Bastien Lacave'
-author = 'Bastien Lacave'
+
+sys.path.insert(0, os.path.abspath("../../"))
+project = "CTLearn Manager"
+copyright = "2025, Bastien Lacave"
+author = "Bastien Lacave"
 
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',  # Automatically generate documentation from docstrings
-    'sphinx.ext.napoleon', # Support for Google-style and NumPy-style docstrings
-    'sphinx.ext.viewcode',  # Add links to source code
-    'sphinx.ext.intersphinx',  # Link to other projects' documentation
-    'sphinx.ext.todo', # Support for .. todo:: directives
-    'sphinx.ext.coverage', # Measure documentation coverage
-    'sphinx.ext.mathjax', # Render math equations
-    'sphinx.ext.autosummary',  # Create neat summary tables
-    'sphinx_copybutton',
-
+    "sphinx.ext.autodoc",  # Automatically generate documentation from docstrings
+    "sphinx.ext.napoleon",  # Support for Google-style and NumPy-style docstrings
+    "sphinx.ext.viewcode",  # Add links to source code
+    "sphinx.ext.intersphinx",  # Link to other projects' documentation
+    "sphinx.ext.todo",  # Support for .. todo:: directives
+    "sphinx.ext.coverage",  # Measure documentation coverage
+    "sphinx.ext.mathjax",  # Render math equations
+    "sphinx.ext.autosummary",  # Create neat summary tables
+    "sphinx_copybutton",
 ]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = "sphinx_rtd_theme"
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # html_static_path = ['_static']
 
 
 autodoc_default_options = {
-    'members': True,           # Include members (functions, classes, etc.)
-    'member-order': 'bysource', # Order members as they appear in the source code
-    'undoc-members': True,     # Include members *without* docstrings (useful during development)
-    'private-members': False,   # Usually exclude private members (starting with _)
-    'show-inheritance': True,   # Show class inheritance
+    "members": True,  # Include members (functions, classes, etc.)
+    "member-order": "bysource",  # Order members as they appear in the source code
+    "undoc-members": True,  # Include members *without* docstrings (useful during development)
+    "private-members": False,  # Usually exclude private members (starting with _)
+    "show-inheritance": True,  # Show class inheritance
 }
-autodoc_typehints = "description" # Show type hints in the description, not the signature.  Much cleaner.
-autoclass_content = "both"  # Include both the class docstring and the __init__ docstring
+autodoc_typehints = "description"  # Show type hints in the description, not the signature.  Much cleaner.
+autoclass_content = (
+    "both"  # Include both the class docstring and the __init__ docstring
+)
