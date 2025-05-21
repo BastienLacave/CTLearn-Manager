@@ -1,3 +1,5 @@
+"""Plotting and predicting with a collection of CTLearnTriModelManager models."""
+
 import os
 
 import astropy.units as u
@@ -23,12 +25,83 @@ __all__ = ["TriModelCollection"]
 
 
 class TriModelCollection:
+    """
+    TriModelCollection is a class that manages a collection of tri-models.
+    
+    Use for predicting and analyzing data from telescopes. It provides methods for 
+    predicting data, finding the closest model to a given pointing, and 
+    visualizing various performance metrics.
+
+    Attributes
+    ----------
+    tri_models : list
+        A list of tri-models to be managed by the collection.
+    cluster_configuration : ClusterConfiguration
+        Configuration for the cluster where the models will run.
+    model_labels : list[str]
+        Labels for the tri-models in the collection.
+
+    Methods
+    -------
+    __init__(tri_models, cluster_configuration, model_labels)
+        Initialize the TriModelCollection with a list of tri-models, cluster configuration, and optional model labels.
+    predict_lstchain_run(run, output_dir, DL1_data_dir=None, overwrite=False, plot=False, batch_size=64)
+        Predict data for a specific LST chain run and save the results.
+    predict_lstchain_data(input_file, output_file, pointing_table, config_dir=None, overwrite=False, run=None, subrun=None, plot=False, batch_size=64)
+        Predict data for a specific input file using the closest tri-model.
+    predict_data(input_file, output_file, pointing_table, config_dir=None, overwrite=False, plot=False)
+        Predict data for a given input file and save the results.
+    find_closest_model_to(input_file, pointing_table, plot=False, alt_key="alt_tel", az_key="az_tel", verbose=True)
+        Find the closest tri-model to a given pointing based on angular distance.
+    plot_zenith_azimuth_ranges(plot_testing_nodes=True)
+        Plot the zenith and azimuth ranges for all tri-models in the collection.
+    plot_energy_resolution_DL2(cuts, zenith=None, azimuth=None, ylim=None, particle_type, figsize=None, plot_RF=False, compare_with=None)
+        Plot the energy resolution for DL2 data with optional comparison to a reference model.
+    plot_angular_resolution_DL2(cuts, zenith=None, azimuth=None, ylim=None, particle_type, figsize=None, plot_RF=False, compare_with=None)
+        Plot the angular resolution for DL2 data with optional comparison to a reference model.
+    plot_cuts(cuts)
+        Plot the cuts applied to the data for all tri-models in the collection.
+    plot_everything_dl2(output_directory, dl2_files, gammaness_cut=0.9, edep_cuts=False, pointing_table="/dl1/monitoring/telescope/pointing/tel_001")
+        Generate and save plots for angular resolution, energy resolution, and gammaness for DL2 data.
+    """
+
     def __init__(
+
         self,
         tri_models: list,
         cluster_configuration: ClusterConfiguration = ClusterConfiguration(),
         model_labels: list[str] = None,
     ):
+        """
+        Initialize the TriModelCollection object.
+
+        Parameters
+        ----------
+        tri_models : list
+            A list of tri-model objects to be included in the collection.
+        cluster_configuration : ClusterConfiguration, optional
+            The cluster configuration to be applied to all tri-models in the collection.
+            Defaults to a new instance of `ClusterConfiguration`.
+        model_labels : list of str, optional
+            A list of labels for the tri-models. If not provided, default labels
+            in the format "Model_{j}" will be generated.
+
+        Attributes
+        ----------
+        tri_models : list
+            The list of tri-models in the collection.
+        cluster_configuration : ClusterConfiguration
+            The cluster configuration applied to all tri-models.
+        model_labels : list of str
+            The labels for the tri-models in the collection.
+
+        Raises
+        ------
+        AssertionError
+            If `model_labels` is provided and its length does not match the number
+            of tri-models.
+            If the stereos of all tri-models are not the same.
+        """
         self.tri_models = tri_models
         self.cluster_configuration = cluster_configuration
         for tri_model in self.tri_models:
@@ -57,6 +130,37 @@ class TriModelCollection:
         plot=False,
         batch_size=64,
     ):
+        """
+        Predict DL2 data for a given LST run using the specified cluster configuration.
+
+        Parameters
+        ----------
+        run : int
+            The run number to process.
+        output_dir : str
+            Directory where the output DL2 files will be saved.
+        DL1_data_dir : str, optional
+            Directory containing the DL1 input data. If None, a default path is used
+            based on the cluster configuration.
+        overwrite : bool, default=False
+            Whether to overwrite existing DL2 files.
+        plot : bool, default=False
+            Whether to generate and save plots during the prediction process.
+        batch_size : int, default=64
+            Batch size to use during prediction.
+
+        Raises
+        ------
+        ValueError
+            If the cluster configuration is not recognized (neither 'cscs' nor 'lst-cluster').
+
+        Notes
+        -----
+        - For the 'cscs' cluster, DL1 files are fetched from dCache and copied to a scratch directory
+          before prediction.
+        - For the 'lst-cluster', DL1 files are directly accessed from the specified directory.
+        - The method generates DL2 files for each subrun of the specified run.
+        """
         os.makedirs(output_dir, exist_ok=True)
         if self.cluster_configuration.cluster == "cscs":
             if DL1_data_dir is None:
@@ -124,6 +228,48 @@ class TriModelCollection:
         plot=False,
         batch_size=64,
     ):
+        """
+        Predict data using the closest trained model for lstchain data.
+
+        This method identifies the closest trained model to the input data
+        and uses it to make predictions. The results are saved to the specified
+        output file.
+
+        Parameters
+        ----------
+        input_file : str
+            Path to the input file containing lstchain data.
+        output_file : str
+            Path to the output file where predictions will be saved.
+        pointing_table : str, optional
+            Path to the pointing table in the input file. Default is 
+            "/dl1/event/telescope/parameters/LST_LSTCam".
+        config_dir : str, optional
+            Directory containing configuration files for the model. Default is None.
+        overwrite : bool, optional
+            Whether to overwrite the output file if it already exists. Default is False.
+        run : int, optional
+            Run number to filter the data. Default is None.
+        subrun : int, optional
+            Subrun number to filter the data. Default is None.
+        plot : bool, optional
+            Whether to generate and display plots for model selection. Default is False.
+        batch_size : int, optional
+            Batch size to use during prediction. Default is 64.
+
+        Returns
+        -------
+        None
+            This method does not return any value. The predictions are saved
+            to the specified output file.
+
+        Notes
+        -----
+        If no suitable trained model is found, the method will return without
+        performing any predictions. If the output file already exists and 
+        `overwrite` is set to False, the method will also return without 
+        performing any predictions.
+        """
         closest_tri_model = self.find_closest_model_to(
             input_file, pointing_table, plot=plot
         )
@@ -155,6 +301,29 @@ class TriModelCollection:
         overwrite=False,
         plot=False,
     ):
+        """
+        Predict data using the closest trained model.
+
+        Parameters
+        ----------
+        input_file : str
+            Path to the input file containing the data to be predicted.
+        output_file : str
+            Path to the output file where the predictions will be saved.
+        pointing_table : str, optional
+            Path to the pointing table within the input file, by default "dl0/monitoring/subarray/pointing".
+        config_dir : str, optional
+            Directory containing configuration files for the prediction, by default None.
+        overwrite : bool, optional
+            Whether to overwrite the output file if it already exists, by default False.
+        plot : bool, optional
+            Whether to generate and display plots during the process, by default False.
+
+        Returns
+        -------
+        None
+            This method does not return anything. If no suitable model is found, the function exits early.
+        """
         closest_tri_model = self.find_closest_model_to(
             input_file, pointing_table, plot=plot
         )
@@ -178,6 +347,40 @@ class TriModelCollection:
         az_key="az_tel",
         verbose=True,
     ):
+        """
+        Find the closest model to the average pointing of a given input file.
+
+        Parameters
+        ----------
+        input_file : str
+            Path to the input file containing pointing data.
+        pointing_table : str
+            Path to the pointing table file.
+        plot : bool, optional
+            If True, plot the pointing and model ranges on a polar plot. Default is False.
+        alt_key : str, optional
+            Key for altitude in the pointing table. Default is "alt_tel".
+        az_key : str, optional
+            Key for azimuth in the pointing table. Default is "az_tel".
+        verbose : bool, optional
+            If True, print detailed information about the closest model. Default is True.
+
+        Returns
+        -------
+        closest_model : object
+            The model from `self.tri_models` that is closest to the average pointing.
+
+        Notes
+        -----
+        This method calculates the average pointing (zenith and azimuth) of the input file
+        and compares it to the average pointing ranges of the models in `self.tri_models`.
+        The closest model is determined based on the angular distance.
+
+        Raises
+        ------
+        Exception
+            If the pointing data cannot be found in the provided pointing table.
+        """
         import astropy.units as u
 
         from ctlearn_manager.utils.utils import get_avg_pointing
@@ -235,6 +438,20 @@ class TriModelCollection:
         return closest_model
 
     def plot_zenith_azimuth_ranges(self, plot_testing_nodes=True):
+        """
+        Plot the zenith and azimuth ranges for all tri-models in a polar plot.
+
+        Parameters
+        ----------
+        plot_testing_nodes : bool, optional
+            If True, include testing nodes in the plot. Default is True.
+
+        Notes
+        -----
+        This method creates a polar plot using Matplotlib and iterates over all
+        tri-models to plot their respective zenith and azimuth ranges. The plot
+        is displayed using `plt.show()`.
+        """
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
@@ -257,6 +474,39 @@ class TriModelCollection:
         plot_RF=False,
         compare_with: str = None,
     ):
+        """
+        Plot the energy resolution for DL2 data.
+
+        Parameters
+        ----------
+        cuts : Cuts, optional
+            The cuts to apply for the analysis. Defaults to `DefaultCuts.GH_0_9.value`.
+        zenith : float, optional
+            The zenith angle in degrees. Required if `plot_RF` is True or `compare_with` is provided.
+        azimuth : float, optional
+            The azimuth angle in degrees. Required if `compare_with` is provided.
+        ylim : tuple, optional
+            The y-axis limits for the plot.
+        particle_type : ParticleType, optional
+            The type of particle to analyze. Defaults to `ParticleType.GAMMA_POINT`.
+        figsize : tuple, optional
+            The size of the figure.
+        plot_RF : bool, optional
+            Whether to include the Random Forest (RF) benchmark in the plot. Defaults to False.
+        compare_with : str, optional
+            The label of the model to compare with. If provided, zenith and azimuth must also be specified.
+
+        Raises
+        ------
+        ValueError
+            If `compare_with` is provided but `zenith` or `azimuth` is not specified.
+
+        Notes
+        -----
+        - If `plot_RF` is True, the function will load the corresponding IRF file based on the zenith angle.
+        - When `compare_with` is specified, the function will plot the relative improvement of the energy resolution
+          compared to the reference model.
+        """
         compare_with_index = [
             i for i, label in enumerate(self.model_labels) if label == compare_with
         ]
@@ -423,6 +673,7 @@ class TriModelCollection:
         plot_RF=False,
         compare_with: str = None,
     ):
+        
         compare_with_index = [
             i for i, label in enumerate(self.model_labels) if label == compare_with
         ]
