@@ -42,6 +42,7 @@ Then, the user can launch the training for any of the coordinates of the testing
 A few additional settings enable you to choose the output directories, what type of particle to launch, and the cluster configuration. The DL2 MC files will also be stored in the manager with their coordinates.
 
 .. info::
+    
     ``Tri_Model.get_available_testing_directions()`` is a very usefule command from which you can directly copy and paste the direction you want to test on.
 
     For DL2 data, the ``get_available_MC_directions()`` method is also available. It will return the coordinates of the DL2 files produced by the testing.
@@ -54,6 +55,7 @@ A few additional settings enable you to choose the output directories, what type
     Tri_Model.cluster_configuration.info()
 
 Launch the testing:
+
 .. code-block:: python
 
    # copy the direction in zenith and azimuth you want to test on:
@@ -67,7 +69,7 @@ Launch the testing:
 
 
 Existing MC DL2 files (not recommended)
----------------------
+---------------------------------------
 
 The user should gather the files and their respective coordinates, using ``set_DL2_MC_file()``, 
 inform the manager of the available DL2 files for later plotting and IRF production. 

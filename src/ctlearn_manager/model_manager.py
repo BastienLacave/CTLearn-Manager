@@ -587,6 +587,7 @@ class CTLearnModelManager:
                 (DL2_gamma_table[f'testing_DL2_{particle_type.value}_zenith_distances'] == testing_zenith_distance) & 
                 (DL2_gamma_table[f'testing_DL2_{particle_type.value}_azimuths'] == testing_azimuth))[0]
         if len(match) == 0:
+            assert testing_zenith_distance.unit == u.deg and testing_azimuth.unit == u.deg, "Zenith distance and azimuth must be in degrees"
             DL2_gamma_table.add_row([testing_MC_DL2_file, testing_zenith_distance, testing_azimuth])
         write_table_hdf5(DL2_gamma_table, self.model_index_file, path=f'{self.model_nickname}/DL2/MC/{particle_type.value}', append=True, overwrite=True, serialize_meta=True)
         # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")

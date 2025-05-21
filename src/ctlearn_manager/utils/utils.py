@@ -12,7 +12,7 @@ from astropy.table import Table
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
-__all__ = ['DefaultCuts', 'plot_pointing_on_ax', 'remove_row_from_table_utils', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
+__all__ = ['DefaultCuts', 'remove_table_from_h5', 'plot_pointing_on_ax', 'remove_row_from_table_utils', 'Cuts', 'CutType', 'get_irf_type_from_config',  'IRFType', 'CTLearnManagerStyle', 'set_mpl_style', 'angular_distance', 'get_dates_from_runs', 'get_files_LST_cluster', 'get_files_cscs', 'get_avg_pointing', 'get_predict_data_sbatch_script', 'remove_model_from_index', 'ClusterConfiguration', 'calc_flux_for_N_sigma', 'find_68_percent_range', 'ClusterConfiguration', 'ParticleType', 'get_current_env', 'DataSample']
 
 class CTLearnManagerStyle(Enum):
     """
@@ -222,6 +222,27 @@ def remove_row_from_table_utils(index_file, table_path: str, row_index: int):
             print(f"Row {row_index} successfully removed from table at path {table_path}.")
         except Exception as e:
             raise IOError(f"Error writing updated table to path {table_path}: {e}")
+        
+def remove_table_from_h5(file_path: str, table_path: str):
+    import h5py
+    """
+    Remove a table from an HDF5 file.
+
+    :param file_path: Path to the HDF5 file.
+    :type file_path: str
+    :param table_path: Path to the table within the HDF5 file.
+    :type table_path: str
+    """
+
+    try:
+        with h5py.File(file_path, 'a') as h5_file:
+            if table_path in h5_file:
+                del h5_file[table_path]
+                print(f"Table '{table_path}' successfully removed from file '{file_path}'.")
+            else:
+                print(f"Table '{table_path}' not found in file '{file_path}'.")
+    except Exception as e:
+        raise IOError(f"Error while removing table '{table_path}' from file '{file_path}': {e}")
 
 # def write_sbatch_script(cluster_configuration: ClusterConfiguration, job_name, cmd, sbatch_scripts_dir):
 #     sh_script = get_predict_data_sbatch_script(cluster_configuration.cluster, cmd, job_name, sbatch_scripts_dir, cluster_configuration.account, cluster_configuration.env_name)

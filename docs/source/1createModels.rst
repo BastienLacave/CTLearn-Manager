@@ -15,12 +15,16 @@ First, define a model index where the Manager's data will be stored.
     # Where all the models are stored
     MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
 
-::
-    model_dir
-    ├── model_nickname
-    │   ├── model_nickname_v0
-    │   ├── model_nickname_v1
-    │   ├── model_nickname_v2
+
+model_dir
+
+├── model_nickname
+
+│   ├── model_nickname_v0
+
+│   ├── model_nickname_v1
+
+│   ├── model_nickname_v2
     
 Your model needs training data.
 Create a series of ``TrainingSamples`` for your model. Each ``TrainingSample`` contains the path to the training files.
