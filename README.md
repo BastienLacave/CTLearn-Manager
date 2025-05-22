@@ -1,7 +1,11 @@
 <!-- ![CTLearn Manager Logo](CTLearnManager.png) -->
+<img src="CreateModelsTransp.png" alt="drawing"/>
+<div align="center">
+    <img src="CTLearnManager.png" alt="drawing" width="300"/>
+</div>
 
-<img src="CTLearnManager.png" alt="drawing" width="400"/>
-
+<br>
+<br>
 
 # CTLearn Manager
 
