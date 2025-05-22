@@ -153,16 +153,17 @@ def process_dl2_file():
             n_off = 3
 
             intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
-            I_g_on_counts = []
-            I_g_off_counts = []
-            for I_min, I_max in intensity_ranges:
-                excess_counts = []
-                off_counts = []
+            I_g_on_counts = np.empty(len(intensity_ranges), dtype=object)
+            I_g_off_counts = np.empty(len(intensity_ranges), dtype=object)
+            for i, I_min, I_max in enumerate(intensity_ranges):
+                excess_counts = np.empty(len(gammaness_cuts), dtype=object)
+                off_counts = np.empty(len(gammaness_cuts), dtype=object)
                 # print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)
-                for gcut in tqdm(
-                    gammaness_cuts,
+                for j, gcut in tqdm(
+                    enumerate(gammaness_cuts),
                     desc=f"Computing excesses for [{I_min} - {I_max}] p.e.",
                     unit="gcut",
+                    total=len(gammaness_cuts),
                 ):
                     # print(f"Computing excesses for gammaness cut {gcut}", flush=True)
                     total_excess = 0
@@ -183,11 +184,11 @@ def process_dl2_file():
                     total_excess += on_count - off_count / n_off
                     total_off += off_count / n_off
 
-                    excess_counts.append(total_excess)
-                    off_counts.append(total_off)
+                    excess_counts[j] = total_excess
+                    off_counts[j] = total_off
 
-                I_g_on_counts.append(excess_counts)
-                I_g_off_counts.append(off_counts)
+                I_g_on_counts[i] = excess_counts
+                I_g_off_counts[i] = off_counts
 
             with open(I_g_on_counts_output_file, "wb") as f:
                 pickle.dump(I_g_on_counts, f)

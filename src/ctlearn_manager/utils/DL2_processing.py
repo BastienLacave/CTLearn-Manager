@@ -116,10 +116,10 @@ class DL2DataProcessor:
         self.CTLearn = True
         # self.edep_cuts = edep_cuts
         # print(self.edep_cuts)
-        E_bins_tot = []
-        GH_cuts_tot = []
-        Theta_cuts_tot = []
-        for cut in self.cuts:
+        E_bins_tot = np.empty(len(self.cuts), dtype=object)
+        GH_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        Theta_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        for i, cut in enumerate(self.cuts):
             if (
                 cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
                 or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
@@ -136,16 +136,16 @@ class DL2DataProcessor:
                 with fits.open(cuts_file, mode="readonly") as hdul:
                     E_bins = hdul["GH_CUTS"].data["low"]
                     E_bins = np.append(E_bins, hdul["GH_CUTS"].data["high"][-1]) * u.TeV
-                    E_bins_tot.append(E_bins)
+                    E_bins_tot[i] = E_bins
 
                     GH_cuts = hdul["GH_CUTS"].data["cut"]
-                    GH_cuts_tot.append(GH_cuts)
+                    GH_cuts_tot[i] = GH_cuts
 
                     Theta_cuts = hdul["RAD_MAX"].data["cut"]
-                    Theta_cuts_tot.append(Theta_cuts)
+                    Theta_cuts_tot[i] = Theta_cuts
             else:
                 E_bins = default_E_bins
-                E_bins_tot.append(E_bins)
+                E_bins_tot[i] = E_bins
         self.E_bins = E_bins_tot
         self.GH_cuts = GH_cuts_tot
         self.Theta_cuts = Theta_cuts_tot
@@ -297,18 +297,19 @@ class DL2DataProcessor:
     def load_processed_data(self):
         from tqdm import tqdm
 
-        self.reco_directions = []
-        self.pointings = []
-        self.dl2s = []
-        # self.dl2s_cuts = []
-        self.cuts_masks = []
-        self.cuts_masks_gammaness_only = []
-        self.I_g_on_counts = []
-        self.I_g_off_counts = []
-        self.corresponding_models = []
+        self.reco_directions = np.empty(len(self.DL2_files), dtype=object)
+        self.pointings = np.empty(len(self.DL2_files), dtype=object)
+        self.dl2s = np.empty(len(self.DL2_files), dtype=object)
+        # self.dl2s_cuts = np.empty(len(self.DL2_files), dtype=object)
+        self.cuts_masks = np.empty(len(self.DL2_files), dtype=object)
+        self.cuts_masks_gammaness_only = np.empty(len(self.DL2_files), dtype=object)
+        self.I_g_on_counts = np.empty(len(self.DL2_files), dtype=object)
+        self.I_g_off_counts = np.empty(len(self.DL2_files), dtype=object)
+        self.corresponding_models = np.empty(len(self.DL2_files), dtype=object)
+        failed_mask = np.ones(len(self.DL2_files), dtype=bool)
 
-        for DL2_file in tqdm(
-            self.DL2_files, desc="Loading processed data"
+        for i, DL2_file in tqdm(
+            enumerate(self.DL2_files), desc="Loading processed data", total=len(self.DL2_files),
         ):  # , disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
             corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(
                 DL2_file,
@@ -317,7 +318,10 @@ class DL2DataProcessor:
                 az_key=self.pointing_az_key,
                 verbose=False,
             )
-            self.corresponding_models.append(corresponding_model)
+            if corresponding_model is None:
+                failed_mask[i] = False
+                continue
+            self.corresponding_models[i] = corresponding_model
             # if self.dl2_processed_dir is None:
             #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
             #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
@@ -330,25 +334,24 @@ class DL2DataProcessor:
             #     pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
             #     I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
             #     I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
-            dl2_output_file = os.path.join(
+            common_path = os.path.join(
                 f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
+                os.path.basename(DL2_file),
             )
-            reco_output_file = os.path.join(
-                f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
+            dl2_output_file = common_path.replace(
+                ".h5", "_dl2_processed.pkl"
             )
-            pointing_output_file = os.path.join(
-                f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file).replace(".h5", "_pointings.pkl"),
+            reco_output_file = common_path.replace(
+                ".h5", "_reco_directions.pkl"
             )
-            I_g_on_counts_output_file = os.path.join(
-                f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
+            pointing_output_file = common_path.replace(
+                ".h5", "_pointings.pkl"
             )
-            I_g_off_counts_output_file = os.path.join(
-                f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
+            I_g_on_counts_output_file = common_path.replace(
+                ".h5", "_I_g_on_counts.pkl"
+            )
+            I_g_off_counts_output_file = common_path.replace(
+                ".h5", "_I_g_off_counts.pkl"
             )
 
             if (
@@ -374,55 +377,52 @@ class DL2DataProcessor:
                     dec=transformed_pointing_dict["dec"] * u.deg,
                     frame=self.source_position,
                 )
-
-                self.reco_directions.append(transformed_reco)
-                self.pointings.append(transformed_pointing)
+                self.reco_directions[i] = transformed_reco
+                self.pointings[i] = transformed_pointing
 
                 with open(dl2_output_file, "rb") as f:
                     dl2 = pickle.load(f)
                 if self.gammaness_key in dl2.colnames:
                     dl2 = dl2[dl2[self.gammaness_key] > 0]  # Remove unpredicted events
-                    cut_mask = []
-                    cut_mask_gammaness_only = []
-                    for cut in self.cuts:
+                    cut_mask = np.empty(len(self.cuts), dtype=object)
+                    cut_mask_gammaness_only = np.empty(len(self.cuts), dtype=object)
+                    for j, cut in enumerate(self.cuts):
                         match cut.cut_type:
                             case CutType.GLOBAL:
-                                cut_mask.append(
-                                    dl2[self.gammaness_key] > cut.gammaness_cut
-                                )
-                                cut_mask_gammaness_only.append(
-                                    dl2[self.gammaness_key] > cut.gammaness_cut
-                                )
+                                cut_mask[j] = dl2[self.gammaness_key] > cut.gammaness_cut
+                                cut_mask_gammaness_only[j] = dl2[self.gammaness_key] > cut.gammaness_cut
 
                             case (
                                 CutType.EFFICIENCY_OPTIMIZED
                                 | CutType.SENSITIVITY_OPTIMIZED
                             ):
-                                cut_mask.append(
-                                    self.get_energy_dependent_mask_data(
+                                cut_mask[j] = self.get_energy_dependent_mask_data(
                                         dl2,
                                         corresponding_model,
                                         transformed_reco,
                                         cuts=cut,
                                     )
-                                )
-                                cut_mask_gammaness_only.append(
-                                    self.get_energy_dependent_mask_data(
+
+                                cut_mask_gammaness_only[j] = self.get_energy_dependent_mask_data(
                                         dl2,
                                         corresponding_model,
                                         transformed_reco,
                                         False,
                                         cuts=cut,
                                     )
-                                )
                 else:
                     cut_mask = [np.ones(len(dl2), dtype=bool)]
                     cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
-                self.cuts_masks.append(cut_mask)
-                self.cuts_masks_gammaness_only.append(cut_mask_gammaness_only)
-                self.dl2s.append(dl2)
+                self.cuts_masks[i] = cut_mask
+                self.cuts_masks_gammaness_only[i] = cut_mask_gammaness_only
+                self.dl2s[i] = dl2
+            else:
+                print(
+                    f"DL2 file {dl2_output_file} not found, skipping this file."
+                )
+                failed_mask[i] = False
+                continue
 
-                # self.dl2s_cuts.append(dl2_cuts)
             if (os.path.exists(I_g_on_counts_output_file)) and (
                 os.path.exists(I_g_off_counts_output_file)
             ):
@@ -431,8 +431,24 @@ class DL2DataProcessor:
                 with open(I_g_off_counts_output_file, "rb") as f:
                     I_g_off_counts = pickle.load(f)
 
-                self.I_g_on_counts.append(I_g_on_counts)
-                self.I_g_off_counts.append(I_g_off_counts)
+                self.I_g_on_counts[i] = I_g_on_counts
+                self.I_g_off_counts[i] = I_g_off_counts
+            else:
+                print(
+                    f"On-off counts files {I_g_on_counts_output_file} or {I_g_off_counts_output_file} not found, skipping this file."
+                )
+                failed_mask[i] = False
+                continue
+        
+        self.reco_directions = self.reco_directions[failed_mask]
+        self.pointings = self.pointings[failed_mask]
+        self.dl2s = self.dl2s[failed_mask]
+        self.cuts_masks = self.cuts_masks[failed_mask]
+        self.cuts_masks_gammaness_only = self.cuts_masks_gammaness_only[failed_mask]
+        self.I_g_on_counts = self.I_g_on_counts[failed_mask]
+        self.I_g_off_counts = self.I_g_off_counts[failed_mask]
+        self.corresponding_models = self.corresponding_models[failed_mask]
+        self.DL2_files = self.DL2_files[failed_mask]
 
     def get_energy_dependent_mask_data(
         self,
@@ -469,9 +485,9 @@ class DL2DataProcessor:
             on_separation = reco_coord.separation(self.source_position)
             data["angular_separation"] = on_separation
 
-            masks = []
-            for E_min, E_max, gcut, tcut in zip(
-                energy_low_gamma, energy_high_gamma, gammaness_cuts, theta_cuts
+            masks = np.empty(len(gammaness_cuts), dtype=object)
+            for i, E_min, E_max, gcut, tcut in zip(
+                range(len(gammaness_cuts)), energy_low_gamma, energy_high_gamma, gammaness_cuts, theta_cuts
             ):
                 energy_mask = (data[self.energy_key] > E_min) & (
                     data[self.energy_key] < E_max
@@ -483,7 +499,7 @@ class DL2DataProcessor:
                 else:
                     mask = energy_mask & gammaness_mask
 
-                masks.append(mask)
+                masks[i] = mask
 
             full_mask = np.zeros(len(data), dtype=bool)
             for mask in masks:
@@ -676,7 +692,7 @@ class DL2DataProcessor:
 
         new_ra = []
         new_dec = []
-        for angle in angles:
+        for i, angle in enumerate(angles):
             position_off = center.directional_offset_by(
                 angle_source + Angle(angle, "rad"), radius
             )
@@ -1061,7 +1077,7 @@ class DL2DataProcessor:
             if ax is None:
                 plt.show()
 
-    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None):
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC=False):
         import matplotlib.pyplot as plt
 
         if ax is None:
@@ -1195,7 +1211,19 @@ class DL2DataProcessor:
                 alpha=0.3,
                 zorder=0,
             )
-        cut.efficiency_theta = stored_efficiency_theta
+            for tri_model in tqdm(self.CTLearnTriModelCollection.tri_models[4:5], desc="Plotting MC curves"):
+                coords = tri_model.get_available_MC_directions(verbose=False)
+                if len(coords) > 0:
+                    for zenith, azimuth in coords:
+                        e_bins, ang_res_err = tri_model.get_angular_resolution_DL2(
+                            zenith = zenith,
+                            azimuth = azimuth,
+                            cuts = cut,
+                        )
+                        e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                        ang_res = [e_r[0].value for e_r in ang_res_err]
+                        ax.plot(e, ang_res, label=f"MC ({zenith.value:.1f}, {azimuth.value:.1f})°", zorder=10)
+            cut.efficiency_theta = stored_efficiency_theta
         ax.legend()
         ax.set_ylabel("68% cont. [deg]")
         ax.set_xlabel("Reco Energy [TeV]")
@@ -1206,18 +1234,21 @@ class DL2DataProcessor:
         ax.set_ylim(bottom=0.0)
         ax.set_title("Point Spread Function")
 
+        
+
         if output_file is not None:
             plt.savefig(output_file)
         else:
             if ax is None:
                 plt.show()
+        
         # plt.show()
 
     def get_gammaness_cuts_for_efficiencies(
         self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None
     ):
-        gammaness_cuts = []
-        for efficiency in efficiencies:
+        gammaness_cuts = np.empty(len(efficiencies), dtype=float)
+        for i, efficiency in enumerate(efficiencies):
             if E_min is not None and E_max is not None:
                 mask = (MC_dl2[self.energy_key] > E_min) & (
                     MC_dl2[self.energy_key] < E_max
@@ -1232,14 +1263,14 @@ class DL2DataProcessor:
             sorted_gammaness = np.sort(MC_dl2[self.gammaness_key][mask])
             cut_index = int((1 - efficiency) * len(sorted_gammaness))
             gammaness_cut = sorted_gammaness[cut_index]
-            gammaness_cuts.append(gammaness_cut)
+            gammaness_cuts[i] = gammaness_cut
         return gammaness_cuts
 
     def get_efficiency_for_gamaness_cuts(
         self, MC_dl2, gammaness_cuts, E_min=None, E_max=None, I_min=None, I_max=None
     ):
-        efficiencies = []
-        for gammaness_cut in gammaness_cuts:
+        efficiencies = np.empty(len(gammaness_cuts), dtype=float)
+        for i, gammaness_cut in enumerate(gammaness_cuts):
             if E_min is not None and E_max is not None:
                 mask = (MC_dl2[self.energy_key] > E_min) & (
                     MC_dl2[self.energy_key] < E_max
@@ -1253,7 +1284,7 @@ class DL2DataProcessor:
 
             mask &= MC_dl2[self.gammaness_key] > gammaness_cut
             efficiency = len(MC_dl2[mask]) / len(MC_dl2)
-            efficiencies.append(efficiency)
+            efficiencies[i] = efficiency
         return efficiencies
 
     def plot_bkg_discrimination_capability(

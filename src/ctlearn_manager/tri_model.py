@@ -1513,30 +1513,43 @@ class CTLearnTriModelManager:
             raise RuntimeError(
                 f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
-        self.direction_model.update_model_manager_IRF_data(
-            config,
-            output_cuts_file,
-            output_irf_file,
-            output_benchmark_file,
-            zenith,
-            azimuth,
-        )
-        self.energy_model.update_model_manager_IRF_data(
-            config,
-            output_cuts_file,
-            output_irf_file,
-            output_benchmark_file,
-            zenith,
-            azimuth,
-        )
-        self.type_model.update_model_manager_IRF_data(
-            config,
-            output_cuts_file,
-            output_irf_file,
-            output_benchmark_file,
-            zenith,
-            azimuth,
-        )
+        for model in [
+            self.direction_model,
+            self.energy_model,
+            self.type_model,
+        ]:
+            model.update_model_manager_IRF_data(
+                config,
+                output_cuts_file,
+                output_irf_file,
+                output_benchmark_file,
+                zenith,
+                azimuth,
+            )
+        # self.direction_model.update_model_manager_IRF_data(
+        #     config,
+        #     output_cuts_file,
+        #     output_irf_file,
+        #     output_benchmark_file,
+        #     zenith,
+        #     azimuth,
+        # )
+        # self.energy_model.update_model_manager_IRF_data(
+        #     config,
+        #     output_cuts_file,
+        #     output_irf_file,
+        #     output_benchmark_file,
+        #     zenith,
+        #     azimuth,
+        # )
+        # self.type_model.update_model_manager_IRF_data(
+        #     config,
+        #     output_cuts_file,
+        #     output_irf_file,
+        #     output_benchmark_file,
+        #     zenith,
+        #     azimuth,
+        # )
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def plot_benchmark(
