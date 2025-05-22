@@ -1094,19 +1094,23 @@ class CTLearnModelManager:
         )[0]
         if len(match) > 0:
             DL2_table.remove_rows(match)
-        DL2_table.add_row(
-            [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth]
-        )
-        write_table_hdf5(
-            DL2_table,
-            self.model_index_file,
-            path=f"{self.model_nickname}/DL2/MC/{particle_type.value}",
-            append=True,
-            overwrite=True,
-            serialize_meta=True,
-        )
-        print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
-
+            DL2_table.add_row(
+                [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth]
+            )
+            write_table_hdf5(
+                DL2_table,
+                self.model_index_file,
+                path=f"{self.model_nickname}/DL2/MC/{particle_type.value}",
+                append=True,
+                overwrite=True,
+                serialize_meta=True,
+            )
+            print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
+        else:
+            raise ValueError(
+                f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
+            )
+        
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def update_model_manager_IRF_data(
         self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth

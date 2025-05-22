@@ -990,15 +990,23 @@ class CTLearnTriModelManager:
             print(f"Running : {cmd}")
             result = os.system(cmd)
             if result == 0:
-                self.direction_model.update_merged_DL2_MC_files(
-                    zenith, azimuth, output_file, particle_type
-                )
-                self.energy_model.update_merged_DL2_MC_files(
-                    zenith, azimuth, output_file, particle_type
-                )
-                self.type_model.update_merged_DL2_MC_files(
-                    zenith, azimuth, output_file, particle_type
-                )
+                for model in [
+                    self.direction_model,
+                    self.energy_model,
+                    self.type_model,
+                ]:
+                    model.update_merged_DL2_MC_files(
+                        zenith, azimuth, output_file, particle_type
+                    )
+                # self.direction_model.update_merged_DL2_MC_files(
+                #     zenith, azimuth, output_file, particle_type
+                # )
+                # self.energy_model.update_merged_DL2_MC_files(
+                #     zenith, azimuth, output_file, particle_type
+                # )
+                # self.type_model.update_merged_DL2_MC_files(
+                #     zenith, azimuth, output_file, particle_type
+                # )
                 print("Original files still exist and were not erased.")
             else:
                 print(
