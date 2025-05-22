@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 3. Tri-Model Managers
 =====================
 
@@ -25,3 +27,5 @@ One can plot the loss function evolution for the tree models:
 .. image:: images/TriModelLoss.png
     :width: 800
     :align: center
+
+.. image:: images/CreateModelsBottom.png

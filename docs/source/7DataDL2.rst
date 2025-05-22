@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 8. Real data DL2 analysis
 =========================
 
@@ -105,3 +107,6 @@ WhoIsBetter
 .. code-block:: python
 
     WhoIsBetter = WhoIsBetter([DL2Processor, RFDL2Processor, Combinator2000], labels=["CTLearn", "RF", "Combinator2000"])
+
+
+.. image:: images/CreateModelsBottom.png

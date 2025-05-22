@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 1. Creating CTLearn Model Managers
 ==================================
 
@@ -16,15 +18,15 @@ First, define a model index where the Manager's data will be stored.
     MODEL_INDEX_FILE = "/path/to/your/ctlearn_models_index.h5"
 
 
-model_dir
+.. note::
 
-├── model_nickname
-
-│   ├── model_nickname_v0
-
-│   ├── model_nickname_v1
-
-│   ├── model_nickname_v2
+    The directory structure is as follow:
+    ::
+        model_dir
+        ├── model_nickname
+        │   ├── model_nickname_v0
+        │   ├── model_nickname_v1
+        │   ├── model_nickname_v2
     
 Your model needs training data.
 Create a series of ``TrainingSamples`` for your model. Each ``TrainingSample`` contains the path to the training files.
@@ -93,3 +95,5 @@ In order to check if your model is correctly set up, you can plot the zenith and
 .. image:: images/ZeAzRanges.png
   :width: 400
   :alt: Alt az ranges
+
+.. image:: images/CreateModelsBottom.png

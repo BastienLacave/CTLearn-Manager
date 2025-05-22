@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 6. Monte-Carlo DL2 analysis
 ===========================
 
@@ -223,3 +225,5 @@ You can also specify the ``ParticleType`` to plot the angular resolution for a s
 .. .. image:: images/AeffIRF.png
 
 .. .. image:: images/bkgIRF.png
+
+.. image:: images/CreateModelsBottom.png

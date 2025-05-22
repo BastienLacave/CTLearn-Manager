@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 5. IRFs
 =======
 
@@ -75,3 +77,5 @@ One can look into the cuts, benchmark and IRF files produced.
     Tri_Model.plot_cuts(zenith, azimuth)
     Tri_Model.plot_benchmark(zenith, azimuth)
     Tri_Model.plot_irfs(zenith, azimuth)
+
+.. image:: images/CreateModelsBottom.png

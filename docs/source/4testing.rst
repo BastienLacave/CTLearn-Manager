@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 4. Testing
 ==========
 
@@ -41,7 +43,7 @@ The first step is to set the testing directories for gamma and protons, and thei
 Then, the user can launch the training for any of the coordinates of the testing files. One can access the available coordinates by calling ``get_available_testing_directions()``. 
 A few additional settings enable you to choose the output directories, what type of particle to launch, and the cluster configuration. The DL2 MC files will also be stored in the manager with their coordinates.
 
-.. info::
+.. note::
     
     ``Tri_Model.get_available_testing_directions()`` is a very usefule command from which you can directly copy and paste the direction you want to test on.
 
@@ -84,9 +86,4 @@ From there the user will be able to produce IRFs and DL2 analysis plots.
 
 
 
-
-
-
-
-
-
+.. image:: images/CreateModelsBottom.png

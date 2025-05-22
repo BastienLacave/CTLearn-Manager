@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 2. Training
 ===========
 
@@ -51,3 +53,4 @@ Finally, you can plot the loss function evolution :
     model.plot_loss()
 
 .. image:: images/Loss.png
+.. image:: images/CreateModelsBottom.png

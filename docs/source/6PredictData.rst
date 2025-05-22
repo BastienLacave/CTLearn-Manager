@@ -1,3 +1,5 @@
+.. image:: images/CreateModels.png
+
 7. DL1 to DL2 on real data
 ==========================
 
@@ -74,3 +76,5 @@ Use ``predict_lstchain_run`` if you are on the LST cluster and want to predict t
         )
 
 Use ``predict_lstchain_data`` if you are on the LST cluster and want to predict the data for a file.
+
+.. image:: images/CreateModelsBottom.png
