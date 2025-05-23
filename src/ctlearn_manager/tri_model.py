@@ -654,7 +654,7 @@ class CTLearnTriModelManager:
 --no-dl1-images --no-true-images --output {output_file} \
 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes={self.min_telescopes} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
-{config_string}"
+{config_string} --overwrite={overwrite}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
                 cmd = f"ctlearn-predict-mono-model --input_url {input_file} \
@@ -665,7 +665,7 @@ class CTLearnTriModelManager:
 --no-dl1-images --no-true-images --output {output_file} \
 --use-HDF5Merger{dl2_subarray_string} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
-{config_string}"
+{config_string} --overwrite={overwrite}"
 
             if self.cluster_configuration.use_cluster:
                 # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
