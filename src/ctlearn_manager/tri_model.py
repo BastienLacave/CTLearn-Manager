@@ -980,7 +980,7 @@ class CTLearnTriModelManager:
         import os
 
         files = self.direction_model.get_DL2_MC_files(
-            zenith, azimuth, particle_types=[particle_type]
+            zenith, azimuth, merged=False, particle_types=[particle_type]
         )[particle_type.value]
         if len(files) > 1:
             print(
@@ -1446,11 +1446,11 @@ class CTLearnTriModelManager:
 
         if pointlike:
             gamma_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT]
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=True
             )[ParticleType.GAMMA_POINT.value]
         else:
             gamma_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE]
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=True
             )[ParticleType.GAMMA_DIFFUSE.value]
         if len(gamma_files) > 1:
             raise ValueError(
@@ -1459,7 +1459,7 @@ class CTLearnTriModelManager:
         gamma_file = gamma_files[0]
         if electrons:
             electrons_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.ELECTRON]
+                zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
             )[ParticleType.ELECTRON.value]
             if len(electrons_files) > 1:
                 raise ValueError(
@@ -1469,7 +1469,7 @@ class CTLearnTriModelManager:
 
         if protons:
             proton_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.PROTON]
+                zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
             )[ParticleType.PROTON.value]
             if len(proton_files) > 1:
                 raise ValueError(

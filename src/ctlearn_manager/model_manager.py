@@ -833,6 +833,9 @@ class CTLearnModelManager:
                 DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
                 == testing_azimuth
             )
+            & (
+                DL2_gamma_table["merged"] is False
+            )
         )[0]
         if len(match) == 0:
             assert testing_zenith_distance.unit == u.deg, (
@@ -842,7 +845,7 @@ class CTLearnModelManager:
                 f"Azimuth must be in degrees: {testing_azimuth}"
             )
             DL2_gamma_table.add_row(
-                [testing_MC_DL2_file, testing_zenith_distance, testing_azimuth]
+                [testing_MC_DL2_file, testing_zenith_distance, testing_azimuth, False]
             )
         write_table_hdf5(
             DL2_gamma_table,
@@ -1022,11 +1025,14 @@ class CTLearnModelManager:
                 DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
                 == testing_DL2_azimuth
             )
+            & (
+                DL2_table["merged"] is False
+            )
         )[0]
         if len(match) > 0:
-            DL2_table.remove_rows(match)
+            # DL2_table.remove_rows(match)
             DL2_table.add_row(
-                [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth]
+                [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth, True]
             )
             write_table_hdf5(
                 DL2_table,
@@ -1329,6 +1335,7 @@ class CTLearnModelManager:
         self,
         zenith: float,
         azimuth: float,
+        merged: bool = None,
         particle_types: list[ParticleType] = [
             ParticleType.GAMMA_POINT,
             ParticleType.PROTON,
@@ -1378,7 +1385,45 @@ class CTLearnModelManager:
                     self.model_index_file,
                     path=dl2_mc_index_table.table_path,
                 )
-                match = np.where(
+
+                if merged is None:
+                    pre_match = np.where(
+                        (
+                            DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+                            == zenith
+                        )
+                        & (
+                            DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+                            == azimuth
+                        )
+                    )[0]
+                    merged_states = DL2_table["merged"][pre_match]
+                    if True in merged_states:
+                        match = np.where(
+                            (
+                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+                                == zenith
+                            )
+                            & (
+                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+                                == azimuth
+                            )
+                            & (DL2_table["merged"] is True)
+                        )[0]
+                    else:
+                        match = np.where(
+                            (
+                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+                                == zenith
+                            )
+                            & (
+                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+                                == azimuth
+                            )
+                            & (DL2_table["merged"] is False)
+                        )[0]
+                else:
+                    match = np.where(
                     (
                         DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
                         == zenith
@@ -1387,6 +1432,7 @@ class CTLearnModelManager:
                         DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
                         == azimuth
                     )
+                    & (DL2_table["merged"] == merged)
                 )[0]
                 if len(match) == 0:
                     raise IndexError(

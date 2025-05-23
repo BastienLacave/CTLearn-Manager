@@ -12,15 +12,17 @@ class IndexTables():
         self.particle_type = particle_type
 
         if self.particle_type is not None:
+
             self.DL2_MC = self.IndexTable(
                 QTable(
                         names=[
                             f"testing_DL2_{self.particle_type.value}_files",
                             f"testing_DL2_{self.particle_type.value}_zenith_distances",
                             f"testing_DL2_{self.particle_type.value}_azimuths",
+                            "merged",
                         ],
-                        dtype=["S256", float, float],
-                        units=[None, "deg", "deg"],
+                        dtype=["S256", float, float, bool],
+                        units=[None, "deg", "deg", None],
                     ),
                 f"{self.model_manager.model_nickname}/DL2/MC/{particle_type.value}"
                 )
@@ -114,7 +116,7 @@ class IndexTables():
             f"{self.model_manager.model_nickname}/IRF"
         )
 
-        
+
         self.DL2_DATA = self.IndexTable(
             QTable(
                 names=["DL2_files", "DL2_zenith_distances", "DL2_azimuths"],
