@@ -8,6 +8,7 @@ import astropy.units as u
 import ctadata
 import numpy as np
 from astropy.table import Table
+import matplotlib.pyplot as plt
 
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
@@ -37,6 +38,8 @@ __all__ = [
     "ParticleType",
     "get_current_env",
     "DataSample",
+    "ExportCurves",
+    "CurveType",
 ]
 
 
@@ -918,5 +921,105 @@ def get_irf_type_from_config(config):
             raise ValueError(
                 f"Unknown optimization algorithm: {optimization_algorithm}"
             )
-                
+class CurveType(Enum):
+    GH_CUTS = "GH_cuts"
+    THETA_CUTS = "theta_cuts"
+    ANGULAR_RESOLUTION = "angular_resolution"
+    ENERGY_RESOLUTION = "energy_resolution"
+    ROC = "ROC"
+    SENSITIVITY = "sensitivity"
+
+
+class ExportCurves:
+    
+
+    def __init__(self, file_path: str, export_mode: bool=True):
+        """
+        Initialize the ExportCurves class.
         
+        :param curves: A dictionary containing the curves to export.
+        :type curves: dict
+        :param file_path: The path to the output CSV file.
+        :type file_path: str
+        """
+        import os
+        import pickle
+
+        self.export_mode = export_mode
+        self.file_path = file_path
+        self.directory = os.path.dirname(file_path)
+        self.x_values = []
+        self.y_values = []
+        self.curve_types = []
+        self.cuts = []
+        if not self.export_mode:
+            import h5py
+            with h5py.File(self.file_path, "r") as f:
+                print("Groups in the HDF5 file:")
+                for group in f.keys():
+                    print(group)
+                    self.curve_types.append(group)
+                    self.x_values.append(f[group]["x"])
+                    self.y_values.append(f[group]["y"])
+                    cut_string = f[group]["cuts"][0]
+                    cuts_pkl_file = f"{self.directory}/{cut_string}.pkl"
+                    with open(cuts_pkl_file, "rb") as f:
+                        cuts = pickle.load(f)
+                    self.cuts.append(cuts)
+
+
+    def add_curve(self, x_values: list, y_values:list, curve_type: CurveType, cuts: Cuts):
+        """
+        Add a curve to the export.
+        
+        :param x_values: The x values of the curve.
+        :type x_values: list or np.ndarray
+        :param y_values: The y values of the curve.
+        :type y_values: list or np.ndarray
+        :param label: The label for the curve, defaults to None.
+        :type label: str, optional
+        """
+        assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
+        assert len(x_values) == len(y_values), "x_values and y_values must have the same length."
+
+        self.x_values.append(x_values)
+        self.y_values.append(y_values)
+        self.curve_types.append(f"{curve_type.value}_{len(self.x_values)}")
+        self.cuts.append(cuts)
+
+
+    def export(self):
+        from astropy.io.misc.hdf5 import write_table_hdf5
+        import pickle
+
+        assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
+
+
+
+        for i, x, y, label, cuts in zip(range(len(self.curve_types)), self.x_values, self.y_values, self.curve_types, self.cuts):
+            cuts_pkl_file = f"{self.directory}/{str(cuts)}.pkl"
+            with open(cuts_pkl_file, "wb") as f:
+                pickle.dump(cuts, f)
+            cut_data = [str(cuts)] * len(x)  # Convert Cuts object to string for storage
+            table = Table(data=[x, y, cut_data], names=["x", "y", "cuts"])
+            write_table_hdf5(
+                table,
+                self.file_path,
+                path=label,
+                append=True,
+                overwrite=True,
+                # serialize_meta=True,
+            )
+        print(f"Curves successfully exported to {self.file_path}")
+
+    def plot_curves(self, ax: plt.axis, **kwargs):
+        """
+        Plot the curves on the given axes.
+        
+        :param ax: The axes to plot the curves on.
+        :type ax: matplotlib.axes.Axes
+        :param kwargs: Additional keyword arguments for plotting.
+        """
+        import matplotlib.pyplot as plt
+        for x, y, cut in zip(self.x_values, self.y_values, self.cuts):
+            ax.plot(x, y, label=cut.get_label(), **kwargs)

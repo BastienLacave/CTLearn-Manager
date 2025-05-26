@@ -19,6 +19,8 @@ from .utils.utils import (
     angular_distance,
     plot_pointing_on_ax,
     set_mpl_style,
+    ExportCurves,
+    CurveType,
 )
 
 __all__ = [
@@ -1780,6 +1782,7 @@ class CTLearnTriModelManager:
         cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
         axs=None,
         label=None,
+        export_to_h5: str=None,
     ):
         """
         Plot the cuts for given zenith and azimuth directions.
@@ -1806,6 +1809,9 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.io import fits
 
+        if export_to_h5 is not None:
+            export_curves = ExportCurves(export_to_h5)
+
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
         else:
@@ -1829,6 +1835,7 @@ class CTLearnTriModelManager:
                 else:
                     l = label
                 with fits.open(cuts_file) as hdul:
+                    export_curves.add_curve(hdul["GH_CUTS"].data["center"], hdul["GH_CUTS"].data["cut"], CurveType.GH_CUTS, cuts=cut)
                     axs[0].plot(
                         hdul["GH_CUTS"].data["center"],
                         hdul["GH_CUTS"].data["cut"],
@@ -1838,6 +1845,7 @@ class CTLearnTriModelManager:
                     axs[0].set_ylabel("Gammaness cut")
                     axs[0].set_xscale("log")
 
+                    export_curves.add_curve(hdul["RAD_MAX"].data["center"], hdul["RAD_MAX"].data["cut"], CurveType.THETA_CUTS, cuts=cut)
                     axs[1].plot(
                         hdul["RAD_MAX"].data["center"],
                         hdul["RAD_MAX"].data["cut"],
@@ -1849,7 +1857,8 @@ class CTLearnTriModelManager:
         if len(cuts) > 1:
             axs[0].legend()
             axs[1].legend()
-
+        if export_to_h5 is not None:
+            export_curves.export()
         plt.tight_layout()
         if axs is None:
             plt.show()
@@ -1971,6 +1980,7 @@ class CTLearnTriModelManager:
         figsize=None,
         ax=None,
         label=None,
+        export_to_h5: str = None,
     ):
         """
         Plot the angular resolution as a function of true energy for DL2 data.
@@ -2010,6 +2020,9 @@ class CTLearnTriModelManager:
         """
         import astropy.units as u
         import matplotlib.pyplot as plt
+
+        if export_to_h5 is not None:
+            export_curves = ExportCurves(export_to_h5)
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -2126,7 +2139,14 @@ class CTLearnTriModelManager:
                 # except IndexError as e:
                 #     print(e)
                 #     print("Skipping this zenith/azimuth pair")
-
+                export_curves.add_curve(
+                    e,
+                    ang_res,
+                    CurveType.ANGULAR_RESOLUTION,
+                    cuts=cut,
+                )
+        if export_to_h5 is not None:
+            export_curves.export()
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
         ax.set_xscale("log")
@@ -2315,6 +2335,7 @@ class CTLearnTriModelManager:
         figsize=None,
         ax=None,
         label=None,
+        export_to_h5: str = None,
     ):
         """
         Plot the energy resolution as a function of true energy for DL2 data.
@@ -2355,6 +2376,9 @@ class CTLearnTriModelManager:
         get_energy_resolution_DL2 : Compute energy resolution for given parameters.
         """
         import matplotlib.pyplot as plt
+
+        if export_to_h5 is not None:
+            export_curves = ExportCurves(export_to_h5)
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -2457,6 +2481,14 @@ class CTLearnTriModelManager:
                         ls="--",
                     )
                     ax.fill_between(e, e_res_min, e_res_max, alpha=0.2)
+                export_curves.add_curve(
+                    e,
+                    e_res,
+                    CurveType.ENERGY_RESOLUTION,
+                    cuts=cut,
+                )
+        if export_to_h5 is not None:
+            export_curves.export()
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
         ax.set_xscale("log")
@@ -2549,6 +2581,9 @@ class CTLearnTriModelManager:
         import numpy as np
         from astropy.table import join, vstack
 
+        # if export_to_h5 is not None:
+        #     export_curves = ExportCurves(export_to_h5)
+
         testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(
             zenith, azimuth
         )[ParticleType.GAMMA_POINT.value]
@@ -2609,6 +2644,7 @@ class CTLearnTriModelManager:
             )
             * u.TeV
         )
+
         ctaplot.plot_roc_curve_gammaness_per_energy(
             mc_type,
             gammaness,
