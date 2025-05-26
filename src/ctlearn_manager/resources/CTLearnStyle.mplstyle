@@ -14,7 +14,7 @@ axes.spines.left : True
 #axes.xmargin : 0.1
 axes.ymargin : 0.1
 #axes.facecolor : (0.0, 0.0, 0.0, 0.0)
-legend.fontsize : 10
+legend.fontsize : 9
 legend.markerscale : 1.
 patch.linewidth : 2
 
