@@ -5,6 +5,7 @@ from pathlib import Path
 
 import astropy.units as u
 import numpy as np
+from tqdm import tqdm
 
 from .io.io import load_DL2_data_MC, load_true_shower_parameters
 from .model_manager import CTLearnModelManager, DataSample
@@ -260,7 +261,7 @@ class CTLearnTriModelManager:
         testing samples. After updating, it retrieves the available testing
         directions.
         """
-        for model in [self.direction_model, self.energy_model, self.type_model]:
+        for model in tqdm([self.direction_model, self.energy_model, self.type_model], desc="Setting testing data"):
             for data_sample in testing_samples:
                 model.update_model_manager_testing_data(data_sample)
         self.get_available_testing_directions()
@@ -654,7 +655,7 @@ class CTLearnTriModelManager:
 --no-dl1-images --no-true-images --output {output_file} \
 --DLImageReader.mode=stereo --PredictCTLearnModel.stack_telescope_images=True --DLImageReader.min_telescopes={self.min_telescopes} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
-{config_string}"
+{config_string}"# --overwrite={overwrite}"
             else:
                 # cmd = f"ctlearn-predict-mono --input_url {input_file} --type_model={type_model_dir}/ctlearn_model.cpk --energy_model={energy_model_dir}/ctlearn_model.cpk --direction_model={direction_model_dir}/ctlearn_model.cpk --no-dl1-images --no-true-images --output {output_file} --overwrite -v {channels_string}"
                 cmd = f"ctlearn-predict-mono-model --input_url {input_file} \
@@ -665,7 +666,7 @@ class CTLearnTriModelManager:
 --no-dl1-images --no-true-images --output {output_file} \
 --use-HDF5Merger{dl2_subarray_string} \
 --PredictCTLearnModel.overwrite_tables=True -v {channels_string} {force_dl1_lookup_string} \
-{config_string}"
+{config_string}"# --overwrite={overwrite}"
 
             if self.cluster_configuration.use_cluster:
                 # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
@@ -980,7 +981,7 @@ class CTLearnTriModelManager:
         import os
 
         files = self.direction_model.get_DL2_MC_files(
-            zenith, azimuth, particle_types=[particle_type]
+            zenith, azimuth, merged=False, particle_types=[particle_type]
         )[particle_type.value]
         if len(files) > 1:
             print(
@@ -1012,9 +1013,21 @@ class CTLearnTriModelManager:
                 print(
                     f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}"
                 )
-        else:
+        elif len(files) == 1:
+            for model in [
+                    self.direction_model,
+                    self.energy_model,
+                    self.type_model,
+                ]:
+                    model.update_merged_DL2_MC_files(
+                        zenith, azimuth, files[0], particle_type
+                    )
             print(
-                f"✅ There already is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}"
+                f"✅ There is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}, a new row has been added as 'merged' in the model index, as a duplicate of the single file row. To add more files, simply run testing and merge again."
+            )
+        else:
+            raise ValueError(
+                f"No DL2 MC files found for zenith {zenith} and azimuth {azimuth} for particle type {particle_type.value}"
             )
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
@@ -1446,11 +1459,11 @@ class CTLearnTriModelManager:
 
         if pointlike:
             gamma_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT]
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=True
             )[ParticleType.GAMMA_POINT.value]
         else:
             gamma_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE]
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=True
             )[ParticleType.GAMMA_DIFFUSE.value]
         if len(gamma_files) > 1:
             raise ValueError(
@@ -1459,7 +1472,7 @@ class CTLearnTriModelManager:
         gamma_file = gamma_files[0]
         if electrons:
             electrons_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.ELECTRON]
+                zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
             )[ParticleType.ELECTRON.value]
             if len(electrons_files) > 1:
                 raise ValueError(
@@ -1469,7 +1482,7 @@ class CTLearnTriModelManager:
 
         if protons:
             proton_files = self.direction_model.get_DL2_MC_files(
-                zenith, azimuth, particle_types=[ParticleType.PROTON]
+                zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
             )[ParticleType.PROTON.value]
             if len(proton_files) > 1:
                 raise ValueError(
