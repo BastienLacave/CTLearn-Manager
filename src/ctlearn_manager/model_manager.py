@@ -770,9 +770,9 @@ class CTLearnModelManager:
             overwrite=True,
             serialize_meta=True,
         )
-        print(
-            f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) deg : {testing_dir}/{testing_pattern} updated"
-        )
+        # print(
+        #     f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) : {testing_dir}/{testing_pattern} updated"
+        # )
 
     def update_model_manager_DL2_MC_file(
         self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
@@ -835,7 +835,7 @@ class CTLearnModelManager:
                 == testing_azimuth
             )
             & (
-                DL2_gamma_table["merged"] is False
+                DL2_gamma_table["merged"] == False
             )
         )[0]
         if len(match) == 0:
@@ -1012,7 +1012,7 @@ class CTLearnModelManager:
 
         dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
 
-        print(f"💾 Model {self.model_nickname} DL2 merged data update:")
+        # print(f"💾 Model {self.model_nickname} DL2 merged data update:")
         DL2_table = read_table_hdf5(
             self.model_index_file,
             path=dl2_mc_index_table.table_path,
@@ -1027,11 +1027,25 @@ class CTLearnModelManager:
                 == testing_DL2_azimuth
             )
             & (
-                DL2_table["merged"] is False
+                DL2_table["merged"] == False  # noqa: E712
             )
         )[0]
         if len(match) > 0:
-            # DL2_table.remove_rows(match)
+            match = np.where(
+                (
+                    DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+                    == testing_DL2_zenith_distance
+                )
+                & (
+                    DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+                    == testing_DL2_azimuth
+                )
+                & (
+                    DL2_table["merged"] == True  # noqa: E712
+                )
+            )[0]
+            if len(match) > 0:
+                DL2_table.remove_rows(match)
             DL2_table.add_row(
                 [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth, True]
             )
@@ -1043,7 +1057,7 @@ class CTLearnModelManager:
                 overwrite=True,
                 serialize_meta=True,
             )
-            print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
+            # print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
         else:
             raise ValueError(
                 f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
@@ -1409,7 +1423,7 @@ class CTLearnModelManager:
                                 DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
                                 == azimuth
                             )
-                            & (DL2_table["merged"] is True)
+                            & (DL2_table["merged"] == True)  # noqa: E712
                         )[0]
                     else:
                         match = np.where(
@@ -1421,7 +1435,7 @@ class CTLearnModelManager:
                                 DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
                                 == azimuth
                             )
-                            & (DL2_table["merged"] is False)
+                            & (DL2_table["merged"] == False)  # noqa: E712
                         )[0]
                 else:
                     match = np.where(
@@ -1843,7 +1857,7 @@ class ModelRangeOfValidity:
 
         training_gamma_table = read_table_hdf5(
             model_manager.model_index_file,
-            path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
+            path=IndexTables(model_manager, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
         )
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
 
@@ -1935,7 +1949,7 @@ class ModelRangeOfValidity:
 
 class IndexTables:
 
-    def __call__(self, model_manager: CTLearnModelManager, particle_type: ParticleType=None):
+    def __init__(self, model_manager: CTLearnModelManager, particle_type: ParticleType=None):
         self.model_manager = model_manager
         self.particle_type = particle_type
 

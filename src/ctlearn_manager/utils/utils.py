@@ -245,9 +245,18 @@ srun {command}
         )
     return sbatch_predict_data_configs[cluster]
 
+def get_user_confirmation(prompt: str):
+    user_confirmation = input(
+        prompt
+    )
+    if user_confirmation.lower() != "yes":
+        raise ValueError("Operation cancelled by the user.")
+    
 
 def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
     import h5py
+    get_user_confirmation(f"Are you sure you want to remove the model '{model_nickname}' from the index? (yes/no): ")
+    
 
     with h5py.File(MODEL_INDEX_FILE, "a") as f:
         try:
@@ -259,6 +268,10 @@ def remove_model_from_index(model_nickname, MODEL_INDEX_FILE):
 
 def remove_row_from_table_utils(index_file, table_path: str, row_index: int):
     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+    get_user_confirmation(
+        f"Are you sure you want to remove row {row_index} from the table at path '{table_path}' ? (yes/no): "
+    )
 
     try:
         table = read_table_hdf5(index_file, path=table_path)
@@ -297,6 +310,10 @@ def remove_table_from_h5(file_path: str, table_path: str):
     :param table_path: Path to the table within the HDF5 file.
     :type table_path: str
     """
+
+    get_user_confirmation(
+        f"Are you sure you want to remove the table at path '{table_path}' from the file '{file_path}'? (yes/no): "
+    )
 
     try:
         with h5py.File(file_path, "a") as h5_file:
@@ -671,7 +688,7 @@ class DataSample:
                 raise ValueError(f"Unknown particle ID: {particle_id}")
 
         print(
-            f"DataSample : Particle type: {self.particle_type.value} (ZD, Az): ({self.zenith_distance}, {self.azimuth})"
+            f"\t -> {self.particle_type.value} @ ({self.zenith_distance}, {self.azimuth})"
         )
 
 
@@ -901,3 +918,5 @@ def get_irf_type_from_config(config):
             raise ValueError(
                 f"Unknown optimization algorithm: {optimization_algorithm}"
             )
+                
+        
