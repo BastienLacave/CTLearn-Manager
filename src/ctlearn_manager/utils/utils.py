@@ -8,6 +8,7 @@ import astropy.units as u
 import ctadata
 import numpy as np
 from astropy.table import Table
+import matplotlib.pyplot as plt
 
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
@@ -37,6 +38,8 @@ __all__ = [
     "ParticleType",
     "get_current_env",
     "DataSample",
+    "ExportCurves",
+    "CurveType",
 ]
 
 
@@ -918,5 +921,140 @@ def get_irf_type_from_config(config):
             raise ValueError(
                 f"Unknown optimization algorithm: {optimization_algorithm}"
             )
-                
+
+class CurveType(Enum):
+    GH_CUTS = "GH-cuts"
+    THETA_CUTS = "theta-cuts"
+    ANGULAR_RESOLUTION = "angular-resolution"
+    ENERGY_RESOLUTION = "energy-resolution"
+    ROC = "ROC"
+    SENSITIVITY_DATA = "sensitivity-data"
+    PSF_DATA = "PSF-data"
+
+
+class ExportCurves:
+    
+
+    def __init__(self, file_path: str | None, export_mode: bool=True, import_label: str=""):
+        """
+        Initialize the ExportCurves class.
         
+        :param curves: A dictionary containing the curves to export.
+        :type curves: dict
+        :param file_path: The path to the output CSV file.
+        :type file_path: str
+        """
+        import os
+        import pickle
+        from astropy.io.misc.hdf5 import read_table_hdf5
+        
+        self.import_label = import_label
+        self.export_mode = export_mode
+        self.file_path = file_path
+        self.directory = os.path.dirname(file_path) if file_path is not None else None
+        self.x_values = []
+        self.y_values = []
+        self.curve_types = []
+        self.cuts: list[Cuts] = []
+        if not self.export_mode:
+            import h5py
+            with h5py.File(self.file_path, "r") as f:
+                # print("Groups in the HDF5 file:")
+                groups = list(f.keys())
+            for group in groups:
+                # print(group)
+                self.curve_types.append(group.split("_")[0])  # Extract curve type from group name
+                table = read_table_hdf5(self.file_path, path=group)
+                self.x_values.append(table["x"])
+                self.y_values.append(table["y"])
+                cut_string = table["cuts"][0]
+                cut_string = cut_string.decode("utf-8") if isinstance(cut_string, bytes) else cut_string
+                cut_values = cut_string.split(", ")
+                cut_type = cut_values[0].split(": ")[1]
+                gammaness_cut = cut_values[1].split(": ")[1]
+                theta_cut = cut_values[2].split(": ")[1]
+                efficiency_gammaness = cut_values[3].split(": ")[1]
+                efficiency_theta = cut_values[4].split(": ")[1]
+                # match cut_type:
+                #     case "global":
+                #         cut_type = CutType.GLOBAL
+                #     case "energy_dependent_efficiency":
+                #         cut_type = CutType.EFFICIENCY_OPTIMIZED
+                #     case "sensitivity_optimized":
+                #         cut_type = CutType.SENSITIVITY_OPTIMIZED
+                cuts = Cuts(
+                    cut_type=CutType(cut_type),
+                    gammaness_cut=float(gammaness_cut) if gammaness_cut != "None" else None,
+                    theta_cut=float(theta_cut) if theta_cut != "None" else None,
+                    efficiency_gammaness=float(efficiency_gammaness) if efficiency_gammaness != "None" else None,
+                    efficiency_theta=float(efficiency_theta) if efficiency_theta != "None" else None,
+                )
+                # cuts_pkl_file = f"{self.directory}/{cut_string}.pkl"
+                # with open(cuts_pkl_file, "rb") as f:
+                #     cuts = pickle.load(f)
+                self.cuts.append(cuts)
+            
+            self.unique_cuts = self.cuts[0] if len(np.unique(str(self.cuts))) == 1 else None
+
+    def add_curve(self, x_values: list, y_values:list, curve_type: CurveType, cuts: Cuts):
+        """
+        Add a curve to the export.
+        
+        :param x_values: The x values of the curve.
+        :type x_values: list or np.ndarray
+        :param y_values: The y values of the curve.
+        :type y_values: list or np.ndarray
+        :param label: The label for the curve, defaults to None.
+        :type label: str, optional
+        """
+        assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
+        assert len(x_values) == len(y_values), "x_values and y_values must have the same length."
+
+        self.x_values.append(x_values)
+        self.y_values.append(y_values)
+        self.curve_types.append(f"{curve_type.value}")
+        self.cuts.append(cuts)
+
+
+    def export(self):
+        from astropy.io.misc.hdf5 import write_table_hdf5
+        import pickle
+
+        assert self.file_path is not None, "File path must be specified for exporting curves."
+        assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
+
+
+
+        for i, x, y, label, cuts in zip(range(len(self.curve_types)), self.x_values, self.y_values, self.curve_types, self.cuts):
+            # cuts_pkl_file = f"{self.directory}/{str(cuts)}.pkl"
+            # with open(cuts_pkl_file, "wb") as f:
+            #     pickle.dump(cuts, f)
+            cut_data = [str(cuts)] * len(x)  # Convert Cuts object to string for storage
+            table = Table(data=[x, y, cut_data], names=["x", "y", "cuts"])
+            write_table_hdf5(
+                table,
+                self.file_path,
+                path=f"{label}_{i}",
+                append=True,
+                overwrite=True,
+                # serialize_meta=True,
+            )
+        print(f"Curves successfully exported to {self.file_path}")
+
+    def plot_curves(self, axs: list[plt.axis], **kwargs):
+        """
+        Plot the curves on the given axes.
+        
+        :param ax: The axes to plot the curves on.
+        :type ax: matplotlib.axes.Axes
+        :param kwargs: Additional keyword arguments for plotting.
+        """
+        import matplotlib.pyplot as plt
+        assert len(axs) == len(self.x_values), "Number of axes must match number of curves."
+        
+        for x, y, cut, ax in zip(self.x_values, self.y_values, self.cuts, axs):
+            # if self.unique_cuts is not None:
+            #     l = self.import_label
+            # else:
+            l = f"{self.import_label} | {cut.get_label()}"
+            ax.plot(x, y, label=l, lw=2, ls='-.')
