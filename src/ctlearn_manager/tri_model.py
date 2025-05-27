@@ -1811,16 +1811,14 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.io import fits
 
-        if export_to_h5 is not None:
-            export_curves = ExportCurves(export_to_h5)
+        
+        export_curves = ExportCurves(export_to_h5)
         if import_from_h5 is not None:
             import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
             for curve_type in import_curves.curve_types:
                 if curve_type not in [CurveType.GH_CUTS.value, CurveType.THETA_CUTS.value]:
                     raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
             # assert ((import_curves.curve_types == CurveType.GH_CUTS) | (import_curves.curve_types == CurveType.THETA_CUTS)), "Imported curves are not of type GH_CUTS or THETA_CUTS"
-
-
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -1829,7 +1827,7 @@ class CTLearnTriModelManager:
 
         if axs is None:
             fig, axs = plt.subplots(1, 2, figsize=(10, 4))
-            if len(cuts) == 1:
+            if (len(cuts) == 1) and (import_from_h5 is None):
                 cuts[0].plot_cuts_info_plt(axs[0])
                 cuts[0].plot_cuts_info_plt(axs[1])
 
@@ -1845,9 +1843,9 @@ class CTLearnTriModelManager:
                 else:
                     l = label
                 with fits.open(cuts_file) as hdul:
-                    if export_to_h5 is not None:
-                        export_curves.add_curve(hdul["GH_CUTS"].data["center"], hdul["GH_CUTS"].data["cut"], CurveType.GH_CUTS, cuts=cut)
-                        export_curves.add_curve(hdul["RAD_MAX"].data["center"], hdul["RAD_MAX"].data["cut"], CurveType.THETA_CUTS, cuts=cut)
+                    
+                    export_curves.add_curve(hdul["GH_CUTS"].data["center"], hdul["GH_CUTS"].data["cut"], CurveType.GH_CUTS, cuts=cut)
+                    export_curves.add_curve(hdul["RAD_MAX"].data["center"], hdul["RAD_MAX"].data["cut"], CurveType.THETA_CUTS, cuts=cut)
                     axs[0].plot(
                         hdul["GH_CUTS"].data["center"],
                         hdul["GH_CUTS"].data["cut"],
@@ -1999,6 +1997,8 @@ class CTLearnTriModelManager:
         ax=None,
         label=None,
         export_to_h5: str = None,
+        import_from_h5: str = None,
+        import_label: str = None,
     ):
         """
         Plot the angular resolution as a function of true energy for DL2 data.
@@ -2039,8 +2039,13 @@ class CTLearnTriModelManager:
         import astropy.units as u
         import matplotlib.pyplot as plt
 
-        if export_to_h5 is not None:
-            export_curves = ExportCurves(export_to_h5)
+        
+        export_curves = ExportCurves(export_to_h5)
+        if import_from_h5 is not None:
+            import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
+            for curve_type in import_curves.curve_types:
+                if curve_type not in [CurveType.ANGULAR_RESOLUTION.value]:
+                    raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -2075,7 +2080,7 @@ class CTLearnTriModelManager:
             else:
                 fig, ax = plt.subplots()
 
-            if len(cuts) == 1:
+            if len(cuts) == 1 and (import_from_h5 is None):
                 stored_efficiency_theta = cuts[0].efficiency_theta
                 cuts[0].efficiency_theta = None
                 cuts[0].plot_cuts_info_plt(ax)
@@ -2098,7 +2103,7 @@ class CTLearnTriModelManager:
                 ang_res_plus = [e_r[2].value - e_r[0].value for e_r in ang_res_err]
                 ang_res_min = [e_r[1].value for e_r in ang_res_err]
                 ang_res_max = [e_r[2].value for e_r in ang_res_err]
-                if len(cuts) == 1:
+                if len(cuts) == 1 and (import_from_h5 is None):
                     if i == closest_coord_index:
                         if label is None:
                             l = (
@@ -2165,6 +2170,8 @@ class CTLearnTriModelManager:
                 )
         if export_to_h5 is not None:
             export_curves.export()
+        if import_from_h5 is not None:
+            import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
         ax.set_xscale("log")
@@ -2355,6 +2362,7 @@ class CTLearnTriModelManager:
         label=None,
         export_to_h5: str = None,
         import_from_h5: str = None,
+        import_label: str = None,
     ):
         """
         Plot the energy resolution as a function of true energy for DL2 data.
@@ -2396,8 +2404,13 @@ class CTLearnTriModelManager:
         """
         import matplotlib.pyplot as plt
 
-        if export_to_h5 is not None:
-            export_curves = ExportCurves(export_to_h5)
+        
+        export_curves = ExportCurves(export_to_h5)
+        if import_from_h5 is not None:
+            import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
+            for curve_type in import_curves.curve_types:
+                if curve_type not in [CurveType.ENERGY_RESOLUTION.value]:
+                    raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -2427,7 +2440,7 @@ class CTLearnTriModelManager:
             else:
                 fig, ax = plt.subplots()
 
-            if len(cuts) == 1:
+            if len(cuts) == 1 and (import_from_h5 is None):
                 cuts[0].plot_cuts_info_plt(ax)
             if len(coords) == 1:
                 plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
@@ -2450,7 +2463,7 @@ class CTLearnTriModelManager:
                 e_res_min = [e_r[1] for e_r in e_res_err]
                 e_res_max = [e_r[2] for e_r in e_res_err]
 
-                if len(cuts) == 1:
+                if len(cuts) == 1 and (import_from_h5 is None):
                     if i == closest_coord_index:
                         if label is None:
                             l = (
@@ -2508,6 +2521,8 @@ class CTLearnTriModelManager:
                 )
         if export_to_h5 is not None:
             export_curves.export()
+        if import_from_h5 is not None:
+            import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
         ax.set_xscale("log")

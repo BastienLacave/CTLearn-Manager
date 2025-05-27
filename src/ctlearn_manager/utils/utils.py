@@ -933,7 +933,7 @@ class CurveType(Enum):
 class ExportCurves:
     
 
-    def __init__(self, file_path: str, export_mode: bool=True, import_label: str=""):
+    def __init__(self, file_path: str | None, export_mode: bool=True, import_label: str=""):
         """
         Initialize the ExportCurves class.
         
@@ -949,7 +949,7 @@ class ExportCurves:
         self.import_label = import_label
         self.export_mode = export_mode
         self.file_path = file_path
-        self.directory = os.path.dirname(file_path)
+        self.directory = os.path.dirname(file_path) if file_path is not None else None
         self.x_values = []
         self.y_values = []
         self.curve_types = []
@@ -972,7 +972,7 @@ class ExportCurves:
                     cuts = pickle.load(f)
                 self.cuts.append(cuts)
             
-            self.unique_cuts = self.cuts[0] if len(np.unique(print(self.cuts))) == 1 else None
+            self.unique_cuts = self.cuts[0] if len(np.unique(str(self.cuts))) == 1 else None
 
     def add_curve(self, x_values: list, y_values:list, curve_type: CurveType, cuts: Cuts):
         """
@@ -998,6 +998,7 @@ class ExportCurves:
         from astropy.io.misc.hdf5 import write_table_hdf5
         import pickle
 
+        assert self.file_path is not None, "File path must be specified for exporting curves."
         assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
 
 
@@ -1034,4 +1035,4 @@ class ExportCurves:
             #     l = self.import_label
             # else:
             l = f"{self.import_label} | {cut.get_label()}"
-            ax.plot(x, y, label=l, color='k')
+            ax.plot(x, y, label=l, lw=2, ls='-.')
