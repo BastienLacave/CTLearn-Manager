@@ -921,13 +921,15 @@ def get_irf_type_from_config(config):
             raise ValueError(
                 f"Unknown optimization algorithm: {optimization_algorithm}"
             )
+
 class CurveType(Enum):
     GH_CUTS = "GH-cuts"
     THETA_CUTS = "theta-cuts"
     ANGULAR_RESOLUTION = "angular-resolution"
     ENERGY_RESOLUTION = "energy-resolution"
     ROC = "ROC"
-    SENSITIVITY = "sensitivity"
+    SENSITIVITY_DATA = "sensitivity-data"
+    PSF_DATA = "PSF-data"
 
 
 class ExportCurves:

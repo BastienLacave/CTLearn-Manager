@@ -2045,7 +2045,7 @@ class CTLearnTriModelManager:
             import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
             for curve_type in import_curves.curve_types:
                 if curve_type not in [CurveType.ANGULAR_RESOLUTION.value]:
-                    raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
+                    raise ValueError(f"Imported curves are not of type angular-resolution : {curve_type}")
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)
@@ -2410,7 +2410,7 @@ class CTLearnTriModelManager:
             import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
             for curve_type in import_curves.curve_types:
                 if curve_type not in [CurveType.ENERGY_RESOLUTION.value]:
-                    raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
+                    raise ValueError(f"Imported curves are not of type energy-resolution : {curve_type}")
 
         if zeniths is None:
             coords = self.get_available_MC_directions(verbose=False)

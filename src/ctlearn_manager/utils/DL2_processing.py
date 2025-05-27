@@ -19,6 +19,8 @@ from ..utils.utils import (
     calc_flux_for_N_sigma,
     find_68_percent_range,
     set_mpl_style,
+    ExportCurves,
+    CurveType
 )
 
 
@@ -897,14 +899,22 @@ class DL2DataProcessor:
         else:
             plt.show()
 
-    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None):
+    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
+        import_from_h5: str = None,
+        import_label: str = None):
         import matplotlib.pyplot as plt
 
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
         # off_count_RF = np.zeros(len(gammaness_cuts_RF))
+        export_curves = ExportCurves(export_to_h5)
+        if import_from_h5 is not None:
+            import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
+            for curve_type in import_curves.curve_types:
+                if curve_type not in [CurveType.SENSITIVITY_DATA.value]:
+                    raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
         if ax is None:
             fig, ax = plt.subplots()
-        if len(self.cuts) == 1 and ax is None:
+        if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
 
         for i, cut in enumerate(self.cuts):
@@ -1059,6 +1069,12 @@ class DL2DataProcessor:
                 alpha=0.2,
                 zorder=0,
             )
+            export_curves.add_curve(
+                    E[mask],
+                    flux_factor[mask] * 100,
+                    CurveType.SENSITIVITY_DATA,
+                    cuts=cut,
+                )
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
@@ -1068,7 +1084,12 @@ class DL2DataProcessor:
         # ax.set_yticks([1, 10])
         # ax.set_yticklabels(['1', '10'])
         ax.set_title("Differential sensitivity")
+        if export_to_h5 is not None:
+            export_curves.export()
+        if import_from_h5 is not None:
+            import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         ax.legend()
+        
 
         plt.tight_layout()
         if output_file is not None:
@@ -1077,12 +1098,20 @@ class DL2DataProcessor:
             if ax is None:
                 plt.show()
 
-    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC=False):
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC=False, export_to_h5: str=None,
+        import_from_h5: str = None,
+        import_label: str = None):
         import matplotlib.pyplot as plt
 
+        export_curves = ExportCurves(export_to_h5)
+        if import_from_h5 is not None:
+            import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
+            for curve_type in import_curves.curve_types:
+                if curve_type not in [CurveType.PSF_DATA.value]:
+                    raise ValueError(f"Imported curves are not of type PSF-data : {curve_type}")
         if ax is None:
             fig, ax = plt.subplots()
-        if len(self.cuts) == 1 and ax is None:
+        if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
 
         for i, cut in enumerate(self.cuts):
@@ -1211,6 +1240,12 @@ class DL2DataProcessor:
                 alpha=0.3,
                 zorder=0,
             )
+            export_curves.add_curve(
+                E.value,
+                psf,
+                CurveType.PSF_DATA,
+                cuts=cut,
+            )
             for tri_model in tqdm(self.CTLearnTriModelCollection.tri_models[4:5], desc="Plotting MC curves"):
                 coords = tri_model.get_available_MC_directions(verbose=False)
                 if len(coords) > 0:
@@ -1224,6 +1259,10 @@ class DL2DataProcessor:
                         ang_res = [e_r[0].value for e_r in ang_res_err]
                         ax.plot(e, ang_res, label=f"MC ({zenith.value:.1f}, {azimuth.value:.1f})°", zorder=10)
             cut.efficiency_theta = stored_efficiency_theta
+        if export_to_h5 is not None:
+            export_curves.export()
+        if import_from_h5 is not None:
+            import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         ax.legend()
         ax.set_ylabel("68% cont. [deg]")
         ax.set_xlabel("Reco Energy [TeV]")
