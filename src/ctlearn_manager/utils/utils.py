@@ -969,9 +969,29 @@ class ExportCurves:
                 self.y_values.append(table["y"])
                 cut_string = table["cuts"][0]
                 cut_string = cut_string.decode("utf-8") if isinstance(cut_string, bytes) else cut_string
-                cuts_pkl_file = f"{self.directory}/{cut_string}.pkl"
-                with open(cuts_pkl_file, "rb") as f:
-                    cuts = pickle.load(f)
+                cut_values = cut_string.split(", ")
+                cut_type = cut_values[0].split(": ")[1]
+                gammaness_cut = cut_values[1].split(": ")[1]
+                theta_cut = cut_values[2].split(": ")[1]
+                efficiency_gammaness = cut_values[3].split(": ")[1]
+                efficiency_theta = cut_values[4].split(": ")[1]
+                # match cut_type:
+                #     case "global":
+                #         cut_type = CutType.GLOBAL
+                #     case "energy_dependent_efficiency":
+                #         cut_type = CutType.EFFICIENCY_OPTIMIZED
+                #     case "sensitivity_optimized":
+                #         cut_type = CutType.SENSITIVITY_OPTIMIZED
+                cuts = Cuts(
+                    cut_type=CutType(cut_type),
+                    gammaness_cut=float(gammaness_cut) if gammaness_cut != "None" else None,
+                    theta_cut=float(theta_cut) if theta_cut != "None" else None,
+                    efficiency_gammaness=float(efficiency_gammaness) if efficiency_gammaness != "None" else None,
+                    efficiency_theta=float(efficiency_theta) if efficiency_theta != "None" else None,
+                )
+                # cuts_pkl_file = f"{self.directory}/{cut_string}.pkl"
+                # with open(cuts_pkl_file, "rb") as f:
+                #     cuts = pickle.load(f)
                 self.cuts.append(cuts)
             
             self.unique_cuts = self.cuts[0] if len(np.unique(str(self.cuts))) == 1 else None
@@ -1006,9 +1026,9 @@ class ExportCurves:
 
 
         for i, x, y, label, cuts in zip(range(len(self.curve_types)), self.x_values, self.y_values, self.curve_types, self.cuts):
-            cuts_pkl_file = f"{self.directory}/{str(cuts)}.pkl"
-            with open(cuts_pkl_file, "wb") as f:
-                pickle.dump(cuts, f)
+            # cuts_pkl_file = f"{self.directory}/{str(cuts)}.pkl"
+            # with open(cuts_pkl_file, "wb") as f:
+            #     pickle.dump(cuts, f)
             cut_data = [str(cuts)] * len(x)  # Convert Cuts object to string for storage
             table = Table(data=[x, y, cut_data], names=["x", "y", "cuts"])
             write_table_hdf5(
