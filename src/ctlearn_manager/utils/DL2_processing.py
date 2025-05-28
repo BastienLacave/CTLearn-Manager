@@ -187,34 +187,43 @@ class DL2DataProcessor:
     def process_DL2_data(self):
         for DL2_file in self.DL2_files:
             # if self.dl2_processed_dir is None:
-            dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
-            os.makedirs(dl2_processed_dir, exist_ok=True)
+            
             # dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
             # reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
             # pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
             # I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
             # I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
             # else:
-            dl2_output_file = os.path.join(
-                dl2_processed_dir,
-                os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
-            )
-            reco_output_file = os.path.join(
-                dl2_processed_dir,
-                os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
-            )
-            pointing_output_file = os.path.join(
-                dl2_processed_dir,
-                os.path.basename(DL2_file).replace(".h5", "_pointings.pkl"),
-            )
-            I_g_on_counts_output_file = os.path.join(
-                dl2_processed_dir,
-                os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
-            )
-            I_g_off_counts_output_file = os.path.join(
-                dl2_processed_dir,
-                os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
-            )
+            if self.CTLearn:
+                dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
+                os.makedirs(dl2_processed_dir, exist_ok=True)
+                dl2_output_file = os.path.join(
+                    dl2_processed_dir,
+                    os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
+                )
+                reco_output_file = os.path.join(
+                    dl2_processed_dir,
+                    os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
+                )
+                pointing_output_file = os.path.join(
+                    dl2_processed_dir,
+                    os.path.basename(DL2_file).replace(".h5", "_pointings.pkl"),
+                )
+                I_g_on_counts_output_file = os.path.join(
+                    dl2_processed_dir,
+                    os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
+                )
+                I_g_off_counts_output_file = os.path.join(
+                    dl2_processed_dir,
+                    os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
+                )
+            else:
+                dl2_processed_dir = self.dl2_processed_dir
+                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
             if (
                 (not os.path.exists(reco_output_file))
@@ -223,8 +232,8 @@ class DL2DataProcessor:
                 or (not os.path.exists(I_g_on_counts_output_file))
                 or (not os.path.exists(I_g_off_counts_output_file))
             ):
-                if np.where(self.DL2_files == DL2_file)[0][0] == 0:
-                    print("Preprocessing DL2 (~50min/run), only once")
+                # if np.where(self.DL2_files == DL2_file)[0][0] == 0:
+                #     print("Preprocessing DL2 (~50min/run), only once")
                 self.CTLearnTriModelCollection.cluster_configuration.info()
                 if self.CTLearnTriModelCollection.cluster_configuration.use_cluster:
                     if (
@@ -313,16 +322,19 @@ class DL2DataProcessor:
         for i, DL2_file in tqdm(
             enumerate(self.DL2_files), desc="Loading processed data", total=len(self.DL2_files),
         ):  # , disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster):
-            corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(
-                DL2_file,
-                self.pointing_table,
-                alt_key=self.pointing_alt_key,
-                az_key=self.pointing_az_key,
-                verbose=False,
-            )
-            if corresponding_model is None:
-                failed_mask[i] = False
-                continue
+            if self.CTLearn:
+                corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(
+                    DL2_file,
+                    self.pointing_table,
+                    alt_key=self.pointing_alt_key,
+                    az_key=self.pointing_az_key,
+                    verbose=False,
+                )
+                if corresponding_model is None:
+                    failed_mask[i] = False
+                    continue
+            else:
+                corresponding_model = self.CTLearnTriModelCollection.tri_models[0]
             self.corresponding_models[i] = corresponding_model
             # if self.dl2_processed_dir is None:
             #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
@@ -330,31 +342,33 @@ class DL2DataProcessor:
             #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
             #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
             #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-            # else:
-            #     dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-            #     reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-            #     pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-            #     I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-            #     I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
-            common_path = os.path.join(
-                f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                os.path.basename(DL2_file),
-            )
-            dl2_output_file = common_path.replace(
-                ".h5", "_dl2_processed.pkl"
-            )
-            reco_output_file = common_path.replace(
-                ".h5", "_reco_directions.pkl"
-            )
-            pointing_output_file = common_path.replace(
-                ".h5", "_pointings.pkl"
-            )
-            I_g_on_counts_output_file = common_path.replace(
-                ".h5", "_I_g_on_counts.pkl"
-            )
-            I_g_off_counts_output_file = common_path.replace(
-                ".h5", "_I_g_off_counts.pkl"
-            )
+            if self.CTLearn:
+                common_path = os.path.join(
+                    f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
+                    os.path.basename(DL2_file),
+                )
+                dl2_output_file = common_path.replace(
+                    ".h5", "_dl2_processed.pkl"
+                )
+                reco_output_file = common_path.replace(
+                    ".h5", "_reco_directions.pkl"
+                )
+                pointing_output_file = common_path.replace(
+                    ".h5", "_pointings.pkl"
+                )
+                I_g_on_counts_output_file = common_path.replace(
+                    ".h5", "_I_g_on_counts.pkl"
+                )
+                I_g_off_counts_output_file = common_path.replace(
+                    ".h5", "_I_g_off_counts.pkl"
+                )
+            else:
+                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+            
 
             if (
                 (os.path.exists(reco_output_file))
@@ -441,7 +455,6 @@ class DL2DataProcessor:
                 )
                 failed_mask[i] = False
                 continue
-        
         self.reco_directions = self.reco_directions[failed_mask]
         self.pointings = self.pointings[failed_mask]
         self.dl2s = self.dl2s[failed_mask]

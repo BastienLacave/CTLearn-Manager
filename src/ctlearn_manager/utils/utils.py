@@ -1058,3 +1058,22 @@ class ExportCurves:
             # else:
             l = f"{self.import_label} | {cut.get_label()}"
             ax.plot(x, y, label=l, lw=2, ls='-.')
+
+
+class CTLMProject:
+
+    def __init__(self, project_directory: str):
+        from pathlib import Path
+
+        if not Path(project_directory).resolve().is_absolute():
+            raise ValueError("The project directory must be an absolute path.")
+
+        self.project_directory = Path(project_directory).resolve()
+        self.model_index_file = self.project_directory / "model_index.h5"
+        self.models_directory = self.project_directory / "models"
+        self.dl2_mc_directory = self.project_directory / "DL2/MC"
+        self.dl2_post_processed_data_directory = self.project_directory / "DL2/PostProcessedData"
+        self.dl2_post_processed_data_rf_directory = self.project_directory / "DL2/PostProcessedData_RF"
+        self.irf_directory = self.project_directory / "IRFs"
+
+        
