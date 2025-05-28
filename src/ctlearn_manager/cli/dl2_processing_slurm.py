@@ -165,7 +165,7 @@ def process_dl2_file():
             intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
             I_g_on_counts = np.empty(len(intensity_ranges), dtype=object)
             I_g_off_counts = np.empty(len(intensity_ranges), dtype=object)
-            for i, I_min, I_max in enumerate(intensity_ranges):
+            for i, I_min, I_max in enumerate(zip(range(len(intensity_ranges)), *zip(*intensity_ranges))):
                 excess_counts = np.empty(len(gammaness_cuts), dtype=object)
                 off_counts = np.empty(len(gammaness_cuts), dtype=object)
                 # print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)
