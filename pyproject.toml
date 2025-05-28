@@ -16,7 +16,7 @@ dependencies = [
     "numpy",
     "ctapipe==0.24.0",
     "gammapy",
-    "pyirf",
+    "pyirf>=0.13.0",
     "ctaplot",
     "h5py",
     "ctadata",
