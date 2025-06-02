@@ -40,6 +40,7 @@ __all__ = [
     "DataSample",
     "ExportCurves",
     "CurveType",
+    "CTLMProject",
 ]
 
 
@@ -843,7 +844,7 @@ class Cuts:
         final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
         return final_string
 
-    def get__directory_name(self):
+    def get_directory_name(self):
         """
         Get the directory name for the cuts based on their type and parameters.
         :return: Directory name as a string.
@@ -1076,7 +1077,7 @@ class ExportCurves:
 
 class CTLMProject:
 
-    def __init__(self, project_directory: str):
+    def __init__(self, project_directory: str, tri_model_nickname: str):
         from pathlib import Path
 
         if not Path(project_directory).resolve().is_absolute():
@@ -1084,10 +1085,37 @@ class CTLMProject:
 
         self.project_directory = Path(project_directory).resolve()
         self.model_index_file = self.project_directory / "model_index.h5"
-        self.models_directory = self.project_directory / "models"
-        self.dl2_mc_directory = self.project_directory / "DL2/MC"
-        self.dl2_post_processed_data_directory = self.project_directory / "DL2/PostProcessedData"
-        self.dl2_post_processed_data_rf_directory = self.project_directory / "DL2/PostProcessedData_RF"
-        self.irf_directory = self.project_directory / "IRFs"
+        self.tri_models_directory = self.project_directory / f"models/{tri_model_nickname}"
+        self.energy_model_directory = self.tri_models_directory / "energy"
+        self.direction_model_directory = self.tri_models_directory / "direction"
+        self.type_model_directory = self.tri_models_directory / "type"
+        self.dl2_post_processed_data_directory = self.tri_models_directory / "DL2/PostProcessedData"
+        self.dl2_post_processed_data_rf_directory = self.tri_models_directory / "DL2/PostProcessedData_RF"
+        self.dl2_mc_directory = self.tri_models_directory / "DL2/MC"
+        self.irf_directory = self.tri_models_directory / "IRFs"
+        self.logs_directory = self.tri_models_directory / "logs"
+        self.training_logs_directory = self.logs_directory / "training_logs"
+        self.prediction_logs_directory = self.logs_directory / "prediction_logs"
+        self.post_processing_logs_directory = self.logs_directory / "post_processing_logs"
+
+        # self.exported_curves_directory = self.project_directory / "exported_curves"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_irf_directory(self, zenith:float, azimuth:float, cuts:Cuts):
+        return self.irf_directory / f"{zenith:.3f}_{azimuth:.3f}/{cuts.get_directory_name()}"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        return self.dl2_mc_directory / f"{particle_type.value}/{zenith:.3f}_{azimuth:.3f}"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_merged_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        return self.dl2_mc_directory / f"{particle_type.value}/{zenith:.3f}_{azimuth:.3f}/merged"
+
+    def get_dl2_post_processed_data_directory(self, run:int):
+        return self.dl2_post_processed_data_directory / f"{run:05d}"
+    
+    def get_dl2_post_processed_data_rf_directory(self, run:int):
+        return self.dl2_post_processed_data_rf_directory / f"{run:05d}"
 
         
