@@ -173,6 +173,13 @@ class TriModelCollection:
             print(f"DL1 files will be copied to {scratch_dl1_dir}\n")
             for dcache_file in input_files:
                 input_file = f"{scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
+                subrun = int(input_file.split(".")[-2])
+                output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
+                if os.path.exists(output_file) and not overwrite:
+                    print(
+                        f"⚠️ Output file already exists and overwrite is set to False : {output_file}"
+                    )
+                    continue
                 if not os.path.exists(input_file):
                     print(f"⌛ Copying {dcache_file} to {scratch_dl1_dir}")
                     ctadata.fetch_and_save_file_or_dir(dcache_file)
@@ -180,8 +187,6 @@ class TriModelCollection:
                         f"mv {current_directory}/{dcache_file.split('/')[-1]} {scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
                     )
                 # print(f"Predicting {input_file}")
-                subrun = int(input_file.split(".")[-2])
-                output_file = f"{output_dir}/LST-1.Run{run:05d}.{subrun:04d}.dl2.h5"
                 self.predict_lstchain_data(
                     input_file,
                     output_file,
@@ -393,6 +398,7 @@ class TriModelCollection:
                 az_key=az_key,
             )
         except:
+            # print(f"⚠️ Error reading pointing data from {pointing_table}: {e}")
             print(f"⚠️ Pointing not found at {pointing_table}, skipping : {input_file}")
             return
 
