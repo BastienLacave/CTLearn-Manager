@@ -843,6 +843,20 @@ class Cuts:
         final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
         return final_string
 
+    def get__directory_name(self):
+        """
+        Get the directory name for the cuts based on their type and parameters.
+        :return: Directory name as a string.
+        """
+        if self.cut_type == CutType.GLOBAL:
+            return f"global_gammaness_{self.gammaness_cut}_theta_{self.theta_cut}"
+        elif self.cut_type == CutType.EFFICIENCY_OPTIMIZED:
+            return f"efficiency_gammaness_{self.efficiency_gammaness}_theta_{self.efficiency_theta}"
+        elif self.cut_type == CutType.SENSITIVITY_OPTIMIZED:
+            return "sensitivity_optimized"
+        else:
+            raise ValueError(f"Invalid cut type: {self.cut_type}")
+
 
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
