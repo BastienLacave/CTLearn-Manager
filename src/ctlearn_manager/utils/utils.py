@@ -10,6 +10,7 @@ import numpy as np
 from astropy.table import Table
 import matplotlib.pyplot as plt
 
+
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
 
@@ -40,7 +41,8 @@ __all__ = [
     "DataSample",
     "ExportCurves",
     "CurveType",
-    "CTLMProject",
+    "CTLMDirectories",
+    "get_user_confirmation"
 ]
 
 
@@ -251,7 +253,7 @@ srun {command}
 
 def get_user_confirmation(prompt: str):
     user_confirmation = input(
-        prompt
+        prompt+"yes/no (default: no): "
     )
     if user_confirmation.lower() != "yes":
         raise ValueError("Operation cancelled by the user.")
@@ -1075,7 +1077,7 @@ class ExportCurves:
             ax.plot(x, y, label=l, lw=2, ls='-.')
 
 
-class CTLMProject:
+class CTLMDirectories:
 
     def __init__(self, project_directory: str, tri_model_nickname: str):
         from pathlib import Path
@@ -1083,20 +1085,20 @@ class CTLMProject:
         if not Path(project_directory).resolve().is_absolute():
             raise ValueError("The project directory must be an absolute path.")
 
-        self.project_directory = Path(project_directory).resolve()
-        self.model_index_file = self.project_directory / "model_index.h5"
-        self.tri_models_directory = self.project_directory / f"models/{tri_model_nickname}"
-        self.energy_model_directory = self.tri_models_directory / "energy"
-        self.direction_model_directory = self.tri_models_directory / "direction"
-        self.type_model_directory = self.tri_models_directory / "type"
-        self.dl2_post_processed_data_directory = self.tri_models_directory / "DL2/PostProcessedData"
-        self.dl2_post_processed_data_rf_directory = self.tri_models_directory / "DL2/PostProcessedData_RF"
-        self.dl2_mc_directory = self.tri_models_directory / "DL2/MC"
-        self.irf_directory = self.tri_models_directory / "IRFs"
-        self.logs_directory = self.tri_models_directory / "logs"
-        self.training_logs_directory = self.logs_directory / "training_logs"
-        self.prediction_logs_directory = self.logs_directory / "prediction_logs"
-        self.post_processing_logs_directory = self.logs_directory / "post_processing_logs"
+        self.project_directory = project_directory
+        self.model_index_file = f"{self.project_directory}/model_index.h5"
+        self.tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
+        self.energy_model_directory = f"{self.tri_models_directory}/energy"
+        self.direction_model_directory = f"{self.tri_models_directory}/direction"
+        self.type_model_directory = f"{self.tri_models_directory}/type"
+        self.dl2_post_processed_data_directory = f"{self.tri_models_directory}/DL2/PostProcessedData"
+        self.dl2_post_processed_data_rf_directory = f"{self.tri_models_directory}/DL2/PostProcessedData_RF"
+        self.dl2_mc_directory = f"{self.tri_models_directory}/DL2/MC"
+        self.irf_directory = f"{self.tri_models_directory}/IRFs"
+        self.logs_directory = f"{self.tri_models_directory}/logs"
+        self.training_logs_directory = f"{self.logs_directory}/training_logs"
+        self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
+        self.post_processing_logs_directory = f"{self.logs_directory}/post_processing_logs"
 
         # self.exported_curves_directory = self.project_directory / "exported_curves"
 
@@ -1117,5 +1119,24 @@ class CTLMProject:
     
     def get_dl2_post_processed_data_rf_directory(self, run:int):
         return self.dl2_post_processed_data_rf_directory / f"{run:05d}"
+
+    def load_model_from_index(self, model_nickname:str, MODEL_INDEX_FILE:str, cluser_config=ClusterConfiguration()):
+        from .. import CTLearnModelManager
+        # models_table = QTable.read(MODEL_INDEX_FILE)
+        # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
+        model_parameters = {"model_nickname": model_nickname}
+        from astropy.io.misc.hdf5 import read_table_hdf5
+
+        try:
+            read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
+        except:
+            raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
+        model = CTLearnModelManager(
+            model_parameters,
+            self,
+            load=True,
+            cluster_configuration=cluser_config,
+        )
+        return model
 
         

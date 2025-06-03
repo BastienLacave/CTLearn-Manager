@@ -21,7 +21,7 @@ from ctlearn_manager.utils.utils import (
     get_irf_type_from_config,
     remove_row_from_table_utils,
     set_mpl_style,
-    CTLMProject,
+    CTLMDirectories,
 )
 
 # from ctlearn_manager.utils.index_tables import IndexTables
@@ -98,7 +98,7 @@ class CTLearnModelManager:
         self,
         model_parameters,
         # MODEL_INDEX_FILE,
-        project_directory:str,
+        project_directories: CTLMDirectories,
         load=False,
         cluster_configuration=ClusterConfiguration(),
     ):
@@ -132,17 +132,15 @@ class CTLearnModelManager:
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
 
-        
-
-        # self.project.model_index_file = MODEL_INDEX_FILE
+        # self.project_directories.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters.get("model_nickname", "new_model")
-        self.project = CTLMProject(project_directory)
+        self.project_directories = project_directories
         if not load:
             self.save_to_index(model_parameters)
             print(f"🧠 Model name: {self.model_nickname}")
-
+        
         self.model_parameters_table = read_table_hdf5(
-            f"{self.project.model_index_file}", path=IndexTables(self).PARAMETERS.table_path
+            f"{self.project_directories.model_index_file}", path=IndexTables(self).PARAMETERS.table_path
         )
         self.validity = ModelRangeOfValidity(self)
         self.telescope_ids = ast.literal_eval(
@@ -159,13 +157,13 @@ class CTLearnModelManager:
             0
         ]  # True if self.min_telescopes >= 2 else False
         training_table_gamma = read_table_hdf5(
-            f"{self.project.model_index_file}",
+            f"{self.project_directories.model_index_file}",
             path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
         )
 
         if self.model_parameters_table["reco"][0] == "type":
             training_table_proton = read_table_hdf5(
-                f"{self.project.model_index_file}",
+                f"{self.project_directories.model_index_file}",
                 path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path,
             )
             if (len(training_table_proton["training_proton_patterns"]) == 0) or (
@@ -263,7 +261,7 @@ class CTLearnModelManager:
 
         try:
             model_table = QTable.read(
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 format="hdf5",
                 path=paramaters_index_table.table_path,
             )
@@ -321,7 +319,7 @@ class CTLearnModelManager:
             )
             write_table_hdf5(
                 model_table,
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=paramaters_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -336,7 +334,7 @@ class CTLearnModelManager:
 
                 try:
                     training_table = read_table_hdf5(
-                        self.project.model_index_file,
+                        self.project_directories.model_index_file,
                         path=training_index_table.table_path,
                     )
                 except:
@@ -356,7 +354,7 @@ class CTLearnModelManager:
                 )
                 write_table_hdf5(
                     training_table,
-                    self.project.model_index_file,
+                    self.project_directories.model_index_file,
                     path=training_index_table.table_path,
                     append=True,
                     overwrite=True,
@@ -496,7 +494,7 @@ class CTLearnModelManager:
                 else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
             )
         training_gamma_table = read_table_hdf5(
-            self.project.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
+            self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
         )
         signal_patterns = ""
         for pattern in training_gamma_table["training_gamma_diffuse_patterns"]:
@@ -504,7 +502,7 @@ class CTLearnModelManager:
         background_patterns = ""
         if self.model_parameters_table["reco"][0] == "type":
             training_proton_table = read_table_hdf5(
-                self.project.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
             )
             for pattern in training_proton_table["training_proton_patterns"]:
                 background_patterns += f'--pattern-background "{pattern}" '
@@ -683,7 +681,7 @@ class CTLearnModelManager:
         
 
         model_table = read_table_hdf5(
-            self.project.model_index_file, path=IndexTables(self).PARAMETERS.table_path
+            self.project_directories.model_index_file, path=IndexTables(self).PARAMETERS.table_path
         )
         # model_index = np.where(model_table['model_nickname'] == self.model_nickname)[0][0]
         print(f"💾 Model {self.model_nickname} index update:")
@@ -699,7 +697,7 @@ class CTLearnModelManager:
             print(f"\t➡️ {key} updated to {value}")
         write_table_hdf5(
             model_table,
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=IndexTables(self).PARAMETERS.table_path,
             append=True,
             overwrite=True,
@@ -739,7 +737,7 @@ class CTLearnModelManager:
         testing_index_table = IndexTables(self, particle_type).TESTING
         try:
             testing_table = read_table_hdf5(
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=testing_index_table.table_path,
             )
         except:
@@ -769,7 +767,7 @@ class CTLearnModelManager:
             )
         write_table_hdf5(
             testing_table,
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=testing_index_table.table_path,
             append=True,
             overwrite=True,
@@ -816,7 +814,7 @@ class CTLearnModelManager:
 
         try:
             DL2_gamma_table = read_table_hdf5(
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=dl2_mc_index_table.table_path,
             )
         except:
@@ -855,7 +853,7 @@ class CTLearnModelManager:
             )
         write_table_hdf5(
             DL2_gamma_table,
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=dl2_mc_index_table.table_path,
             append=True,
             overwrite=True,
@@ -886,7 +884,7 @@ class CTLearnModelManager:
         dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
 
         DL2_table = read_table_hdf5(
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=dl2_mc_index_table.table_path,
         )
         match = np.where(
@@ -896,7 +894,7 @@ class CTLearnModelManager:
             DL2_table.remove_rows(match)
         write_table_hdf5(
             DL2_table,
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=dl2_mc_index_table.table_path,
             append=True,
             overwrite=True,
@@ -942,7 +940,7 @@ class CTLearnModelManager:
 
         try:
             DL2_data_table = read_table_hdf5(
-                self.project.model_index_file, path=dl2_data_index_table.table_path
+                self.project_directories.model_index_file, path=dl2_data_index_table.table_path
             )
         except:
             DL2_data_table = dl2_data_index_table.default_table
@@ -969,7 +967,7 @@ class CTLearnModelManager:
                 #     DL2_data_table.remove_rows(match)
             write_table_hdf5(
                 DL2_data_table,
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=dl2_data_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -1019,7 +1017,7 @@ class CTLearnModelManager:
 
         # print(f"💾 Model {self.model_nickname} DL2 merged data update:")
         DL2_table = read_table_hdf5(
-            self.project.model_index_file,
+            self.project_directories.model_index_file,
             path=dl2_mc_index_table.table_path,
         )
         match = np.where(
@@ -1056,7 +1054,7 @@ class CTLearnModelManager:
             )
             write_table_hdf5(
                 DL2_table,
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=dl2_mc_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -1118,7 +1116,7 @@ class CTLearnModelManager:
 
         try:
             IRF_table = read_table_hdf5(
-                self.project.model_index_file, path=irf_index_table.table_path
+                self.project_directories.model_index_file, path=irf_index_table.table_path
             )
         except:
             IRF_table = irf_index_table.default_table
@@ -1141,7 +1139,7 @@ class CTLearnModelManager:
             )
             write_table_hdf5(
                 IRF_table,
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=irf_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -1154,7 +1152,7 @@ class CTLearnModelManager:
             )
             write_table_hdf5(
                 IRF_table,
-                self.project.model_index_file,
+                self.project_directories.model_index_file,
                 path=irf_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -1212,7 +1210,7 @@ class CTLearnModelManager:
             return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
 
         IRF_table = read_table_hdf5(
-            self.project.model_index_file, path=IndexTables(self).IRF.table_path
+            self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
         )
         target_irf_type = cuts.irf_type
         target_gamma_efficiency = cuts.efficiency_gammaness
@@ -1303,7 +1301,7 @@ class CTLearnModelManager:
         from astropy.io.misc.hdf5 import read_table_hdf5
 
         IRF_table = read_table_hdf5(
-            self.project.model_index_file, path=IndexTables(self).IRF.table_path
+            self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
         )
         if cuts is not None:
             target_irf_type = cuts.irf_type
@@ -1389,7 +1387,7 @@ class CTLearnModelManager:
 
         Notes
         -----
-        This method reads data from an HDF5 file specified by `self.project.model_index_file`
+        This method reads data from an HDF5 file specified by `self.project_directories.model_index_file`
         and extracts file paths for DL2 MC files based on the provided zenith and
         azimuth angles. If no files are found for a particle type, an empty list
         is returned for that particle type.
@@ -1402,7 +1400,7 @@ class CTLearnModelManager:
             try:
                 dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
                 DL2_table = read_table_hdf5(
-                    self.project.model_index_file,
+                    self.project_directories.model_index_file,
                     path=dl2_mc_index_table.table_path,
                 )
 
@@ -1535,7 +1533,7 @@ class CTLearnModelManager:
                 r = np.full_like(theta, zenith_min).to(u.deg)
                 ax.plot(theta, r, lw=3, zorder=0)
                 training_gamma_table = read_table_hdf5(
-                    self.project.model_index_file,
+                    self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
                 )
                 zeniths = training_gamma_table[
@@ -1623,7 +1621,7 @@ class CTLearnModelManager:
                 )
                 ax.set_ylim(0, 60)
                 training_gamma_table = read_table_hdf5(
-                    self.project.model_index_file,
+                    self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
                 )
                 zeniths = training_gamma_table[
@@ -1643,7 +1641,7 @@ class CTLearnModelManager:
 
         try:
             testing_dl1_table = read_table_hdf5(
-                self.project.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).TESTING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).TESTING.table_path
             )
             zeniths = testing_dl1_table["testing_gamma_point_zenith_distances"]
             azimuths = testing_dl1_table["testing_gamma_point_azimuths"].to(u.rad)
@@ -1665,7 +1663,7 @@ class CTLearnModelManager:
 
         try:
             mc_dl2_table = read_table_hdf5(
-                self.project.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).DL2_MC.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).DL2_MC.table_path
             )
             zeniths = mc_dl2_table["testing_DL2_gamma_point_zenith_distances"]
             azimuths = mc_dl2_table["testing_DL2_gamma_point_azimuths"].to(u.rad)
@@ -1737,7 +1735,7 @@ class CTLearnModelManager:
 
         fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
         training_gamma_table = read_table_hdf5(
-            self.project.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
+            self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
         )
         zeniths = training_gamma_table["training_gamma_diffuse_zenith_distances"]
         azimuths = training_gamma_table["training_gamma_diffuse_azimuths"].to(u.rad)
@@ -1762,7 +1760,7 @@ class CTLearnModelManager:
 
         if self.model_parameters_table["reco"][0] == "type":
             training_proton_table = read_table_hdf5(
-                self.project.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
             )
             zeniths = training_proton_table["training_proton_zenith_distances"]
             azimuths = training_proton_table["training_proton_azimuths"].to(u.rad)
@@ -1803,7 +1801,7 @@ class CTLearnModelManager:
         plt.show()
 
     def remove_row_from_table(self, table_path: str, row_index: int):
-        remove_row_from_table_utils(self.project.model_index_file, table_path, row_index)
+        remove_row_from_table_utils(self.project_directories.model_index_file, table_path, row_index)
 
 
 class ModelRangeOfValidity:
@@ -1861,7 +1859,7 @@ class ModelRangeOfValidity:
         from astropy.io.misc.hdf5 import read_table_hdf5
 
         training_gamma_table = read_table_hdf5(
-            model_manager.model_index_file,
+            model_manager.project_directories.model_index_file,
             path=IndexTables(model_manager, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
         )
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')

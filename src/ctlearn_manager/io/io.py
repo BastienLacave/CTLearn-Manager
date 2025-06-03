@@ -3,10 +3,10 @@ import numpy as np
 from numba import njit
 
 from ..model_manager import CTLearnModelManager
-from ..utils.utils import ClusterConfiguration
+from ..utils.utils import ClusterConfiguration, CTLMDirectories
 
 __all__ = [
-    "load_model_from_index",
+    # "load_model_from_index",
     "load_DL2_data_MC",
     "load_DL2_data",
     "load_DL2_data_RF",
@@ -14,25 +14,25 @@ __all__ = [
 ]
 
 
-def load_model_from_index(
-    model_nickname, MODEL_INDEX_FILE, cluser_config=ClusterConfiguration()
-):
-    # models_table = QTable.read(MODEL_INDEX_FILE)
-    # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
-    model_parameters = {"model_nickname": model_nickname}
-    from astropy.io.misc.hdf5 import read_table_hdf5
+# def load_model_from_index(
+#     model_nickname, MODEL_INDEX_FILE, cluser_config=ClusterConfiguration()
+# ):
+#     # models_table = QTable.read(MODEL_INDEX_FILE)
+#     # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
+#     model_parameters = {"model_nickname": model_nickname}
+#     from astropy.io.misc.hdf5 import read_table_hdf5
 
-    try:
-        read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
-    except:
-        raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
-    model = CTLearnModelManager(
-        model_parameters,
-        MODEL_INDEX_FILE,
-        load=True,
-        cluster_configuration=cluser_config,
-    )
-    return model
+#     try:
+#         read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
+#     except:
+#         raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
+#     model = CTLearnModelManager(
+#         model_parameters,
+#         CTLMDirectories(model_nickname)
+#         load=True,
+#         cluster_configuration=cluser_config,
+#     )
+#     return model
 
 
 def load_DL2_data_MC(input_file, tel_id=None):
