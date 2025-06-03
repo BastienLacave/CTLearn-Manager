@@ -1091,10 +1091,10 @@ class CTLMDirectories:
         self.energy_model_directory = f"{self.tri_models_directory}/energy"
         self.direction_model_directory = f"{self.tri_models_directory}/direction"
         self.type_model_directory = f"{self.tri_models_directory}/type"
-        self.dl2_post_processed_data_directory = f"{self.tri_models_directory}/DL2/PostProcessedData"
-        self.dl2_post_processed_data_rf_directory = f"{self.tri_models_directory}/DL2/PostProcessedData_RF"
-        self.dl2_mc_directory = f"{self.tri_models_directory}/DL2/MC"
-        self.irf_directory = f"{self.tri_models_directory}/IRFs"
+        self.dl2_post_processed_data_directory = f"{self.project_directory}/DL2/PostProcessedData/{tri_model_nickname}/"
+        self.dl2_post_processed_data_rf_directory = f"{self.project_directory}/DL2/PostProcessedData_RF/{tri_model_nickname}/"
+        self.dl2_mc_directory = f"{self.project_directory}//DL2/MC/{tri_model_nickname}/"
+        self.irf_directory = f"{self.project_directory}/IRFs/{tri_model_nickname}/"
         self.logs_directory = f"{self.tri_models_directory}/logs"
         self.training_logs_directory = f"{self.logs_directory}/training_logs"
         self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
@@ -1104,21 +1104,33 @@ class CTLMDirectories:
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_irf_directory(self, zenith:float, azimuth:float, cuts:Cuts):
-        return self.irf_directory / f"{zenith:.3f}_{azimuth:.3f}/{cuts.get_directory_name()}"
+        return f"{self.irf_directory}/{zenith.value:.3f}_{azimuth.value:.3f}/{cuts.get_directory_name()}"
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
-        return self.dl2_mc_directory / f"{particle_type.value}/{zenith:.3f}_{azimuth:.3f}"
+        return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}"
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_merged_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
-        return self.dl2_mc_directory / f"{particle_type.value}/{zenith:.3f}_{azimuth:.3f}/merged"
+        return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged"
+
+    def get_available_MC_directions(self, particle_type: ParticleType):
+        import glob
+
+        paths = glob.glob(f"{self.dl2_mc_directory}/{particle_type.value}/*/")
+        zeniths = []
+        azimuths = []
+        for path in paths:
+            parts = path.split("/")[-2].split("_")
+            zeniths.append(float(parts[0]))
+            azimuths.append(float(parts[1]))
+        return zeniths * u.deg, azimuths * u.deg
 
     def get_dl2_post_processed_data_directory(self, run:int):
-        return self.dl2_post_processed_data_directory / f"{run:05d}"
+        return f"{self.dl2_post_processed_data_directory}/{run:05d}"
     
     def get_dl2_post_processed_data_rf_directory(self, run:int):
-        return self.dl2_post_processed_data_rf_directory / f"{run:05d}"
+        return f"{self.dl2_post_processed_data_rf_directory}/{run:05d}"
 
     def load_model_from_index(self, model_nickname:str, MODEL_INDEX_FILE:str, cluser_config=ClusterConfiguration()):
         from .. import CTLearnModelManager

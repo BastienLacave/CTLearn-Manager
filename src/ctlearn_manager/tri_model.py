@@ -21,6 +21,10 @@ from .utils.utils import (
     set_mpl_style,
     ExportCurves,
     CurveType,
+    CTLMDirectories,
+    IRFType,
+    CutType,
+    get_irf_type_from_config,
 )
 
 __all__ = [
@@ -57,6 +61,7 @@ class CTLearnTriModelManager:
         direction_model: CTLearnModelManager,
         energy_model: CTLearnModelManager,
         type_model: CTLearnModelManager,
+        project_directories:CTLMDirectories,
         cluster_configuration=ClusterConfiguration(),
     ):
         """
@@ -115,20 +120,24 @@ class CTLearnTriModelManager:
         reco_field_suffix : str
             The suffix for the reconstruction field, determined by the stereo value.
         """
+        self.project_directories = project_directories
         if direction_model.model_parameters_table["reco"][0] in [
             "direction",
             "cameradirection",
             "skydirection",
         ]:
             self.direction_model = direction_model
+            self.direction_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("direction_model must be a direction model")
         if energy_model.model_parameters_table["reco"][0] == "energy":
             self.energy_model = energy_model
+            self.energy_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("energy_model must be an energy model")
         if type_model.model_parameters_table["reco"][0] == "type":
             self.type_model = type_model
+            self.type_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("type_model must be a type model")
         import ast
@@ -268,29 +277,29 @@ class CTLearnTriModelManager:
                 model.update_model_manager_testing_data(data_sample)
         self.get_available_testing_directions()
 
-    def set_DL2_MC_file(
-        self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
-    ):
-        """
-        Set the DL2 Monte Carlo (MC) file for testing and update associated models.
+    # def set_DL2_MC_file(
+    #     self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
+    # ):
+    #     """
+    #     Set the DL2 Monte Carlo (MC) file for testing and update associated models.
 
-        Parameters
-        ----------
-        testing_MC_DL2_file : str
-            Path to the DL2 MC file to be used for testing.
-        testing_MC_DL2_data_sample : DataSample
-            Data sample object containing the testing data.
+    #     Parameters
+    #     ----------
+    #     testing_MC_DL2_file : str
+    #         Path to the DL2 MC file to be used for testing.
+    #     testing_MC_DL2_data_sample : DataSample
+    #         Data sample object containing the testing data.
 
-        Notes
-        -----
-        This method updates the DL2 MC file and data sample for all associated models,
-        including the direction, energy, and type models.
-        """
-        for model in [self.direction_model, self.energy_model, self.type_model]:
-            model.update_model_manager_DL2_MC_file(
-                testing_MC_DL2_file=testing_MC_DL2_file,
-                testing_MC_DL2_data_sample=testing_MC_DL2_data_sample,
-            )
+    #     Notes
+    #     -----
+    #     This method updates the DL2 MC file and data sample for all associated models,
+    #     including the direction, energy, and type models.
+    #     """
+    #     for model in [self.direction_model, self.energy_model, self.type_model]:
+    #         model.update_model_manager_DL2_MC_file(
+    #             testing_MC_DL2_file=testing_MC_DL2_file,
+    #             testing_MC_DL2_data_sample=testing_MC_DL2_data_sample,
+    #         )
 
     def delete_table_from_index(self, path: str):
         """
@@ -352,7 +361,7 @@ class CTLearnTriModelManager:
         for particle_type in ParticleType:
             try:
                 DL2_table = read_table_hdf5(
-                    self.direction_model.model_index_file,
+                    self.project_directories.model_index_file,
                     path=f"{self.direction_model.model_nickname}/testing/{particle_type.value}",
                 )
                 _zeniths = DL2_table[f"testing_{particle_type.value}_zenith_distances"]
@@ -368,6 +377,7 @@ class CTLearnTriModelManager:
 
         coords = set(zip(flat_zeniths, flat_azimuths))
         coords = sorted(coords, key=lambda x: x[0])
+        print(coords)
         if len(coords) > 0:
             print("Available testing directions:")
         for zenith, azimuth in coords:
@@ -420,18 +430,19 @@ class CTLearnTriModelManager:
         azimuths = []
 
         for particle_type in ParticleType:
-            try:
-                DL2_table = read_table_hdf5(
-                    self.direction_model.model_index_file,
-                    path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
-                )
-                _zeniths = DL2_table[
-                    f"testing_DL2_{particle_type.value}_zenith_distances"
-                ]
-                _azimuths = DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-            except:
-                _zeniths = []
-                _azimuths = []
+            _zeniths, _azimuths = self.project_directories.get_available_MC_directions(particle_type)
+            # try:
+            #     DL2_table = read_table_hdf5(
+            #         self.direction_model.model_index_file,
+            #         path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
+            #     )
+            #     _zeniths = DL2_table[
+            #         f"testing_DL2_{particle_type.value}_zenith_distances"
+            #     ]
+            #     _azimuths = DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+            # except:
+            #     _zeniths = []
+            #     _azimuths = []
             zeniths.append(_zeniths)
             azimuths.append(_azimuths)
 
@@ -466,8 +477,8 @@ class CTLearnTriModelManager:
         self,
         zenith: float,
         azimuth: float,
-        output_dirs: list[str],
-        config_dir: str | None = None,
+        # output_dirs: list[str],
+        # config_dir: str | None = None,
         launch_particle_types: list[ParticleType] = [ParticleType.GAMMA_POINT],
         batch_size=64,
         dl2_subarray=True,
@@ -520,9 +531,9 @@ class CTLearnTriModelManager:
         validation, file matching, and command execution for both stereo and mono models.
         It supports cluster-based execution using SLURM or local execution.
         """
-        assert len(output_dirs) == len(launch_particle_types), (
-            "Output directories must match the number of launched particle types"
-        )
+        # assert len(output_dirs) == len(launch_particle_types), (
+        #     "Output directories must match the number of launched particle types"
+        # )
 
         if self.cluster_configuration.nodes > 1:
             raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
@@ -534,17 +545,19 @@ class CTLearnTriModelManager:
 
         testing_files = []
         output_files = []
-        for particle_type, output_dir in zip(launch_particle_types, output_dirs):
+        for particle_type in launch_particle_types:
+            output_dir = self.project_directories.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            os.makedirs(output_dir, exist_ok=True)
             direction_testing_table = read_table_hdf5(
-                self.direction_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.direction_model.model_nickname}/testing/{particle_type.value}",
             )
             energy_testing_table = read_table_hdf5(
-                self.energy_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.energy_model.model_nickname}/testing/{particle_type.value}",
             )
             type_testing_table = read_table_hdf5(
-                self.type_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.type_model.model_nickname}/testing/{particle_type.value}",
             )
             if (
@@ -604,11 +617,11 @@ class CTLearnTriModelManager:
             ]
             testing_files.extend(_files)
             output_files.extend(_output_files)
-            for model in [self.direction_model, self.energy_model, self.type_model]:
-                for file in _output_files:
-                    model.update_model_manager_DL2_MC_file(
-                        testing_MC_DL2_file=file, testing_MC_DL2_data_sample=data_sample
-                    )
+            # for model in [self.direction_model, self.energy_model, self.type_model]:
+            #     for file in _output_files:
+            #         model.update_model_manager_DL2_MC_file(
+            #             testing_MC_DL2_file=file, testing_MC_DL2_data_sample=data_sample
+            #         )
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
@@ -672,6 +685,7 @@ class CTLearnTriModelManager:
 
             if self.cluster_configuration.use_cluster:
                 # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
+                config_dir = self.project_directories.prediction_logs_directory
                 sbatch_file = self.cluster_configuration.write_sbatch_script(
                     Path(input_file).stem, cmd, config_dir
                 )
@@ -940,7 +954,6 @@ class CTLearnTriModelManager:
         self,
         zenith: str,
         azimuth: str,
-        output_file: str,
         particle_type: ParticleType,
         overwrite=False,
     ):
@@ -981,10 +994,15 @@ class CTLearnTriModelManager:
         - If only one file exists for the given parameters, merging is skipped.
         """
         import os
+        import glob
 
-        files = self.direction_model.get_DL2_MC_files(
-            zenith, azimuth, merged=False, particle_types=[particle_type]
-        )[particle_type.value]
+        output_directory = self.project_directories.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
+        os.makedirs(output_directory, exist_ok=True)
+        output_file = f"{output_directory}/merged_{particle_type.value}_zenith_{zenith.value}_azimuth_{azimuth.value}.dl2.h5"
+        # files = self.direction_model.get_DL2_MC_files(
+        #     zenith, azimuth, merged=False, particle_types=[particle_type]
+        # )[particle_type.value]
+        files = glob.glob(f"{self.project_directories.get_dl2_mc_directory(particle_type, zenith, azimuth)}/*.h5")
         if len(files) > 1:
             print(
                 f"🔀 Merging DL2 {particle_type.value} files for zenith {zenith} and azimuth {azimuth}"
@@ -993,14 +1011,14 @@ class CTLearnTriModelManager:
             print(f"Running : {cmd}")
             result = os.system(cmd)
             if result == 0:
-                for model in [
-                    self.direction_model,
-                    self.energy_model,
-                    self.type_model,
-                ]:
-                    model.update_merged_DL2_MC_files(
-                        zenith, azimuth, output_file, particle_type
-                    )
+                # for model in [
+                #     self.direction_model,
+                #     self.energy_model,
+                #     self.type_model,
+                # ]:
+                #     model.update_merged_DL2_MC_files(
+                #         zenith, azimuth, output_file, particle_type
+                #     )
                 # self.direction_model.update_merged_DL2_MC_files(
                 #     zenith, azimuth, output_file, particle_type
                 # )
@@ -1016,16 +1034,21 @@ class CTLearnTriModelManager:
                     f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}"
                 )
         elif len(files) == 1:
-            for model in [
-                    self.direction_model,
-                    self.energy_model,
-                    self.type_model,
-                ]:
-                    model.update_merged_DL2_MC_files(
-                        zenith, azimuth, files[0], particle_type
-                    )
+            # for model in [
+            #         self.direction_model,
+            #         self.energy_model,
+            #         self.type_model,
+            #     ]:
+            #         model.update_merged_DL2_MC_files(
+            #             zenith, azimuth, files[0], particle_type
+            #         )
+            cmd = f"cp {files[0]} {output_file}"
+            result = os.system(cmd)
+            assert result == 0, (
+                f"Error: Failed to copy file {files[0]} to {output_file}"
+            )
             print(
-                f"✅ There is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}, a new row has been added as 'merged' in the model index, as a duplicate of the single file row. To add more files, simply run testing and merge again."
+                f"✅ There is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}, file copied to 'merged'."
             )
         else:
             raise ValueError(
@@ -1372,9 +1395,9 @@ class CTLearnTriModelManager:
         zenith: float,
         azimuth: float,
         config: str,
-        output_cuts_file: str,
-        output_irf_file: str,
-        output_benchmark_file: str,
+        # output_cuts_file: str,
+        # output_irf_file: str,
+        # output_benchmark_file: str,
         pointlike=True,
         electrons=False,
         protons=True,
@@ -1491,6 +1514,27 @@ class CTLearnTriModelManager:
                     f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()"
                 )
             proton_file = proton_files[0]
+
+        
+        irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
+
+        match irf_type:
+            case IRFType.EFFICIENCY_OPTIMIZED:
+                cuts_type = CutType.EFFICIENCY_OPTIMIZED
+            case IRFType.SENSITIVITY_OPTIMIZED:
+                cuts_type = CutType.SENSITIVITY_OPTIMIZED
+        cuts = Cuts(
+            cuts_type,
+            gammaness_efficiency=gammaness_efficiency,
+            theta_efficiency=theta_efficiency,
+        )
+
+        output_cuts_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/cuts_{zenith.value}_{azimuth.value}.h5"
+        output_irf_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/irf_{zenith.value}_{azimuth.value}.h5"
+        output_benchmark_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/benchmark_{zenith.value}_{azimuth.value}.h5"
+
+        result = cmd = f"scp {config} {output_cuts_file.rsplit('/', 1)[0]}"
+        assert result == 0
 
         os.makedirs(output_cuts_file.rsplit("/", 1)[0], exist_ok=True)
         os.makedirs(output_irf_file.rsplit("/", 1)[0], exist_ok=True)

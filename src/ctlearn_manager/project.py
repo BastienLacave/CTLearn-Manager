@@ -136,6 +136,7 @@ class CTLearnManagerProject:
             energy_model=energy_model,
             type_model=type_model,
             cluster_configuration=cluster_configuration,
+            project_directories=project_directories,
         )
         return tri_model
 

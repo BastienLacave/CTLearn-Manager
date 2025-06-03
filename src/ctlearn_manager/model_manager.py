@@ -777,89 +777,89 @@ class CTLearnModelManager:
         #     f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) : {testing_dir}/{testing_pattern} updated"
         # )
 
-    def update_model_manager_DL2_MC_file(
-        self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
-    ):
-        """
-        Update the model manager's DL2 Monte Carlo (MC) file with new testing data.
+    # def update_model_manager_DL2_MC_file(
+    #     self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
+    # ):
+    #     """
+    #     Update the model manager's DL2 Monte Carlo (MC) file with new testing data.
 
-        Parameters
-        ----------
-        testing_MC_DL2_file : str
-            Path to the testing MC DL2 file.
-        testing_MC_DL2_data_sample : DataSample
-            Data sample containing testing MC DL2 metadata such as zenith distance,
-            azimuth, and particle type.
+    #     Parameters
+    #     ----------
+    #     testing_MC_DL2_file : str
+    #         Path to the testing MC DL2 file.
+    #     testing_MC_DL2_data_sample : DataSample
+    #         Data sample containing testing MC DL2 metadata such as zenith distance,
+    #         azimuth, and particle type.
 
-        Raises
-        ------
-        AssertionError
-            If the zenith distance or azimuth in the testing_MC_DL2_data_sample
-            does not have units of degrees.
+    #     Raises
+    #     ------
+    #     AssertionError
+    #         If the zenith distance or azimuth in the testing_MC_DL2_data_sample
+    #         does not have units of degrees.
 
-        Notes
-        -----
-        This method reads the existing DL2 MC data for the specified particle type
-        from the model index file. If the provided testing data is not already
-        present, it appends the new data to the table and writes it back to the
-        model index file.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+    #     Notes
+    #     -----
+    #     This method reads the existing DL2 MC data for the specified particle type
+    #     from the model index file. If the provided testing data is not already
+    #     present, it appends the new data to the table and writes it back to the
+    #     model index file.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
-        testing_zenith_distance = testing_MC_DL2_data_sample.zenith_distance
-        testing_azimuth = testing_MC_DL2_data_sample.azimuth
-        particle_type = testing_MC_DL2_data_sample.particle_type
+    #     testing_zenith_distance = testing_MC_DL2_data_sample.zenith_distance
+    #     testing_azimuth = testing_MC_DL2_data_sample.azimuth
+    #     particle_type = testing_MC_DL2_data_sample.particle_type
 
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
+    #     dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
 
-        try:
-            DL2_gamma_table = read_table_hdf5(
-                self.project_directories.model_index_file,
-                path=dl2_mc_index_table.table_path,
-            )
-        except:
-            DL2_gamma_table = dl2_mc_index_table.default_table
+    #     try:
+    #         DL2_gamma_table = read_table_hdf5(
+    #             self.project_directories.model_index_file,
+    #             path=dl2_mc_index_table.table_path,
+    #         )
+    #     except:
+    #         DL2_gamma_table = dl2_mc_index_table.default_table
 
-        # print(f"💾 Model {self.model_nickname} DL2 data update:")
-        if len(DL2_gamma_table) == 0:
-            DL2_gamma_table = dl2_mc_index_table.default_table
+    #     # print(f"💾 Model {self.model_nickname} DL2 data update:")
+    #     if len(DL2_gamma_table) == 0:
+    #         DL2_gamma_table = dl2_mc_index_table.default_table
 
-        match = np.where(
-            (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_files"]
-                == testing_MC_DL2_file
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == testing_zenith_distance
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == testing_azimuth
-            )
-            & (
-                DL2_gamma_table["merged"] == False
-            )
-        )[0]
-        if len(match) == 0:
-            assert testing_zenith_distance.unit == u.deg, (
-                f"Zenith distance must be in degrees: {testing_zenith_distance}"
-            )
-            assert testing_azimuth.unit == u.deg, (
-                f"Azimuth must be in degrees: {testing_azimuth}"
-            )
-            DL2_gamma_table.add_row(
-                [testing_MC_DL2_file, testing_zenith_distance, testing_azimuth, False]
-            )
-        write_table_hdf5(
-            DL2_gamma_table,
-            self.project_directories.model_index_file,
-            path=dl2_mc_index_table.table_path,
-            append=True,
-            overwrite=True,
-            serialize_meta=True,
-        )
-        # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
+    #     match = np.where(
+    #         (
+    #             DL2_gamma_table[f"testing_DL2_{particle_type.value}_files"]
+    #             == testing_MC_DL2_file
+    #         )
+    #         & (
+    #             DL2_gamma_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #             == testing_zenith_distance
+    #         )
+    #         & (
+    #             DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #             == testing_azimuth
+    #         )
+    #         & (
+    #             DL2_gamma_table["merged"] == False
+    #         )
+    #     )[0]
+    #     if len(match) == 0:
+    #         assert testing_zenith_distance.unit == u.deg, (
+    #             f"Zenith distance must be in degrees: {testing_zenith_distance}"
+    #         )
+    #         assert testing_azimuth.unit == u.deg, (
+    #             f"Azimuth must be in degrees: {testing_azimuth}"
+    #         )
+    #         DL2_gamma_table.add_row(
+    #             [testing_MC_DL2_file, testing_zenith_distance, testing_azimuth, False]
+    #         )
+    #     write_table_hdf5(
+    #         DL2_gamma_table,
+    #         self.project_directories.model_index_file,
+    #         path=dl2_mc_index_table.table_path,
+    #         append=True,
+    #         overwrite=True,
+    #         serialize_meta=True,
+    #     )
+    #     # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
 
     def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
         """
@@ -1209,9 +1209,9 @@ class CTLearnModelManager:
             ) / 2
             return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
 
-        IRF_table = read_table_hdf5(
-            self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
-        )
+        # IRF_table = read_table_hdf5(
+        #     self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
+        # )
         target_irf_type = cuts.irf_type
         target_gamma_efficiency = cuts.efficiency_gammaness
         target_theta_efficiency = (
@@ -1300,9 +1300,9 @@ class CTLearnModelManager:
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
 
-        IRF_table = read_table_hdf5(
-            self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
-        )
+        # IRF_table = read_table_hdf5(
+        #     self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
+        # )
         if cuts is not None:
             target_irf_type = cuts.irf_type
             target_gamma_efficiency = cuts.efficiency_gammaness
