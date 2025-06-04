@@ -859,6 +859,27 @@ class Cuts:
             return "sensitivity_optimized"
         else:
             raise ValueError(f"Invalid cut type: {self.cut_type}")
+        
+def get_cuts_from_directory_name(directory_name: str):
+    """
+    Get the Cuts object from a directory name.
+    :param directory_name: The directory name to parse.
+    :type directory_name: str
+    :return: Cuts object.
+    :rtype: Cuts
+    """
+    if "global" in directory_name:
+        gammaness_cut = float(directory_name.split("global_gammaness_")[1].split("_theta_")[0])
+        theta_cut = float(directory_name.split("theta_")[1])
+        return Cuts(cut_type=CutType.GLOBAL, gammaness_cut=gammaness_cut, theta_cut=theta_cut)
+    elif "efficiency_gammaness_" in directory_name:
+        efficiency_gammaness = float(directory_name.split("efficiency_gammaness_")[1].split("_theta_")[0])
+        efficiency_theta = float(directory_name.split("theta_")[1])
+        return Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=efficiency_gammaness, efficiency_theta=efficiency_theta)
+    elif "sensitivity_optimized" in directory_name:
+        return Cuts(cut_type=CutType.SENSITIVITY_OPTIMIZED)
+    else:
+        raise ValueError(f"Invalid directory name: {directory_name}")
 
 
 class DefaultCuts(Enum):
@@ -1105,6 +1126,79 @@ class CTLMDirectories:
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_irf_directory(self, zenith:float, azimuth:float, cuts:Cuts):
         return f"{self.irf_directory}/{zenith.value:.3f}_{azimuth.value:.3f}/{cuts.get_directory_name()}"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_irf_files(self, zenith:float, azimuth:float, cuts:Cuts):
+        import glob
+        from pathlib import Path
+
+        irf_dir = self.get_irf_directory(zenith, azimuth, cuts)
+        irf_file = f"{irf_dir}/irf_{zenith.value}_{azimuth.value}.h5"
+        cuts_file = f"{irf_dir}/cuts_{zenith.value}_{azimuth.value}.h5"
+        benchmark_file = f"{irf_dir}/benchmark_{zenith.value}_{azimuth.value}.h5"
+        config_file = f"{irf_dir}/config_{zenith.value}_{azimuth.value}.yaml"
+
+        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file()]
+
+        if not all(exist):
+            raise FileNotFoundError(
+                f"No IRF files found for zenith {zenith.value}° and azimuth {azimuth.value}° with cuts {cuts.get_directory_name()}. "
+            )
+
+        return {
+            "irf_file": irf_file,
+            "cuts_file": cuts_file,
+            "benchmark_file": benchmark_file,
+            "config_file": config_file,
+        }
+    
+    def get_closest_irf_files(self, zenith:float, azimuth:float, cuts:Cuts=None):
+        """
+        Get the closest IRF files for the given zenith and azimuth.
+        :param zenith: The zenith angle in degrees.
+        :type zenith: float
+        :param azimuth: The azimuth angle in degrees.
+        :type azimuth: float
+        :param cuts: The cuts to apply.
+        :type cuts: Cuts
+        :return: A dictionary with the closest IRF files.
+        :rtype: dict
+        """
+        import glob
+        from pathlib import Path
+
+        if cuts is not None:
+            available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/{cuts.get_directory_name()}/")
+            if len(available_irf_direction_directories) == 0:
+                raise FileNotFoundError(
+                    f"No IRF files for this model."
+                )
+        else:
+            available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/*/")
+            if len(available_irf_direction_directories) == 0:
+                raise FileNotFoundError(
+                    f"No IRF files for this model."
+                )
+            cut_directorie_names = [Path(path).parts[-2] for path in available_irf_direction_directories]
+            cuts = get_cuts_from_directory_name(cut_directorie_names[0])
+
+        zeniths = []
+        azimuths = []
+        for path in available_irf_direction_directories:
+            parts = path.split("/")[-3].split("_")
+            zeniths.append(float(parts[0]))
+            azimuths.append(float(parts[1]))
+
+        match = np.argmin(
+            np.abs(zeniths - zenith)
+            + np.abs(azimuths - azimuth)
+        )
+
+        closest_zenith = zeniths[match] * u.deg
+        closest_azimuth = azimuths[match] * u.deg
+        
+        return self.get_irf_files(closest_zenith, closest_azimuth, cuts)
+
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):

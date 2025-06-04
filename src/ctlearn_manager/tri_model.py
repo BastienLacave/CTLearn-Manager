@@ -1450,6 +1450,7 @@ class CTLearnTriModelManager:
           before calling this method if necessary.
         """
         import os
+        from pathlib import Path
 
         # irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
         # match irf_type:
@@ -1478,6 +1479,7 @@ class CTLearnTriModelManager:
         #         output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
         #     except:
         #         raise ValueError("An output benchmark file must be provided, at least the first time.")
+
         print(
             "⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting."
         )
@@ -1529,12 +1531,18 @@ class CTLearnTriModelManager:
             theta_efficiency=theta_efficiency,
         )
 
-        output_cuts_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/cuts_{zenith.value}_{azimuth.value}.h5"
-        output_irf_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/irf_{zenith.value}_{azimuth.value}.h5"
-        output_benchmark_file = self.project_directories.get_irf_directory(zenith, azimuth, cuts) + f"/benchmark_{zenith.value}_{azimuth.value}.h5"
+        output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
+        output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.h5"
+        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.h5"
+        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.h5"
 
-        result = cmd = f"scp {config} {output_cuts_file.rsplit('/', 1)[0]}"
-        assert result == 0
+        cmd = f"scp {config} {output_directory}"
+        result = os.system(cmd)
+        assert result == 0, "Failed to copy config file to output directory"
+
+        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml"
 
         os.makedirs(output_cuts_file.rsplit("/", 1)[0], exist_ok=True)
         os.makedirs(output_irf_file.rsplit("/", 1)[0], exist_ok=True)
@@ -1572,19 +1580,19 @@ class CTLearnTriModelManager:
             raise RuntimeError(
                 f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
-        for model in [
-            self.direction_model,
-            self.energy_model,
-            self.type_model,
-        ]:
-            model.update_model_manager_IRF_data(
-                config,
-                output_cuts_file,
-                output_irf_file,
-                output_benchmark_file,
-                zenith,
-                azimuth,
-            )
+        # for model in [
+        #     self.direction_model,
+        #     self.energy_model,
+        #     self.type_model,
+        # ]:
+        #     model.update_model_manager_IRF_data(
+        #         config,
+        #         output_cuts_file,
+        #         output_irf_file,
+        #         output_benchmark_file,
+        #         zenith,
+        #         azimuth,
+        #     )
         # self.direction_model.update_model_manager_IRF_data(
         #     config,
         #     output_cuts_file,
@@ -1670,7 +1678,7 @@ class CTLearnTriModelManager:
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             hudl = fits.open(irf_file)
             energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
                 hudl["SENSITIVITY"].data["ENERG_HI"]
@@ -1703,7 +1711,7 @@ class CTLearnTriModelManager:
             cuts[0].plot_cuts_info_plt(ax)
         default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         for cut, color in zip(cuts, default_colors[: len(cuts)]):
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             hudl = fits.open(irf_file)
             energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
                 hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
@@ -1760,7 +1768,7 @@ class CTLearnTriModelManager:
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             hudl = fits.open(irf_file)
             energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
                 hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
@@ -1791,7 +1799,7 @@ class CTLearnTriModelManager:
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             hudl = fits.open(irf_file)
             energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
                 hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
@@ -1878,7 +1886,7 @@ class CTLearnTriModelManager:
         for i, coord in enumerate(coords):
             zenith, azimuth = coord
             for cut in cuts:
-                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[1]
+                cuts_file = self.get_IRF_data(zenith, azimuth, cut)["cuts_file"]
                 if label is None:
                     if (len(cuts) > 1) or (import_from_h5 is not None):
                         l = cut.get_label()
@@ -1949,7 +1957,7 @@ class CTLearnTriModelManager:
             EnergyDispersion2D,
         )
 
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[2]
+        irf_file = self.get_IRF_data(zenith, azimuth, cuts)["irf_file"]
         # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
         bkg = Background2D.read(irf_file, hdu="BACKGROUND")
@@ -2330,7 +2338,7 @@ class CTLearnTriModelManager:
                 )
 
             case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[1]
+                cuts_file = self.get_IRF_data(zenith, azimuth, cuts)["cuts_file"]
                 dl2_gamma, log_bins = self.apply_energy_dependent_cuts_MC(
                     dl2_gamma, cuts_file, theta_cut=apply_theta_cut
                 )
@@ -2736,7 +2744,60 @@ class CTLearnTriModelManager:
         # plt.xlim(-0.05, 1.05)
         # plt.ylim(-0.05, 1.05)
         plt.show()
+        
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_IRF_data(self, zenith=None, azimuth=None, cuts: Cuts = None):
+        """
+        Retrieve Instrument Response Function (IRF) data based on specified parameters.
 
+        Parameters
+        ----------
+        zenith : float, optional
+            The zenith angle for which to retrieve IRF data. If None, the average zenith
+            from the validity range is used.
+        azimuth : float, optional
+            The azimuth angle for which to retrieve IRF data. If None, the average azimuth
+            from the validity range is used.
+        cuts : Cuts
+            The cuts object specifying the IRF type and efficiency parameters.
+
+        Returns
+        -------
+        tuple
+            A tuple containing:
+            - config (str): The configuration string for the matched IRF data.
+            - cuts_file (str): The file path to the cuts file.
+            - irf_file (str): The file path to the IRF file.
+            - benchmark_file (str): The file path to the benchmark file.
+
+        Raises
+        ------
+        IndexError
+            If no IRF data is found for the specified cuts or direction, or if multiple
+            matches are found for the given parameters.
+
+        Notes
+        -----
+        If both `zenith` and `azimuth` are None, the method calculates the average zenith
+        and azimuth from the validity range and retrieves the closest IRF data.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if zenith is None or azimuth is None:
+            average_zenith = (
+                self.direction_model.validity.zenith_range[0] + self.validity.zenith_range[1]
+            ) / 2
+            average_azimuth = (
+                self.direction_model.validity.azimuth_range[0] + self.validity.azimuth_range[1]
+            ) / 2
+            # return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
+            return self.project_directories.get_closest_irf_files(
+            zenith, azimuth, cuts
+        )
+
+        irf_files = self.project_directories.get_irf_files(zenith, azimuth, cuts)
+        return irf_files
+    
     def compare_irfs_to_RF(self, zenith: float, azimuth=None):
         """
         Compare Instrument Response Functions (IRFs) to Random Forest (RF) benchmarks.
@@ -2815,7 +2876,7 @@ class CTLearnTriModelManager:
                 flux_sensitivity_file, format="hdf5", path="sensitivity"
             )
 
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
+        irf_file = self.get_IRF_data(zenith, azimuth)["benchmark_file"]
         hudl = fits.open(irf_file)
 
         energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (

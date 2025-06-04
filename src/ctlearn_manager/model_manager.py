@@ -1066,287 +1066,103 @@ class CTLearnModelManager:
                 f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
             )
         
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def update_model_manager_IRF_data(
-        self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth
-    ):
-        """
-        Update the IRF (Instrument Response Function) data for the model manager.
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def update_model_manager_IRF_data(
+    #     self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth
+    # ):
+    #     """
+    #     Update the IRF (Instrument Response Function) data for the model manager.
 
-        This function reads the existing IRF data from an HDF5 file, checks if the
-        provided configuration and parameters already exist, and updates or adds
-        the data accordingly. The updated IRF data is then written back to the HDF5 file.
+    #     This function reads the existing IRF data from an HDF5 file, checks if the
+    #     provided configuration and parameters already exist, and updates or adds
+    #     the data accordingly. The updated IRF data is then written back to the HDF5 file.
 
-        Parameters
-        ----------
-        config : str
-            The configuration identifier for the IRF data.
-        cuts_file : str
-            The path to the cuts file associated with the IRF data.
-        irf_file : str
-            The path to the IRF file.
-        bencmark_file : str
-            The path to the benchmark file (note: 'bencmark_file' appears to be a typo).
-        zenith : float
-            The zenith angle in degrees.
-        azimuth : float
-            The azimuth angle in degrees.
+    #     Parameters
+    #     ----------
+    #     config : str
+    #         The configuration identifier for the IRF data.
+    #     cuts_file : str
+    #         The path to the cuts file associated with the IRF data.
+    #     irf_file : str
+    #         The path to the IRF file.
+    #     bencmark_file : str
+    #         The path to the benchmark file (note: 'bencmark_file' appears to be a typo).
+    #     zenith : float
+    #         The zenith angle in degrees.
+    #     azimuth : float
+    #         The azimuth angle in degrees.
 
-        Raises
-        ------
-        Exception
-            If there is an error reading or writing the HDF5 file.
+    #     Raises
+    #     ------
+    #     Exception
+    #         If there is an error reading or writing the HDF5 file.
 
-        Notes
-        -----
-        - If the IRF data for the given parameters already exists, it is replaced.
-        - If the IRF data does not exist, a new entry is added.
-        - The function uses `astropy.io.misc.hdf5` for reading and writing HDF5 files.
-        - The IRF data is stored in a QTable with specific column names, data types,
-          and units.
+    #     Notes
+    #     -----
+    #     - If the IRF data for the given parameters already exists, it is replaced.
+    #     - If the IRF data does not exist, a new entry is added.
+    #     - The function uses `astropy.io.misc.hdf5` for reading and writing HDF5 files.
+    #     - The IRF data is stored in a QTable with specific column names, data types,
+    #       and units.
 
-        See Also
-        --------
-        astropy.io.misc.hdf5.read_table_hdf5 : Read a table from an HDF5 file.
-        astropy.io.misc.hdf5.write_table_hdf5 : Write a table to an HDF5 file.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+    #     See Also
+    #     --------
+    #     astropy.io.misc.hdf5.read_table_hdf5 : Read a table from an HDF5 file.
+    #     astropy.io.misc.hdf5.write_table_hdf5 : Write a table to an HDF5 file.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
-        irf_index_table = IndexTables(self).IRF
+    #     irf_index_table = IndexTables(self).IRF
 
-        try:
-            IRF_table = read_table_hdf5(
-                self.project_directories.model_index_file, path=irf_index_table.table_path
-            )
-        except:
-            IRF_table = irf_index_table.default_table
-        if len(IRF_table) == 0:
-            IRF_table = irf_index_table.default_table
+    #     # try:
+    #     #     # IRF_table = read_table_hdf5(
+    #     #     #     self.project_directories.model_index_file, path=irf_index_table.table_path
+    #     #     # )
+    #     # except:
+    #         # IRF_table = irf_index_table.default_table
+    #     if len(IRF_table) == 0:
+    #         IRF_table = irf_index_table.default_table
 
-        match = np.where(
-            (IRF_table["config"] == config).any()
-            and (IRF_table["cuts_file"] == cuts_file).any()
-            and (IRF_table["irf_file"] == irf_file).any()
-            and (IRF_table["benckmark_file"] == bencmark_file).any()
-            and (
-                (IRF_table["zenith"] == zenith).any()
-                and (IRF_table["azimuth"] == azimuth).any()
-            ).all()
-        )[0]
-        if len(match) == 0:
-            IRF_table.add_row(
-                [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
-            )
-            write_table_hdf5(
-                IRF_table,
-                self.project_directories.model_index_file,
-                path=irf_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-        else:
-            IRF_table.remove_rows(match)
-            IRF_table.add_row(
-                [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
-            )
-            write_table_hdf5(
-                IRF_table,
-                self.project_directories.model_index_file,
-                path=irf_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-        print(
-            f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}"
-        )
+    #     match = np.where(
+    #         (IRF_table["config"] == config).any()
+    #         and (IRF_table["cuts_file"] == cuts_file).any()
+    #         and (IRF_table["irf_file"] == irf_file).any()
+    #         and (IRF_table["benckmark_file"] == bencmark_file).any()
+    #         and (
+    #             (IRF_table["zenith"] == zenith).any()
+    #             and (IRF_table["azimuth"] == azimuth).any()
+    #         ).all()
+    #     )[0]
+    #     if len(match) == 0:
+    #         IRF_table.add_row(
+    #             [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
+    #         )
+    #         write_table_hdf5(
+    #             IRF_table,
+    #             self.project_directories.model_index_file,
+    #             path=irf_index_table.table_path,
+    #             append=True,
+    #             overwrite=True,
+    #             serialize_meta=True,
+    #         )
+    #     else:
+    #         IRF_table.remove_rows(match)
+    #         IRF_table.add_row(
+    #             [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
+    #         )
+    #         write_table_hdf5(
+    #             IRF_table,
+    #             self.project_directories.model_index_file,
+    #             path=irf_index_table.table_path,
+    #             append=True,
+    #             overwrite=True,
+    #             serialize_meta=True,
+    #         )
+    #     print(
+    #         f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}"
+    #     )
 
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_IRF_data(self, zenith=None, azimuth=None, cuts: Cuts = None):
-        """
-        Retrieve Instrument Response Function (IRF) data based on specified parameters.
 
-        Parameters
-        ----------
-        zenith : float, optional
-            The zenith angle for which to retrieve IRF data. If None, the average zenith
-            from the validity range is used.
-        azimuth : float, optional
-            The azimuth angle for which to retrieve IRF data. If None, the average azimuth
-            from the validity range is used.
-        cuts : Cuts
-            The cuts object specifying the IRF type and efficiency parameters.
-
-        Returns
-        -------
-        tuple
-            A tuple containing:
-            - config (str): The configuration string for the matched IRF data.
-            - cuts_file (str): The file path to the cuts file.
-            - irf_file (str): The file path to the IRF file.
-            - benchmark_file (str): The file path to the benchmark file.
-
-        Raises
-        ------
-        IndexError
-            If no IRF data is found for the specified cuts or direction, or if multiple
-            matches are found for the given parameters.
-
-        Notes
-        -----
-        If both `zenith` and `azimuth` are None, the method calculates the average zenith
-        and azimuth from the validity range and retrieves the closest IRF data.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
-
-        if zenith is None or azimuth is None:
-            average_zenith = (
-                self.validity.zenith_range[0] + self.validity.zenith_range[1]
-            ) / 2
-            average_azimuth = (
-                self.validity.azimuth_range[0] + self.validity.azimuth_range[1]
-            ) / 2
-            return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
-
-        # IRF_table = read_table_hdf5(
-        #     self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
-        # )
-        target_irf_type = cuts.irf_type
-        target_gamma_efficiency = cuts.efficiency_gammaness
-        target_theta_efficiency = (
-            cuts.efficiency_theta
-            if cuts.efficiency_theta is not None
-            else cuts.efficiency_gammaness
-        )
-
-        mask_cuts = np.where(
-            [
-                get_irf_type_from_config(config)[0] == target_irf_type
-                for config in IRF_table["config"]
-            ]
-        )[0]
-        if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-            mask_cuts = [
-                i in mask_cuts
-                and abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency)
-                < 1e-3
-                and abs(get_irf_type_from_config(config)[2] - target_theta_efficiency)
-                < 1e-3
-                for i, config in enumerate(IRF_table["config"])
-            ]
-        if not np.any(mask_cuts):
-            raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
-
-        mask_direction = (IRF_table["zenith"] == zenith) & (
-            IRF_table["azimuth"] == azimuth
-        )
-        if not np.any(mask_direction):
-            raise IndexError(
-                f"No IRF data found for zenith {zenith} and azimuth {azimuth}"
-            )
-
-        match = np.where(np.array(mask_cuts) & np.array(mask_direction))[0]
-        if len(match) > 1:
-            raise IndexError(
-                f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data."
-            )
-        return (
-            IRF_table["config"][match][0],
-            IRF_table["cuts_file"][match][0],
-            IRF_table["irf_file"][match][0],
-            IRF_table["benckmark_file"][match][0],
-        )
-
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_closest_IRF_data(self, zenith: float, azimuth: float, cuts: Cuts = None):
-        """
-        Retrieve the closest Instrument Response Function (IRF) data based on zenith and azimuth angles.
-
-        Parameters
-        ----------
-        zenith : float
-            The zenith angle for which to find the closest IRF data.
-        azimuth : float
-            The azimuth angle for which to find the closest IRF data.
-        cuts : Cuts, optional
-            An optional `Cuts` object specifying the IRF type and efficiency parameters
-            (e.g., gammaness and theta efficiency) to filter the IRF data.
-
-        Returns
-        -------
-        tuple
-            A tuple containing:
-            - config : str
-                The configuration string of the closest IRF data.
-            - cuts_file : str
-                The file path to the cuts file associated with the IRF data.
-            - irf_file : str
-                The file path to the IRF file.
-            - benchmark_file : str
-                The file path to the benchmark file.
-
-        Raises
-        ------
-        IndexError
-            If no IRF data is found for the specified cuts or if multiple IRF data entries
-            match the given zenith and azimuth angles.
-
-        Notes
-        -----
-        The function reads the IRF data from an HDF5 file and filters it based on the
-        provided cuts. It then identifies the closest match to the specified zenith and
-        azimuth angles. If multiple matches are found, an error is raised.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
-
-        # IRF_table = read_table_hdf5(
-        #     self.project_directories.model_index_file, path=IndexTables(self).IRF.table_path
-        # )
-        if cuts is not None:
-            target_irf_type = cuts.irf_type
-            target_gamma_efficiency = cuts.efficiency_gammaness
-            target_theta_efficiency = cuts.efficiency_theta
-
-            mask_cuts = np.where(
-                [
-                    get_irf_type_from_config(config)[0] == target_irf_type
-                    for config in IRF_table["config"]
-                ]
-            )[0]
-            if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-                mask_cuts = [
-                    i in mask_cuts
-                    and abs(
-                        get_irf_type_from_config(config)[1] - target_gamma_efficiency
-                    )
-                    < 1e-3
-                    and abs(
-                        get_irf_type_from_config(config)[2] - target_theta_efficiency
-                    )
-                    < 1e-3
-                    for i, config in enumerate(IRF_table["config"])
-                ]
-            if not np.any(mask_cuts):
-                raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
-            IRF_table = IRF_table[mask_cuts]
-
-        match = np.argmin(
-            np.abs(IRF_table["zenith"] - zenith)
-            + np.abs(IRF_table["azimuth"] - azimuth)
-        )
-        if type(match) == np.int64:  # noqa: E721
-            match = [match]
-        if len(match) > 1:
-            raise IndexError(
-                f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data."
-            )
-        return (
-            IRF_table["config"][match],
-            IRF_table["cuts_file"][match],
-            IRF_table["irf_file"][match],
-            IRF_table["benckmark_file"][match],
-        )
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_DL2_MC_files(
