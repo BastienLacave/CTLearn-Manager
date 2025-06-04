@@ -861,210 +861,210 @@ class CTLearnModelManager:
     #     )
     #     # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
 
-    def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
-        """
-        Delete a DL2 Monte Carlo (MC) file entry from the model index file.
+    # def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
+    #     """
+    #     Delete a DL2 Monte Carlo (MC) file entry from the model index file.
 
-        Parameters
-        ----------
-        testing_DL2_file : str
-            The path or name of the DL2 file to be removed.
-        particle_type : ParticleType
-            The type of particle associated with the DL2 file (e.g., gamma, proton).
+    #     Parameters
+    #     ----------
+    #     testing_DL2_file : str
+    #         The path or name of the DL2 file to be removed.
+    #     particle_type : ParticleType
+    #         The type of particle associated with the DL2 file (e.g., gamma, proton).
 
-        Notes
-        -----
-        This method reads the DL2 MC table from the model index file, removes the
-        entry corresponding to the specified DL2 file, and writes the updated table
-        back to the file. If the specified file is not found in the table, no changes
-        are made.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+    #     Notes
+    #     -----
+    #     This method reads the DL2 MC table from the model index file, removes the
+    #     entry corresponding to the specified DL2 file, and writes the updated table
+    #     back to the file. If the specified file is not found in the table, no changes
+    #     are made.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
+    #     dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
 
-        DL2_table = read_table_hdf5(
-            self.project_directories.model_index_file,
-            path=dl2_mc_index_table.table_path,
-        )
-        match = np.where(
-            DL2_table[f"testing_DL2_{particle_type.value}_files"] == testing_DL2_file
-        )[0]
-        if len(match) > 0:
-            DL2_table.remove_rows(match)
-        write_table_hdf5(
-            DL2_table,
-            self.project_directories.model_index_file,
-            path=dl2_mc_index_table.table_path,
-            append=True,
-            overwrite=True,
-            serialize_meta=True,
-        )
+    #     DL2_table = read_table_hdf5(
+    #         self.project_directories.model_index_file,
+    #         path=dl2_mc_index_table.table_path,
+    #     )
+    #     match = np.where(
+    #         DL2_table[f"testing_DL2_{particle_type.value}_files"] == testing_DL2_file
+    #     )[0]
+    #     if len(match) > 0:
+    #         DL2_table.remove_rows(match)
+    #     write_table_hdf5(
+    #         DL2_table,
+    #         self.project_directories.model_index_file,
+    #         path=dl2_mc_index_table.table_path,
+    #         append=True,
+    #         overwrite=True,
+    #         serialize_meta=True,
+    #     )
 
-    def update_model_manager_DL2_data_files(
-        self, DL2_files, DL2_zenith_distances, DL2_azimuths
-    ):
-        """
-        Update the DL2 data files associated with the model manager.
+    # def update_model_manager_DL2_data_files(
+    #     self, DL2_files, DL2_zenith_distances, DL2_azimuths
+    # ):
+    #     """
+    #     Update the DL2 data files associated with the model manager.
 
-        This method reads the existing DL2 data table from an HDF5 file, updates it with
-        new DL2 data if provided, and writes the updated table back to the file. If the
-        DL2 data table does not exist, it initializes a new table.
+    #     This method reads the existing DL2 data table from an HDF5 file, updates it with
+    #     new DL2 data if provided, and writes the updated table back to the file. If the
+    #     DL2 data table does not exist, it initializes a new table.
 
-        Parameters
-        ----------
-        DL2_files : list of str
-            List of file paths to DL2 data files.
-        DL2_zenith_distances : list of float
-            List of zenith distances corresponding to the DL2 files.
-        DL2_azimuths : list of float
-            List of azimuth angles corresponding to the DL2 files.
+    #     Parameters
+    #     ----------
+    #     DL2_files : list of str
+    #         List of file paths to DL2 data files.
+    #     DL2_zenith_distances : list of float
+    #         List of zenith distances corresponding to the DL2 files.
+    #     DL2_azimuths : list of float
+    #         List of azimuth angles corresponding to the DL2 files.
 
-        Raises
-        ------
-        Exception
-            If there is an error reading or writing the HDF5 file.
+    #     Raises
+    #     ------
+    #     Exception
+    #         If there is an error reading or writing the HDF5 file.
 
-        Notes
-        -----
-        - The method ensures that duplicate entries (based on file path, zenith distance,
-          and azimuth) are not added to the DL2 data table.
-        - The updated table is saved to the HDF5 file under the path
-          `<model_nickname>/DL2/Data`.
-        - If the table is empty or does not exist, it is initialized with the appropriate
-          column names and data types.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+    #     Notes
+    #     -----
+    #     - The method ensures that duplicate entries (based on file path, zenith distance,
+    #       and azimuth) are not added to the DL2 data table.
+    #     - The updated table is saved to the HDF5 file under the path
+    #       `<model_nickname>/DL2/Data`.
+    #     - If the table is empty or does not exist, it is initialized with the appropriate
+    #       column names and data types.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
-        dl2_data_index_table = IndexTables(self).DL2_DATA
+    #     dl2_data_index_table = IndexTables(self).DL2_DATA
 
-        try:
-            DL2_data_table = read_table_hdf5(
-                self.project_directories.model_index_file, path=dl2_data_index_table.table_path
-            )
-        except:
-            DL2_data_table = dl2_data_index_table.default_table
+    #     try:
+    #         DL2_data_table = read_table_hdf5(
+    #             self.project_directories.model_index_file, path=dl2_data_index_table.table_path
+    #         )
+    #     except:
+    #         DL2_data_table = dl2_data_index_table.default_table
 
-        print(f"💾 Model {self.model_nickname} DL2 data update:")
-        if len(DL2_data_table) == 0:
-            DL2_data_table = dl2_data_index_table.default_table
+    #     print(f"💾 Model {self.model_nickname} DL2 data update:")
+    #     if len(DL2_data_table) == 0:
+    #         DL2_data_table = dl2_data_index_table.default_table
 
-        if len(DL2_files) > 0:
-            for i in range(len(DL2_files)):
-                match = np.where(
-                    (DL2_data_table["DL2_files"] == DL2_files[i])
-                    & (
-                        DL2_data_table["DL2_zenith_distances"]
-                        == DL2_zenith_distances[i]
-                    )
-                    & (DL2_data_table["DL2_azimuths"] == DL2_azimuths[i])
-                )[0]
-                if len(match) == 0:
-                    DL2_data_table.add_row(
-                        [DL2_files[i], DL2_zenith_distances[i], DL2_azimuths[i]]
-                    )
-                # else:
-                #     DL2_data_table.remove_rows(match)
-            write_table_hdf5(
-                DL2_data_table,
-                self.project_directories.model_index_file,
-                path=dl2_data_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-            print("\t➡️ Testing DL2 real data updated")
+    #     if len(DL2_files) > 0:
+    #         for i in range(len(DL2_files)):
+    #             match = np.where(
+    #                 (DL2_data_table["DL2_files"] == DL2_files[i])
+    #                 & (
+    #                     DL2_data_table["DL2_zenith_distances"]
+    #                     == DL2_zenith_distances[i]
+    #                 )
+    #                 & (DL2_data_table["DL2_azimuths"] == DL2_azimuths[i])
+    #             )[0]
+    #             if len(match) == 0:
+    #                 DL2_data_table.add_row(
+    #                     [DL2_files[i], DL2_zenith_distances[i], DL2_azimuths[i]]
+    #                 )
+    #             # else:
+    #             #     DL2_data_table.remove_rows(match)
+    #         write_table_hdf5(
+    #             DL2_data_table,
+    #             self.project_directories.model_index_file,
+    #             path=dl2_data_index_table.table_path,
+    #             append=True,
+    #             overwrite=True,
+    #             serialize_meta=True,
+    #         )
+    #         print("\t➡️ Testing DL2 real data updated")
 
-    def update_merged_DL2_MC_files(
-        self,
-        testing_DL2_zenith_distance: float,
-        testing_DL2_azimuth: float,
-        testing_DL2_merged_file: str,
-        particle_type: ParticleType,
-    ):
-        """
-        Update the merged DL2 MC files for a specific particle type and testing configuration.
+    # def update_merged_DL2_MC_files(
+    #     self,
+    #     testing_DL2_zenith_distance: float,
+    #     testing_DL2_azimuth: float,
+    #     testing_DL2_merged_file: str,
+    #     particle_type: ParticleType,
+    # ):
+    #     """
+    #     Update the merged DL2 MC files for a specific particle type and testing configuration.
 
-        This method reads the existing DL2 table from an HDF5 file, removes any rows that match
-        the given testing zenith distance and azimuth, and adds a new row with the provided
-        merged file information. The updated table is then written back to the HDF5 file.
+    #     This method reads the existing DL2 table from an HDF5 file, removes any rows that match
+    #     the given testing zenith distance and azimuth, and adds a new row with the provided
+    #     merged file information. The updated table is then written back to the HDF5 file.
 
-        Parameters
-        ----------
-        testing_DL2_zenith_distance : float
-            The zenith distance of the testing DL2 data to update.
-        testing_DL2_azimuth : float
-            The azimuth of the testing DL2 data to update.
-        testing_DL2_merged_file : str
-            The file path of the merged DL2 data to add.
-        particle_type : ParticleType
-            The type of particle (e.g., gamma, proton) for which the DL2 data is being updated.
+    #     Parameters
+    #     ----------
+    #     testing_DL2_zenith_distance : float
+    #         The zenith distance of the testing DL2 data to update.
+    #     testing_DL2_azimuth : float
+    #         The azimuth of the testing DL2 data to update.
+    #     testing_DL2_merged_file : str
+    #         The file path of the merged DL2 data to add.
+    #     particle_type : ParticleType
+    #         The type of particle (e.g., gamma, proton) for which the DL2 data is being updated.
 
-        Raises
-        ------
-        ValueError
-            If the particle type is invalid or the HDF5 file cannot be read or written.
+    #     Raises
+    #     ------
+    #     ValueError
+    #         If the particle type is invalid or the HDF5 file cannot be read or written.
 
-        Notes
-        -----
-        The method uses the `astropy.io.misc.hdf5` module to handle HDF5 file operations.
-        It ensures that the DL2 table is updated without duplicate entries for the same
-        zenith distance and azimuth combination.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+    #     Notes
+    #     -----
+    #     The method uses the `astropy.io.misc.hdf5` module to handle HDF5 file operations.
+    #     It ensures that the DL2 table is updated without duplicate entries for the same
+    #     zenith distance and azimuth combination.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
 
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
+    #     dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
 
-        # print(f"💾 Model {self.model_nickname} DL2 merged data update:")
-        DL2_table = read_table_hdf5(
-            self.project_directories.model_index_file,
-            path=dl2_mc_index_table.table_path,
-        )
-        match = np.where(
-            (
-                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == testing_DL2_zenith_distance
-            )
-            & (
-                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == testing_DL2_azimuth
-            )
-            & (
-                DL2_table["merged"] == False  # noqa: E712
-            )
-        )[0]
-        if len(match) > 0:
-            match = np.where(
-                (
-                    DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                    == testing_DL2_zenith_distance
-                )
-                & (
-                    DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                    == testing_DL2_azimuth
-                )
-                & (
-                    DL2_table["merged"] == True  # noqa: E712
-                )
-            )[0]
-            if len(match) > 0:
-                DL2_table.remove_rows(match)
-            DL2_table.add_row(
-                [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth, True]
-            )
-            write_table_hdf5(
-                DL2_table,
-                self.project_directories.model_index_file,
-                path=dl2_mc_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-            # print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
-        else:
-            raise ValueError(
-                f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
-            )
+    #     # print(f"💾 Model {self.model_nickname} DL2 merged data update:")
+    #     DL2_table = read_table_hdf5(
+    #         self.project_directories.model_index_file,
+    #         path=dl2_mc_index_table.table_path,
+    #     )
+    #     match = np.where(
+    #         (
+    #             DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #             == testing_DL2_zenith_distance
+    #         )
+    #         & (
+    #             DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #             == testing_DL2_azimuth
+    #         )
+    #         & (
+    #             DL2_table["merged"] == False  # noqa: E712
+    #         )
+    #     )[0]
+    #     if len(match) > 0:
+    #         match = np.where(
+    #             (
+    #                 DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #                 == testing_DL2_zenith_distance
+    #             )
+    #             & (
+    #                 DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #                 == testing_DL2_azimuth
+    #             )
+    #             & (
+    #                 DL2_table["merged"] == True  # noqa: E712
+    #             )
+    #         )[0]
+    #         if len(match) > 0:
+    #             DL2_table.remove_rows(match)
+    #         DL2_table.add_row(
+    #             [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth, True]
+    #         )
+    #         write_table_hdf5(
+    #             DL2_table,
+    #             self.project_directories.model_index_file,
+    #             path=dl2_mc_index_table.table_path,
+    #             append=True,
+    #             overwrite=True,
+    #             serialize_meta=True,
+    #         )
+    #         # print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
+    #     else:
+    #         raise ValueError(
+    #             f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
+    #         )
         
     # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     # def update_model_manager_IRF_data(
@@ -1164,121 +1164,121 @@ class CTLearnModelManager:
 
 
 
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_DL2_MC_files(
-        self,
-        zenith: float,
-        azimuth: float,
-        merged: bool = None,
-        particle_types: list[ParticleType] = [
-            ParticleType.GAMMA_POINT,
-            ParticleType.PROTON,
-        ],
-    ):
-        """
-        Retrieve DL2 Monte Carlo (MC) files for specified zenith and azimuth angles.
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def get_DL2_MC_files(
+    #     self,
+    #     zenith: float,
+    #     azimuth: float,
+    #     merged: bool = None,
+    #     particle_types: list[ParticleType] = [
+    #         ParticleType.GAMMA_POINT,
+    #         ParticleType.PROTON,
+    #     ],
+    # ):
+    #     """
+    #     Retrieve DL2 Monte Carlo (MC) files for specified zenith and azimuth angles.
 
-        Parameters
-        ----------
-        zenith : float
-            The zenith angle for which to retrieve DL2 MC files.
-        azimuth : float
-            The azimuth angle for which to retrieve DL2 MC files.
-        particle_types : list of ParticleType, optional
-            A list of particle types to retrieve DL2 MC files for. Defaults to
-            [ParticleType.GAMMA_POINT, ParticleType.PROTON].
+    #     Parameters
+    #     ----------
+    #     zenith : float
+    #         The zenith angle for which to retrieve DL2 MC files.
+    #     azimuth : float
+    #         The azimuth angle for which to retrieve DL2 MC files.
+    #     particle_types : list of ParticleType, optional
+    #         A list of particle types to retrieve DL2 MC files for. Defaults to
+    #         [ParticleType.GAMMA_POINT, ParticleType.PROTON].
 
-        Returns
-        -------
-        dict
-            A dictionary where keys are particle type values (str) and values are
-            lists of file paths corresponding to the DL2 MC files for the specified
-            zenith and azimuth angles.
+    #     Returns
+    #     -------
+    #     dict
+    #         A dictionary where keys are particle type values (str) and values are
+    #         lists of file paths corresponding to the DL2 MC files for the specified
+    #         zenith and azimuth angles.
 
-        Raises
-        ------
-        IndexError
-            If no DL2 MC files are found for a given particle type, zenith, and
-            azimuth combination.
+    #     Raises
+    #     ------
+    #     IndexError
+    #         If no DL2 MC files are found for a given particle type, zenith, and
+    #         azimuth combination.
 
-        Notes
-        -----
-        This method reads data from an HDF5 file specified by `self.project_directories.model_index_file`
-        and extracts file paths for DL2 MC files based on the provided zenith and
-        azimuth angles. If no files are found for a particle type, an empty list
-        is returned for that particle type.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
+    #     Notes
+    #     -----
+    #     This method reads data from an HDF5 file specified by `self.project_directories.model_index_file`
+    #     and extracts file paths for DL2 MC files based on the provided zenith and
+    #     azimuth angles. If no files are found for a particle type, an empty list
+    #     is returned for that particle type.
+    #     """
+    #     from astropy.io.misc.hdf5 import read_table_hdf5
 
-        DL2_files = {}
+    #     DL2_files = {}
 
-        for particle_type in particle_types:
-            try:
-                dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
-                DL2_table = read_table_hdf5(
-                    self.project_directories.model_index_file,
-                    path=dl2_mc_index_table.table_path,
-                )
+    #     for particle_type in particle_types:
+    #         try:
+    #             dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
+    #             DL2_table = read_table_hdf5(
+    #                 self.project_directories.model_index_file,
+    #                 path=dl2_mc_index_table.table_path,
+    #             )
 
-                if merged is None:
-                    pre_match = np.where(
-                        (
-                            DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                            == zenith
-                        )
-                        & (
-                            DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                            == azimuth
-                        )
-                    )[0]
-                    merged_states = DL2_table["merged"][pre_match]
-                    if True in merged_states:
-                        match = np.where(
-                            (
-                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                                == zenith
-                            )
-                            & (
-                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                                == azimuth
-                            )
-                            & (DL2_table["merged"] == True)  # noqa: E712
-                        )[0]
-                    else:
-                        match = np.where(
-                            (
-                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                                == zenith
-                            )
-                            & (
-                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                                == azimuth
-                            )
-                            & (DL2_table["merged"] == False)  # noqa: E712
-                        )[0]
-                else:
-                    match = np.where(
-                    (
-                        DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                        == zenith
-                    )
-                    & (
-                        DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                        == azimuth
-                    )
-                    & (DL2_table["merged"] == merged)
-                )[0]
-                if len(match) == 0:
-                    raise IndexError(
-                        f"No DL2 {particle_type.value} MC files found for zenith {zenith} and azimuth {azimuth}"
-                    )
-                _DL2_files = DL2_table[f"testing_DL2_{particle_type.value}_files"][
-                    match
-                ]
-            except:
-                _DL2_files = []
-            DL2_files[particle_type.value] = _DL2_files
-        return DL2_files
+    #             if merged is None:
+    #                 pre_match = np.where(
+    #                     (
+    #                         DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #                         == zenith
+    #                     )
+    #                     & (
+    #                         DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #                         == azimuth
+    #                     )
+    #                 )[0]
+    #                 merged_states = DL2_table["merged"][pre_match]
+    #                 if True in merged_states:
+    #                     match = np.where(
+    #                         (
+    #                             DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #                             == zenith
+    #                         )
+    #                         & (
+    #                             DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #                             == azimuth
+    #                         )
+    #                         & (DL2_table["merged"] == True)  # noqa: E712
+    #                     )[0]
+    #                 else:
+    #                     match = np.where(
+    #                         (
+    #                             DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #                             == zenith
+    #                         )
+    #                         & (
+    #                             DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #                             == azimuth
+    #                         )
+    #                         & (DL2_table["merged"] == False)  # noqa: E712
+    #                     )[0]
+    #             else:
+    #                 match = np.where(
+    #                 (
+    #                     DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+    #                     == zenith
+    #                 )
+    #                 & (
+    #                     DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+    #                     == azimuth
+    #                 )
+    #                 & (DL2_table["merged"] == merged)
+    #             )[0]
+    #             if len(match) == 0:
+    #                 raise IndexError(
+    #                     f"No DL2 {particle_type.value} MC files found for zenith {zenith} and azimuth {azimuth}"
+    #                 )
+    #             _DL2_files = DL2_table[f"testing_DL2_{particle_type.value}_files"][
+    #                 match
+    #             ]
+    #         except:
+    #             _DL2_files = []
+    #         DL2_files[particle_type.value] = _DL2_files
+    #     return DL2_files
 
     def plot_zenith_azimuth_ranges(self, ax=None, plot_testing_nodes=True):
         """

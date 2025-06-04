@@ -1207,6 +1207,50 @@ class CTLMDirectories:
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_merged_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
         return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged"
+    
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_files(self, zenith:float, azimuth:float, particle_types: list[ParticleType] = [
+            ParticleType.GAMMA_POINT,
+            ParticleType.PROTON,
+        ],  merged: bool = None):
+
+        dl2_files = {}
+
+        for particle_type in particle_types:
+            if not merged:
+                dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            else:
+                dl2_directory = self.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
+
+            dl2_files[particle_type.value] = glob.glob(f"{dl2_directory}/*.h5")
+            if len(dl2_files[particle_type.value]) == 0:
+                if merged:
+                    raise FileNotFoundError(
+                        f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
+                    )
+                else:
+                    dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
+                    dl2_files[particle_type.value] = glob.glob(f"{dl2_directory}/*.h5")
+                    if len(dl2_files[particle_type.value]) == 0:
+                        raise FileNotFoundError(
+                            f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
+                        )
+        
+        return dl2_files
+    
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def get_closest_dl2_mc_files(self, zenith:float, azimuth:float, particle_types: list[ParticleType] = [
+    #         ParticleType.GAMMA_POINT,
+    #         ParticleType.PROTON,
+    #     ], merged: bool = None):
+
+    #     import glob
+    #     from pathlib import Path
+
+    #     for particle_type in particle_types:
+
+
+    
 
     def get_available_MC_directions(self, particle_type: ParticleType):
         import glob

@@ -999,7 +999,7 @@ class CTLearnTriModelManager:
         output_directory = self.project_directories.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
         os.makedirs(output_directory, exist_ok=True)
         output_file = f"{output_directory}/merged_{particle_type.value}_zenith_{zenith.value}_azimuth_{azimuth.value}.dl2.h5"
-        # files = self.direction_model.get_DL2_MC_files(
+        # files = self.project_directories.get_dl2_mc_files(
         #     zenith, azimuth, merged=False, particle_types=[particle_type]
         # )[particle_type.value]
         files = glob.glob(f"{self.project_directories.get_dl2_mc_directory(particle_type, zenith, azimuth)}/*.h5")
@@ -1098,7 +1098,7 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.table import vstack
 
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for particle_type in particle_types:
@@ -1163,7 +1163,7 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.table import vstack
 
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for particle_type in particle_types:
@@ -1236,7 +1236,7 @@ class CTLearnTriModelManager:
         fig, axs = plt.subplots(
             1, len(particle_types), figsize=(5 * len(particle_types), 4)
         )
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for i, particle_type in enumerate(particle_types):
@@ -1323,7 +1323,7 @@ class CTLearnTriModelManager:
         fig, axs = plt.subplots(
             1, len(particle_types), figsize=(5 * len(particle_types), 4)
         )
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for i, particle_type in enumerate(particle_types):
@@ -1485,11 +1485,11 @@ class CTLearnTriModelManager:
         )
 
         if pointlike:
-            gamma_files = self.direction_model.get_DL2_MC_files(
+            gamma_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=True
             )[ParticleType.GAMMA_POINT.value]
         else:
-            gamma_files = self.direction_model.get_DL2_MC_files(
+            gamma_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=True
             )[ParticleType.GAMMA_DIFFUSE.value]
         if len(gamma_files) > 1:
@@ -1498,7 +1498,7 @@ class CTLearnTriModelManager:
             )
         gamma_file = gamma_files[0]
         if electrons:
-            electrons_files = self.direction_model.get_DL2_MC_files(
+            electrons_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
             )[ParticleType.ELECTRON.value]
             if len(electrons_files) > 1:
@@ -1508,7 +1508,7 @@ class CTLearnTriModelManager:
             electron_file = electrons_files[0]
 
         if protons:
-            proton_files = self.direction_model.get_DL2_MC_files(
+            proton_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
             )[ParticleType.PROTON.value]
             if len(proton_files) > 1:
@@ -2670,10 +2670,10 @@ class CTLearnTriModelManager:
         # if export_to_h5 is not None:
         #     export_curves = ExportCurves(export_to_h5)
 
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(
+        testing_DL2_gamma_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth
         )[ParticleType.GAMMA_POINT.value]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(
+        testing_DL2_proton_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth
         )[ParticleType.PROTON.value]
 
