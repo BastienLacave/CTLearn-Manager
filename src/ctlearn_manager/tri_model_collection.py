@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from . import CTLearnTriModelManager
+
 from .utils.utils import (
     ClusterConfiguration,
     CTLearnManagerStyle,
@@ -68,7 +70,7 @@ class TriModelCollection:
     def __init__(
 
         self,
-        tri_models: list,
+        tri_models: list[CTLearnTriModelManager],
         cluster_configuration: ClusterConfiguration = ClusterConfiguration(),
         model_labels: list[str] = None,
     ):
@@ -102,8 +104,12 @@ class TriModelCollection:
             of tri-models.
             If the stereos of all tri-models are not the same.
         """
-        self.tri_models = tri_models
+        self.tri_models: list[CTLearnTriModelManager] = tri_models
         self.cluster_configuration = cluster_configuration
+
+        # Assert that all tri_models have the same project_directory
+        project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
+        assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
         telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]

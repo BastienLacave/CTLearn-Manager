@@ -161,6 +161,11 @@ class DL2DataProcessor:
                 # height of central pin + distance from pin to elevation axis
                 height=2184 * u.m + 15.883 * u.m,
             )
+        
+        if self.CTLearn:
+            self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_directory
+        else:
+            self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_rf_directory
 
         self.process_DL2_data()
         self.load_processed_data()
@@ -194,36 +199,36 @@ class DL2DataProcessor:
             # I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
             # I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
             # else:
-            if self.CTLearn:
-                dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
-                os.makedirs(dl2_processed_dir, exist_ok=True)
-                dl2_output_file = os.path.join(
-                    dl2_processed_dir,
-                    os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
-                )
-                reco_output_file = os.path.join(
-                    dl2_processed_dir,
-                    os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
-                )
-                pointing_output_file = os.path.join(
-                    dl2_processed_dir,
-                    os.path.basename(DL2_file).replace(".h5", "_pointings.pkl"),
-                )
-                I_g_on_counts_output_file = os.path.join(
-                    dl2_processed_dir,
-                    os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
-                )
-                I_g_off_counts_output_file = os.path.join(
-                    dl2_processed_dir,
-                    os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
-                )
-            else:
-                dl2_processed_dir = self.dl2_processed_dir
-                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+            # if self.CTLearn:
+            #     dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
+            #     os.makedirs(dl2_processed_dir, exist_ok=True)
+            #     dl2_output_file = os.path.join(
+            #         dl2_processed_dir,
+            #         os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
+            #     )
+            #     reco_output_file = os.path.join(
+            #         dl2_processed_dir,
+            #         os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
+            #     )
+            #     pointing_output_file = os.path.join(
+            #         dl2_processed_dir,
+            #         os.path.basename(DL2_file).replace(".h5", "_pointings.pkl"),
+            #     )
+            #     I_g_on_counts_output_file = os.path.join(
+            #         dl2_processed_dir,
+            #         os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
+            #     )
+            #     I_g_off_counts_output_file = os.path.join(
+            #         dl2_processed_dir,
+            #         os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
+            #     )
+            # else:
+            dl2_processed_dir = self.dl2_processed_dir
+            dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
             if (
                 (not os.path.exists(reco_output_file))
@@ -342,32 +347,32 @@ class DL2DataProcessor:
             #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
             #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
             #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-            if self.CTLearn:
-                common_path = os.path.join(
-                    f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
-                    os.path.basename(DL2_file),
-                )
-                dl2_output_file = common_path.replace(
-                    ".h5", "_dl2_processed.pkl"
-                )
-                reco_output_file = common_path.replace(
-                    ".h5", "_reco_directions.pkl"
-                )
-                pointing_output_file = common_path.replace(
-                    ".h5", "_pointings.pkl"
-                )
-                I_g_on_counts_output_file = common_path.replace(
-                    ".h5", "_I_g_on_counts.pkl"
-                )
-                I_g_off_counts_output_file = common_path.replace(
-                    ".h5", "_I_g_off_counts.pkl"
-                )
-            else:
-                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+            # if self.CTLearn:
+            #     common_path = os.path.join(
+            #         f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/",
+            #         os.path.basename(DL2_file),
+            #     )
+            #     dl2_output_file = common_path.replace(
+            #         ".h5", "_dl2_processed.pkl"
+            #     )
+            #     reco_output_file = common_path.replace(
+            #         ".h5", "_reco_directions.pkl"
+            #     )
+            #     pointing_output_file = common_path.replace(
+            #         ".h5", "_pointings.pkl"
+            #     )
+            #     I_g_on_counts_output_file = common_path.replace(
+            #         ".h5", "_I_g_on_counts.pkl"
+            #     )
+            #     I_g_off_counts_output_file = common_path.replace(
+            #         ".h5", "_I_g_off_counts.pkl"
+            #     )
+            # else:
+            dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
             
 
             if (
