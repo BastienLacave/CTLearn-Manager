@@ -1202,10 +1202,12 @@ class CTLMDirectories:
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        # print(f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}")
         return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}"
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_merged_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        # print(f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged")
         return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged"
     
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
@@ -1222,19 +1224,17 @@ class CTLMDirectories:
             else:
                 dl2_directory = self.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
 
-            dl2_files[particle_type.value] = glob.glob(f"{dl2_directory}/*.h5")
-            if len(dl2_files[particle_type.value]) == 0:
-                if merged:
-                    raise FileNotFoundError(
-                        f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
-                    )
-                else:
-                    dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
-                    dl2_files[particle_type.value] = glob.glob(f"{dl2_directory}/*.h5")
-                    if len(dl2_files[particle_type.value]) == 0:
-                        raise FileNotFoundError(
-                            f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
-                        )
+            _dl2_files = glob.glob(f"{dl2_directory}/*.h5")
+            # if len(_dl2_files) == 0:
+            #     if merged:
+            #         raise FileNotFoundError(
+            #             f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
+            #         )
+            #     else:
+            #         dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            #         _dl2_files = glob.glob(f"{dl2_directory}/*.h5")
+            if len(_dl2_files) > 0:
+                dl2_files[particle_type.value] = _dl2_files
         
         return dl2_files
     

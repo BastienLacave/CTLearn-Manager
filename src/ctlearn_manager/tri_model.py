@@ -1173,9 +1173,14 @@ class CTLearnTriModelManager:
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
             dl2_data = vstack(dl2_data)
+            log_bins = np.logspace(
+                np.log10(dl2_data[self.reco_energy_key].min()),
+                np.log10(dl2_data[self.reco_energy_key].max()),
+                100,
+            )
             plt.hist(
                 dl2_data[self.reco_energy_key],
-                bins=100,
+                bins=log_bins,
                 range=(0, 1),
                 histtype="step",
                 density=True,
@@ -1480,9 +1485,9 @@ class CTLearnTriModelManager:
         #     except:
         #         raise ValueError("An output benchmark file must be provided, at least the first time.")
 
-        print(
-            "⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting."
-        )
+        # print(
+        #     "⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting."
+        # )
 
         if pointlike:
             gamma_files = self.project_directories.get_dl2_mc_files(
@@ -1527,30 +1532,30 @@ class CTLearnTriModelManager:
                 cuts_type = CutType.SENSITIVITY_OPTIMIZED
         cuts = Cuts(
             cuts_type,
-            gammaness_efficiency=gammaness_efficiency,
-            theta_efficiency=theta_efficiency,
+            efficiency_gammaness=gammaness_efficiency,
+            efficiency_theta=theta_efficiency,
         )
 
         output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
+        os.makedirs(output_directory, exist_ok=True)
+
         output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.h5"
         output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.h5"
         output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.h5"
 
         cmd = f"scp {config} {output_directory}"
         result = os.system(cmd)
-        assert result == 0, "Failed to copy config file to output directory"
+        assert result == 0, f"Failed to copy config file to output directory : {result}"
 
         cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
         result = os.system(cmd)
-        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml"
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml : {result}"
 
-        os.makedirs(output_cuts_file.rsplit("/", 1)[0], exist_ok=True)
-        os.makedirs(output_irf_file.rsplit("/", 1)[0], exist_ok=True)
-        os.makedirs(output_benchmark_file.rsplit("/", 1)[0], exist_ok=True)
+        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
 
-        electron_string = f" --electron-file {electron_file}" if electrons else ""
-        proton_string = f" --proton-file {proton_file}" if protons else ""
-        do_background_string = " --do-background" if protons else "--no-do-background"
+        electron_string = f"--electron-file {electron_file}" if electrons else ""
+        proton_string = f"--proton-file {proton_file}" if protons else ""
+        do_background_string = "--do-background" if protons else "--no-do-background"
         cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
@@ -1573,7 +1578,7 @@ class CTLearnTriModelManager:
 {do_background_string} \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied --overwrite --spatial-selection-applied"
+--no-spatial-selection-applied --overwrite"
         print(cmd)
         result_irfs = os.system(cmd)
         if result_irfs != 0:
@@ -1618,214 +1623,404 @@ class CTLearnTriModelManager:
         #     azimuth,
         # )
 
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_benchmark(
+    def plot_sensitivity_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        for cut in cuts:
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
+                    hudl["SENSITIVITY"].data["ENERG_HI"] - hudl["SENSITIVITY"].data["ENERG_LO"]
+                )
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+                    )
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
+        if len(cuts) > 1:
+            ax.legend()
+        if title is not None:
+            ax.set_title(title)
+        if ax is None:
+            plt.show()
+
+    def plot_angular_resolution_benchmark(
         self,
         zenith: float,
         azimuth: float,
         cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
         containments: list[int] = [68, 95],
         title: str = None,
-        axs=None,
+        ax=None,
         label=None,
     ):
-        """
-        Plot benchmark performance metrics for a given zenith and azimuth.
-
-        This function generates multiple plots to visualize sensitivity, angular resolution,
-        energy resolution, and energy bias for the specified zenith and azimuth angles.
-        The plots are generated based on the provided cuts and containment percentages.
-
-        Parameters
-        ----------
-        zenith : float
-            Zenith angle in degrees.
-        azimuth : float
-            Azimuth angle in degrees.
-        cuts : list[Cuts], optional
-            List of cut configurations to apply. Defaults to [DefaultCuts.EFF_70.value].
-        containments : list[int], optional
-            List of containment percentages to plot angular resolution. Defaults to [68, 95].
-        title : str, optional
-            Title for the plots. Defaults to None.
-        axs : list[matplotlib.axes.Axes], optional
-            List of axes to plot on. If None, new figures and axes are created. Defaults to None.
-        label : str, optional
-            Label for the plots. Defaults to None.
-
-        Notes
-        -----
-        - The function uses Matplotlib for plotting and Astropy for reading FITS files.
-        - If multiple cuts are provided, legends are created for both cuts and containment percentages.
-        - The function generates four separate plots:
-            1. Sensitivity vs. Energy
-            2. Angular resolution vs. Energy
-            3. Energy resolution vs. Energy
-            4. Energy bias vs. Energy
-
-        Raises
-        ------
-        KeyError
-            If the required data keys are not found in the FITS files.
-        """
         import matplotlib.pyplot as plt
         from astropy.io import fits
 
-        if axs is None:
+        if ax is None:
             fig, ax = plt.subplots()
-        else:
-            ax = axs[0]
-        if len(cuts) == 1:
-            cuts[0].plot_cuts_info_plt(ax)
-        for cut in cuts:
-            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
-                hudl["SENSITIVITY"].data["ENERG_HI"]
-                - hudl["SENSITIVITY"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
-                    label=cut.get_label(),
-                )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.yscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
-        if len(cuts) > 1:
-            plt.legend()
-        if title is not None:
-            plt.title(title)
-        if axs is None:
-            plt.show()
-
-        fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        line_styles = ["-", "--", "-.", ":"]
         for cut, color in zip(cuts, default_colors[: len(cuts)]):
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
-                hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
-                - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
-            )
-            line_styles = ["-", "--", "-.", ":"]
-            for containment, line_style in zip(containments, line_styles):
-                plt.plot(
-                    energy_center[0],
-                    hudl["ANGULAR RESOLUTION"].data[
-                        f"ANGULAR_RESOLUTION_{containment}"
-                    ][0, 0, :],
-                    color=color,
-                    ls=line_style,
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
+                    hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
+                    - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
                 )
-
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Angular resolution [deg]")
-        # Create separate legends for cuts and containment percentages
-        # Create separate legends for cuts and containment percentages
+                for containment, line_style in zip(containments, line_styles):
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ANGULAR RESOLUTION"].data[f"ANGULAR_RESOLUTION_{containment}"][0, 0, :],
+                        color=color,
+                        ls=line_style,
+                    )
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Angular resolution [deg]")
         cut_labels = [cut.get_label() for cut in cuts]
         containment_labels = [f"{containment}%" for containment in containments]
         cut_legend = ax.legend(
-            handles=[
-                plt.Line2D([0], [0], color=color, lw=2)
-                for color in default_colors[: len(cuts)]
-            ],
+            handles=[plt.Line2D([0], [0], color=color, lw=2) for color in default_colors[: len(cuts)]],
             labels=cut_labels,
             loc="best",
         )
         containment_legend = ax.legend(
-            handles=[
-                plt.Line2D([0], [0], color="black", ls=ls, lw=2)
-                for ls in line_styles[: len(containments)]
-            ],
+            handles=[plt.Line2D([0], [0], color="black", ls=ls, lw=2) for ls in line_styles[: len(containments)]],
             labels=containment_labels,
             loc="lower left",
             title="Containment",
         )
         if len(cuts) > 1:
             ax.add_artist(cut_legend)
-
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
 
-        fig, ax = plt.subplots()
+    def plot_energy_resolution_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
-                hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
-                - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
-                    label=cut.get_label(),
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+                    hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+                    - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Energy resolution")
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+                    )
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Energy resolution")
         if len(cuts) > 1:
-            plt.legend()
+            ax.legend()
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
 
-        fig, ax = plt.subplots()
+    def plot_energy_bias_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
-                hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
-                - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
-                    label=cut.get_label(),
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+                    hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+                    - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Energy bias")
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+                    )
+        ax.axhline(0, color="black", ls="--", lw=1)
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Energy bias")
         if len(cuts) > 1:
-            plt.legend()
+            ax.legend()
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
-        hudl.close()
+
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def plot_benchmark(
+    #     self,
+    #     zenith: float,
+    #     azimuth: float,
+    #     cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+    #     containments: list[int] = [68, 95],
+    #     title: str = None,
+    #     axs=None,
+    #     label=None,
+    # ):
+    #     """
+    #     Plot benchmark performance metrics for a given zenith and azimuth.
+
+    #     This function generates multiple plots to visualize sensitivity, angular resolution,
+    #     energy resolution, and energy bias for the specified zenith and azimuth angles.
+    #     The plots are generated based on the provided cuts and containment percentages.
+
+    #     Parameters
+    #     ----------
+    #     zenith : float
+    #         Zenith angle in degrees.
+    #     azimuth : float
+    #         Azimuth angle in degrees.
+    #     cuts : list[Cuts], optional
+    #         List of cut configurations to apply. Defaults to [DefaultCuts.EFF_70.value].
+    #     containments : list[int], optional
+    #         List of containment percentages to plot angular resolution. Defaults to [68, 95].
+    #     title : str, optional
+    #         Title for the plots. Defaults to None.
+    #     axs : list[matplotlib.axes.Axes], optional
+    #         List of axes to plot on. If None, new figures and axes are created. Defaults to None.
+    #     label : str, optional
+    #         Label for the plots. Defaults to None.
+
+    #     Notes
+    #     -----
+    #     - The function uses Matplotlib for plotting and Astropy for reading FITS files.
+    #     - If multiple cuts are provided, legends are created for both cuts and containment percentages.
+    #     - The function generates four separate plots:
+    #         1. Sensitivity vs. Energy
+    #         2. Angular resolution vs. Energy
+    #         3. Energy resolution vs. Energy
+    #         4. Energy bias vs. Energy
+
+    #     Raises
+    #     ------
+    #     KeyError
+    #         If the required data keys are not found in the FITS files.
+    #     """
+    #     import matplotlib.pyplot as plt
+    #     from astropy.io import fits
+
+    #     if axs is None:
+    #         fig, ax = plt.subplots()
+    #     else:
+    #         ax = axs[0]
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         print(irf_file)
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["SENSITIVITY"].data["ENERG_HI"]
+    #             - hudl["SENSITIVITY"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.yscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    #     for cut, color in zip(cuts, default_colors[: len(cuts)]):
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
+    #             - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
+    #         )
+    #         line_styles = ["-", "--", "-.", ":"]
+    #         for containment, line_style in zip(containments, line_styles):
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ANGULAR RESOLUTION"].data[
+    #                     f"ANGULAR_RESOLUTION_{containment}"
+    #                 ][0, 0, :],
+    #                 color=color,
+    #                 ls=line_style,
+    #             )
+
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Angular resolution [deg]")
+    #     # Create separate legends for cuts and containment percentages
+    #     # Create separate legends for cuts and containment percentages
+    #     cut_labels = [cut.get_label() for cut in cuts]
+    #     containment_labels = [f"{containment}%" for containment in containments]
+    #     cut_legend = ax.legend(
+    #         handles=[
+    #             plt.Line2D([0], [0], color=color, lw=2)
+    #             for color in default_colors[: len(cuts)]
+    #         ],
+    #         labels=cut_labels,
+    #         loc="best",
+    #     )
+    #     containment_legend = ax.legend(
+    #         handles=[
+    #             plt.Line2D([0], [0], color="black", ls=ls, lw=2)
+    #             for ls in line_styles[: len(containments)]
+    #         ],
+    #         labels=containment_labels,
+    #         loc="lower left",
+    #         title="Containment",
+    #     )
+    #     if len(cuts) > 1:
+    #         ax.add_artist(cut_legend)
+
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+    #             - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Energy resolution")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+    #             - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Energy bias")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+    #     hudl.close()
 
     def plot_cuts(
         self,
@@ -2280,22 +2475,11 @@ class CTLearnTriModelManager:
         from astropy.io.misc.hdf5 import read_table_hdf5
         from astropy.table import join, vstack
 
-        DL2_gamma_table = read_table_hdf5(
-            self.direction_model.model_index_file,
-            path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
-        )
-        testing_DL2_gamma_files = DL2_gamma_table[
-            f"testing_DL2_{particle_type.value}_files"
-        ][
-            (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == zenith
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == azimuth
-            )
-        ]
+        testing_DL2_gamma_files = self.project_directories.get_dl2_mc_files(
+            zenith,
+            azimuth,
+            particle_types=[particle_type],
+        )[particle_type.value]
         if len(testing_DL2_gamma_files) == 0:
             return
         dl2_gamma = []
