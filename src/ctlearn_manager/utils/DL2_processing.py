@@ -167,6 +167,9 @@ class DL2DataProcessor:
         else:
             self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_rf_directory
 
+        if not os.path.exists(self.dl2_processed_dir):
+            os.makedirs(self.dl2_processed_dir, exist_ok=True)
+
         self.process_DL2_data()
         self.load_processed_data()
         set_mpl_style()
