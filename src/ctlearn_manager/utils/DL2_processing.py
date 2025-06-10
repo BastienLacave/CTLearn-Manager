@@ -20,7 +20,8 @@ from ..utils.utils import (
     find_68_percent_range,
     set_mpl_style,
     ExportCurves,
-    CurveType
+    CurveType,
+    calc_flux_for_N_sigma_array
 )
 
 
@@ -764,6 +765,63 @@ class DL2DataProcessor:
         #     pickle.dump(t_eff, f)
         return t_eff, t_elapsed
 
+    def compute_on_off_counts_array(
+        self,
+        events,
+        reco_coord,
+        pointing_coord,
+        n_off,
+        theta2_cut=0.04 * u.deg**2,
+        gcut=0.5,
+        E_min=0,
+        E_max=100,
+    ):
+        theta2_cut = np.atleast_1d(theta2_cut)
+        gcut = np.atleast_1d(gcut)
+        n_theta = len(theta2_cut)
+        n_g = len(gcut)
+
+        # Precompute separations once
+        on_separation_all = reco_coord.separation(self.source_position)
+        off_regions = self.compute_off_regions(pointing_coord, n_off)
+        off_separation_all = [reco_coord.separation(off_regions[i]) for i in range(n_off)]
+
+        # Precompute energy mask once
+        energy_mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max)
+        gammaness = events[self.gammaness_key][energy_mask]
+        on_sep = on_separation_all[energy_mask].value  # in deg
+        # Prepare 2D arrays for ON
+        gammaness_2d = np.broadcast_to(gammaness, (n_g, gammaness.size))
+        gcut_2d = gcut[:, None]
+        g_mask = gammaness_2d > gcut_2d  # shape (n_g, N_events)
+
+        on_sep_2d = np.broadcast_to(on_sep, (n_g, on_sep.size))
+        # For each theta2_cut, count events with sep^2 < theta2_cut
+        on_count = np.zeros((n_g, n_theta), dtype=int)
+        for i_t, t2 in tqdm(enumerate(theta2_cut)):
+            t2_sqrt = np.sqrt(t2)
+            theta_mask = on_sep_2d < t2_sqrt
+            on_count[:, i_t] = np.sum(g_mask & theta_mask, axis=1)
+
+        # Repeat for OFF regions
+        off_count = np.zeros((n_g, n_theta), dtype=int)
+        print("Computing off counts...")
+        for off_sep_all in tqdm(off_separation_all):
+            off_sep = off_sep_all[energy_mask].value
+            off_sep_2d = np.broadcast_to(off_sep, (n_g, off_sep.size))
+            print("t2 loop")
+            for i_t, t2 in enumerate(theta2_cut):
+                t2_sqrt = np.sqrt(t2)
+                theta_mask = off_sep_2d < t2_sqrt
+                off_count[:, i_t] += np.sum(g_mask & theta_mask, axis=1)
+
+        alpha = 1 / n_off
+        print('lima')
+        significance_lima = li_ma_significance(on_count, off_count, alpha)
+
+        # If you need the separation arrays, you can reconstruct them similarly, but it's memory intensive.
+        return on_count, off_count, None, None, significance_lima
+
     def compute_on_off_counts(
         self,
         events,
@@ -922,7 +980,8 @@ class DL2DataProcessor:
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
-        import_label: str = None):
+        import_label: str = None,
+        overfitting=False):
         import matplotlib.pyplot as plt
 
         # on_count_RF = np.zeros(len(gammaness_cuts_RF))
@@ -938,164 +997,281 @@ class DL2DataProcessor:
         if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
 
-        for i, cut in enumerate(self.cuts):
-            E_bins = self.E_bins[i]
-            match cut.cut_type:
-                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                    # E_bins = self.E_bins[i]
-                    GH_cuts = self.GH_cuts[i]
-                    Theta_cuts = self.Theta_cuts[i]
-                case _:
-                    # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
-                    GH_cuts = [cut.gammaness_cut] * len(E_bins)
-                    if cut.theta_cut is None:
-                        Theta_cuts = [0.2] * len(E_bins)
-                    else:
-                        Theta_cuts = [cut.theta_cut] * len(E_bins)
-            on_count = np.zeros(len(E_bins) - 1)
-            off_count = np.zeros(len(E_bins) - 1)
-            t_eff = 0 * u.h
-            t_elapsed = 0 * u.h
-            for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(
-                zip(
-                    self.reco_directions,
-                    self.pointings,
-                    self.dl2s,
-                    self.cuts_masks_gammaness_only,
-                ),
-                desc=f"Computing sensitivity [{cut.get_label()}]",
-                total=len(self.reco_directions),
-            ):
-                # print(file)
-                cuts_mask = cuts_mask[i]
-                reco_direction = reco_direction[cuts_mask]
-                pointing_direction = pointing_direction[cuts_mask]
-                # eff time must be computed on all events, regardless on the requred cuts
-                t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
-                # The mask is applied here
-                dl2 = dl2[cuts_mask]
-
-                for j, E_min, E_max, GH_cut, Theta_cut in zip(
-                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts
+        if not overfitting:
+            for i, cut in enumerate(self.cuts):
+                E_bins = self.E_bins[i]
+                match cut.cut_type:
+                    case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                        # E_bins = self.E_bins[i]
+                        GH_cuts = self.GH_cuts[i]
+                        Theta_cuts = self.Theta_cuts[i]
+                    case _:
+                        # E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+                        GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                        if cut.theta_cut is None:
+                            Theta_cuts = [0.2] * len(E_bins)
+                        else:
+                            Theta_cuts = [cut.theta_cut] * len(E_bins)
+                on_count = np.zeros(len(E_bins) - 1)
+                off_count = np.zeros(len(E_bins) - 1)
+                t_eff = 0 * u.h
+                t_elapsed = 0 * u.h
+                for reco_direction, pointing_direction, dl2, cuts_mask in tqdm(
+                    zip(
+                        self.reco_directions,
+                        self.pointings,
+                        self.dl2s,
+                        self.cuts_masks_gammaness_only,
+                    ),
+                    desc=f"Computing sensitivity [{cut.get_label()}]",
+                    total=len(self.reco_directions),
                 ):
-                    (on_count_temp, off_count_temp, _, _, _) = (
-                        self.compute_on_off_counts(
-                            dl2,
-                            reco_direction,
-                            pointing_direction,
-                            n_off=n_off,
-                            theta2_cut=(Theta_cut**2) * u.deg**2,
-                            gcut=GH_cut,
-                            E_min=E_min,
-                            E_max=E_max,
-                            I_min=None,
-                            I_max=None,
+                    # print(file)
+                    cuts_mask = cuts_mask[i]
+                    reco_direction = reco_direction[cuts_mask]
+                    pointing_direction = pointing_direction[cuts_mask]
+                    # eff time must be computed on all events, regardless on the requred cuts
+                    t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+                    # The mask is applied here
+                    dl2 = dl2[cuts_mask]
+
+                    for j, E_min, E_max, GH_cut, Theta_cut in zip(
+                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts
+                    ):
+                        (on_count_temp, off_count_temp, _, _, _) = (
+                            self.compute_on_off_counts(
+                                dl2,
+                                reco_direction,
+                                pointing_direction,
+                                n_off=n_off,
+                                theta2_cut=(Theta_cut**2) * u.deg**2,
+                                gcut=GH_cut,
+                                E_min=E_min,
+                                E_max=E_max,
+                                I_min=None,
+                                I_max=None,
+                            )
                         )
+                        on_count[j] += on_count_temp
+                        off_count[j] += off_count_temp / n_off
+                    t_eff += t_eff_temp
+                    t_elapsed += t_elapsed_temp
+                    # on_count_RF += df['on_count_RF'].to_numpy()
+                    # off_count_RF += df['off_count_RF'].to_numpy()
+
+                nexcess = on_count - off_count
+
+                min_signi = 3  # below this value (significance of the test source, Crab, for the *actual* observation
+                # time of the sample and obtained with 1 off region) we ignore the corresponding cut
+                # combination
+
+                min_exc = 0.002  # in fraction of off. Below this we ignore the corresponding cut combination.
+                min_off_events = 10  # minimum number of off events in the actual observation used. Below this we
+                # ignore the corresponding cut combination.
+
+                backg_syst = 0.01
+                # t_eff = 0.33 * u.h
+                obs_time = 50.0 * u.h
+
+                flux_factor, lima_signi = calc_flux_for_N_sigma(
+                    5,
+                    nexcess,
+                    off_count,
+                    min_signi,
+                    min_exc,
+                    min_off_events,
+                    1,
+                    obs_time,
+                    t_eff,
+                    cond=False,
+                )
+                flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
+                    5,
+                    nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
+                    off_count,
+                    min_signi,
+                    min_exc,
+                    min_off_events,
+                    1,
+                    obs_time,
+                    t_eff,
+                    cond=False,
+                )
+                flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
+                    5,
+                    nexcess - backg_syst * off_count - (nexcess + 2 * off_count) ** 0.5,
+                    off_count,
+                    min_signi,
+                    min_exc,
+                    min_off_events,
+                    1,
+                    obs_time,
+                    t_eff,
+                    cond=False,
+                )
+                mask = np.where(flux_factor >= 0)
+                mask = np.ones(len(flux_factor), dtype=bool)
+
+                E = (E_bins[:-1] + E_bins[1:]) / 2
+
+                if len(self.cuts) > 1:
+                    ax.plot(
+                        E[mask],
+                        flux_factor[mask] * 100,
+                        marker="o",
+                        label=cut.get_label(),
+                        zorder=10,
+                        ls="--",
                     )
-                    on_count[j] += on_count_temp
-                    off_count[j] += off_count_temp / n_off
-                t_eff += t_eff_temp
-                t_elapsed += t_elapsed_temp
-                # on_count_RF += df['on_count_RF'].to_numpy()
-                # off_count_RF += df['off_count_RF'].to_numpy()
+                else:
+                    ax.plot(
+                        E[mask],
+                        flux_factor[mask] * 100,
+                        marker="o",
+                        label=label,
+                        zorder=10,
+                        ls="--",
+                    )
+                ax.fill_between(
+                    E[mask].value,
+                    flux_minus[mask] * 100,
+                    flux_plus[mask] * 100,
+                    alpha=0.2,
+                    zorder=0,
+                )
+                export_curves.add_curve(
+                        E[mask],
+                        flux_factor[mask] * 100,
+                        CurveType.SENSITIVITY_DATA,
+                        cuts=cut,
+                    )
+        else:
+            # Split the cuts into two groups: even and odd, optimize cuts and apply on the other group
+            E_bins = self.E_bins[0]
+            gammaness_bins = np.linspace(0, 1, 2001)
+            alphabins = np.linspace(0, 60, 3001)
+            theta2bins = np.linspace(0, 0.6, 6001)
+            # E_bins = np.linspace(-2.0, 2.2, 22) # 5 per decade
 
-            nexcess = on_count - off_count
+            optimization_matrix_size = (len(E_bins) - 1, len(gammaness_bins), len(theta2bins))
+            on_count = [np.zeros(optimization_matrix_size), np.zeros(optimization_matrix_size)]
+            off_count = [np.zeros(optimization_matrix_size), np.zeros(optimization_matrix_size)]
+            t_eff = [0 * u.h, 0 * u.h]
+            t_elapsed = [0 * u.h, 0 * u.h]
 
+            for reco_direction, pointing_direction, dl2 in tqdm(
+                    zip(
+                        self.reco_directions,
+                        self.pointings,
+                        self.dl2s,
+                    ),
+                    desc=f"Computing sensitivity using overfitting",
+                    total=len(self.reco_directions),
+                ):
+                even_mask = dl2["event_id"] % 2 == 0
+                odd_mask = dl2["event_id"] % 2 == 1
+                even_dl2 = dl2[even_mask]
+                odd_dl2 = dl2[odd_mask]
+                reco_direction_even = reco_direction[even_mask]
+                reco_direction_odd = reco_direction[odd_mask]
+                pointing_direction_even = pointing_direction[even_mask]
+                pointing_direction_odd = pointing_direction[odd_mask]
+                t_eff_temp_even, t_elapsed_temp_even = self.compute_eff_time(dl2)
+                t_eff_temp_odd, t_elapsed_temp_odd = self.compute_eff_time(dl2)
+                t_eff[0] += t_eff_temp_even
+                t_eff[1] += t_eff_temp_odd
+                t_elapsed[0] += t_elapsed_temp_even
+                t_elapsed[1] += t_elapsed_temp_odd
+
+
+                for j, E_min, E_max in zip(
+                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]
+                    ):
+                        print(f"Computing on-off counts for E_min={E_min}, E_max={E_max}")
+                        (on_count_temp_even, off_count_temp_even, _, _, _) = (
+                            self.compute_on_off_counts_array(
+                                even_dl2,
+                                reco_direction_even,
+                                pointing_direction_even,
+                                n_off,
+                                theta2_cut=theta2bins,
+                                gcut=gammaness_bins,
+                                E_min=E_min,
+                                E_max=E_max,
+                            )
+                        )
+                        on_count[0][j] += on_count_temp_even
+                        off_count[0][j] += off_count_temp_even / n_off
+                        (on_count_temp_odd, off_count_temp_odd, _, _, _) = (
+                            self.compute_on_off_counts_array(
+                                odd_dl2,
+                                reco_direction_odd,
+                                pointing_direction_odd,
+                                n_off,
+                                theta2_cut=theta2bins,
+                                gcut=gammaness_bins,
+                                E_min=E_min,
+                                E_max=E_max,
+                            )
+                        )
+                        on_count[1][j] += on_count_temp_odd
+                        off_count[1][j] += off_count_temp_odd / n_off
+            nexcess = [on_count[0] - off_count[0], on_count[1] - off_count[1]]
             min_signi = 3  # below this value (significance of the test source, Crab, for the *actual* observation
-            # time of the sample and obtained with 1 off region) we ignore the corresponding cut
-            # combination
-
             min_exc = 0.002  # in fraction of off. Below this we ignore the corresponding cut combination.
-            min_off_events = 10  # minimum number of off events in the actual observation used. Below this we
-            # ignore the corresponding cut combination.
-
+            min_off_events = 10 
             backg_syst = 0.01
-            # t_eff = 0.33 * u.h
-            obs_time = 50.0 * u.h
 
-            flux_factor, lima_signi = calc_flux_for_N_sigma(
-                5,
-                nexcess,
-                off_count,
-                min_signi,
-                min_exc,
-                min_off_events,
-                1,
-                obs_time,
-                t_eff,
-                cond=False,
-            )
-            flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
-                5,
-                nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
-                off_count,
-                min_signi,
-                min_exc,
-                min_off_events,
-                1,
-                obs_time,
-                t_eff,
-                cond=False,
-            )
-            flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
-                5,
-                nexcess - backg_syst * off_count - (nexcess + 2 * off_count) ** 0.5,
-                off_count,
-                min_signi,
-                min_exc,
-                min_off_events,
-                1,
-                obs_time,
-                t_eff,
-                cond=False,
-            )
-
-            # Create a figure with subplots
-            # fig = plt.figure(figsize=(10, 8))
-            # gs = fig.add_gridspec(2, 1, height_ratios=[3, 1])
-            mask = np.where(flux_factor >= 0)
-            mask = np.ones(len(flux_factor), dtype=bool)
-
-            E = (E_bins[:-1] + E_bins[1:]) / 2
-
-            # Create figure and GridSpec layout
-            # fig = plt.figure(figsize=(10, 8))
-            # gs = GridSpec(1, 1, height_ratios=[1], hspace=0)  # Adjust hspace to remove space between plots
-
-            # Top subplot
-            # ax1 = fig.add_subplot(gs[0])
-
-            if len(self.cuts) > 1:
-                ax.plot(
-                    E[mask],
-                    flux_factor[mask] * 100,
-                    marker="o",
-                    label=cut.get_label(),
-                    zorder=10,
-                    ls="--",
+            GH_cuts = [np.empty(len(E_bins) - 1), np.empty(len(E_bins) - 1)]
+            Theta_cuts = GH_cuts
+            for i in range(len(E_bins) - 1):
+                flux_factor_even, _ = calc_flux_for_N_sigma_array(
+                    5,
+                    nexcess[0],
+                    off_count[0],
+                    min_signi,
+                    min_exc,
+                    min_off_events,
+                    1,
+                    obs_time,
+                    t_eff,
+                    cond=True,
                 )
-            else:
-                ax.plot(
-                    E[mask],
-                    flux_factor[mask] * 100,
-                    marker="o",
-                    label=label,
-                    zorder=10,
-                    ls="--",
+                flux_factor_odd, _ = calc_flux_for_N_sigma_array(
+                    5,
+                    nexcess[1],
+                    off_count[1],
+                    min_signi,
+                    min_exc,
+                    min_off_events,
+                    1,
+                    obs_time,
+                    t_eff,
+                    cond=True,
                 )
-            ax.fill_between(
-                E[mask].value,
-                flux_minus[mask] * 100,
-                flux_plus[mask] * 100,
-                alpha=0.2,
-                zorder=0,
-            )
-            export_curves.add_curve(
-                    E[mask],
-                    flux_factor[mask] * 100,
-                    CurveType.SENSITIVITY_DATA,
-                    cuts=cut,
-                )
+
+                
+
+                min_flux_index_even = np.argmin(flux_factor_even)
+                print(min_flux_index_even)
+                min_flux_index_odd = np.argmin(flux_factor_odd)
+                print(min_flux_index_odd)
+        
+                GH_cuts[0][i] = gammaness_bins[min_flux_index_even]
+                GH_cuts[1][i] = gammaness_bins[min_flux_index_odd]
+                
+                Theta_cuts[0][i] = theta2bins[min_flux_index_even]
+                Theta_cuts[1][i] = theta2bins[min_flux_index_odd]
+
+
+
+            
+
+
+
+
+
+
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")

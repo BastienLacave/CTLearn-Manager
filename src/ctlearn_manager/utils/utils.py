@@ -42,7 +42,8 @@ __all__ = [
     "ExportCurves",
     "CurveType",
     "CTLMDirectories",
-    "get_user_confirmation"
+    "get_user_confirmation",
+    "calc_flux_for_N_sigma_array",
 ]
 
 
@@ -461,6 +462,136 @@ class ClusterConfiguration:
         print(f"SBATCH script saved in {sbatch_file}")
         return sbatch_file
 
+def calc_flux_for_N_sigma_array(
+    N_sigma,
+    on_counts,
+    off_counts,
+    min_signi,
+    min_excess,
+    min_off_events,
+    alpha,
+    target_obs_time,
+    actual_obs_time,
+    cond=True,
+    max_iterations=10,
+):
+    """
+    Calculates the flux scaling factor needed to reach a target significance.
+
+    This function takes arrays of ON and OFF counts and iteratively finds
+    the factor by which the excess counts (and thus the flux) would need to be
+    scaled to reach a significance of N_sigma after a target observation time.
+
+    Parameters
+    ----------
+    N_sigma : float
+        The target significance (e.g., 5 for 5 sigma).
+    on_counts : numpy.ndarray
+        Array of observed ON counts.
+    off_counts : numpy.ndarray
+        Array of observed OFF counts.
+    alpha : float
+        The ratio of ON to OFF region exposure (1 / n_off).
+    target_obs_time : astropy.units.Quantity
+        The target observation time for the sensitivity calculation.
+    actual_obs_time : astropy.units.Quantity
+        The actual observation time of the provided event data.
+    min_signi : float, optional
+        Minimum significance required in the original data to perform the calculation.
+    min_excess : float, optional
+        Minimum excess counts relative to the ON background (alpha * off_counts)
+    min_off_events : int, optional
+        Minimum number of OFF events required.
+    max_iterations : int, optional
+        Number of iterations to find the flux scaling factor.
+
+    Returns
+    -------
+    flux_factor : numpy.ndarray
+        The factor by which the flux needs to be multiplied to reach N_sigma.
+        Returns np.nan for bins that do not meet the minimum criteria.
+    final_significance : numpy.ndarray
+        The significance calculated with the final flux_factor, which should
+        be close to N_sigma for valid bins.
+    """
+    # Ensure inputs are numpy arrays with float64 for precision, as required by li_ma
+    on_counts = np.asanyarray(on_counts, dtype=np.float64)
+    off_counts = np.asanyarray(off_counts, dtype=np.float64)
+
+    # Calculate observed excess counts
+    excess_counts = on_counts - alpha * off_counts
+
+    # Calculate the time scaling factor
+    time_factor = target_obs_time.to_value(u.h) / actual_obs_time.to_value(u.h)
+
+    # Initialize flux factor to 1 (i.e., the observed flux)
+    flux_factor = np.ones_like(excess_counts, dtype=np.float64)
+
+    # --- Initial Quality Cuts ---
+    # Create a mask to identify bins that are suitable for sensitivity calculation
+    # We need a minimum number of off events and a minimum number of excess events.
+    background_counts = alpha * off_counts
+    good_bin_mask = (
+        (excess_counts > 0)  # Must have some observed excess
+        & (off_counts >= min_off_events)
+        & (excess_counts >= min_excess * background_counts)
+    )
+    
+    # Invalidate bins that don't meet the criteria
+    flux_factor[~good_bin_mask] = np.nan
+
+    # Calculate significance of the actual observed data
+    initial_signi = li_ma_significance(on_counts, off_counts, alpha=alpha)
+
+    # Also invalidate bins where initial significance is too low
+    flux_factor[initial_signi < min_signi] = np.nan
+
+    # --- Iterative Search for Flux Factor ---
+    # We now have a starting flux_factor, which is 1 for good bins and NaN for bad ones.
+    # We will iteratively adjust it to find the value that yields N_sigma.
+
+    # Scaled background counts for the target observation time
+    scaled_off = off_counts * time_factor
+
+    # Loop to converge on the correct flux_factor
+    for _ in range(max_iterations):
+        # Create a mask to select only the valid bins that need recalculation
+        recalc_mask = ~np.isnan(flux_factor)
+
+        # Estimate the scaled ON counts for the target time with the current flux_factor
+        # n_on_scaled = time * (flux_factor * excess_initial + background_initial)
+        scaled_excess = flux_factor[recalc_mask] * excess_counts[recalc_mask]
+        scaled_on = time_factor * (scaled_excess + background_counts[recalc_mask])
+
+        # Calculate significance for the scaled counts
+        current_signi = li_ma_significance(
+            scaled_on,
+            scaled_off[recalc_mask],
+            alpha=alpha
+        )
+
+        # Avoid division by zero for bins with no significance
+        current_signi[current_signi <= 0] = 1e-10
+
+        # Update the flux factor to move closer to N_sigma
+        # This is a simple iterative solver: f_new = f_old * (target / current)
+        flux_factor[recalc_mask] *= N_sigma / current_signi
+    
+    # --- Final Significance Calculation ---
+    # Recalculate the final significance with the converged flux_factor
+    final_significance = np.full_like(flux_factor, np.nan, dtype=np.float64)
+    final_recalc_mask = ~np.isnan(flux_factor)
+
+    final_scaled_excess = flux_factor[final_recalc_mask] * excess_counts[final_recalc_mask]
+    final_scaled_on = time_factor * (final_scaled_excess + background_counts[final_recalc_mask])
+    
+    final_significance[final_recalc_mask] = li_ma_significance(
+        final_scaled_on,
+        scaled_off[final_recalc_mask],
+        alpha=alpha
+    )
+
+    return flux_factor, final_significance
 
 def calc_flux_for_N_sigma(
     N_sigma,
