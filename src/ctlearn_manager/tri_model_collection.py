@@ -73,6 +73,7 @@ class TriModelCollection:
         tri_models: list[CTLearnTriModelManager],
         cluster_configuration: ClusterConfiguration = ClusterConfiguration(),
         model_labels: list[str] = None,
+        allow_muliple_projects=False,
     ):
         """
         Initialize the TriModelCollection object.
@@ -108,8 +109,9 @@ class TriModelCollection:
         self.cluster_configuration = cluster_configuration
 
         # Assert that all tri_models have the same project_directory
-        project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
-        assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
+        if not allow_muliple_projects:
+            project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
+            assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
         telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]
@@ -627,8 +629,9 @@ class TriModelCollection:
                         continue
                     e = (e_bins[:-1] + e_bins[1:]) / 2
                     e_res = [e_r[0] for e_r in e_res_err]
+                    # print(e, ref_e, ref_e_res)
                     if not np.array_equal(e, ref_e):
-                        ref_e_res_interp = np.interp(e, ref_e, ref_e_res)
+                        ref_e_res_interp = np.interp(e.value, ref_e, ref_e_res)
                     else:
                         ref_e_res_interp = ref_e_res
                     relative_improvement = (

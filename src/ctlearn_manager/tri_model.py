@@ -2338,12 +2338,12 @@ class CTLearnTriModelManager:
         for i, coord in enumerate(coords):
             for cut in cuts:
                 zenith, azimuth = coord
-                # try:
-                e_bins, ang_res_err = self.get_angular_resolution_DL2(
-                    zenith, azimuth, cut, particle_type
-                )
-                # except:
-                #     continue
+                try:
+                    e_bins, ang_res_err = self.get_angular_resolution_DL2(
+                        zenith, azimuth, cut, particle_type
+                    )
+                except:
+                    continue
                 e = (e_bins[:-1].value + e_bins[1:].value) / 2
                 ang_res = [e_r[0].value for e_r in ang_res_err]
                 ang_res_minus = [e_r[0].value - e_r[1].value for e_r in ang_res_err]
