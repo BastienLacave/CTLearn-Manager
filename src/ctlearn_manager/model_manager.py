@@ -156,6 +156,7 @@ class CTLearnModelManager:
         self.stereo = self.model_parameters_table["stereo"][
             0
         ]  # True if self.min_telescopes >= 2 else False
+        self.dl1dh_reader_type = self.model_parameters["dl1dh_reader_type"][0]
         training_table_gamma = read_table_hdf5(
             f"{self.project_directories.model_index_file}",
             path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
@@ -1388,37 +1389,72 @@ class IndexTables:
                 f"{self.model_manager.model_nickname}/testing/{particle_type.value}",
             )
 
-
-        self.PARAMETERS = self.IndexTable(
-            QTable(
-                names=[
-                    "model_nickname",
-                    "model_dir",
-                    "reco",
-                    "channels",
-                    "telescope_names",
-                    "telescope_ids",
-                    "notes",
-                    "max_training_epochs",
-                    "min_telescopes",
-                    "stereo",
-                ],
-                dtype=[
-                    "S256",
-                    "S256",
-                    "S256",
-                    "S256",
-                    "S256",
-                    "S256",
-                    "S256",
-                    int,
-                    int,
-                    bool,
-                ],
-            ),
-            f"{self.model_manager.model_nickname}/parameters"
-        )
-
+        if self.model_manager.dl1dh_reader_type == "DLImageReader"
+            self.PARAMETERS = self.IndexTable(
+                QTable(
+                    names=[
+                        "model_nickname",
+                        "model_dir",
+                        "reco",
+                        "dl1dh_reader_type"
+                        "channels",
+                        "telescope_names",
+                        "telescope_ids",
+                        "notes",
+                        "max_training_epochs",
+                        "min_telescopes",
+                        "stereo",
+                    ],
+                    dtype=[
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        int,
+                        int,
+                        bool,
+                    ],
+                ),
+                f"{self.model_manager.model_nickname}/parameters"
+            )
+        elif self.model_manager.dl1dh_reader_type == "DLWaveformReader":
+            self.PARAMETERS = self.IndexTable(
+                QTable(
+                    names=[
+                        "model_nickname",
+                        "model_dir",
+                        "reco",
+                        "dl1dh_reader_type"
+                        "cleaning_type",
+                        "sequence_length",
+                        "telescope_names",
+                        "telescope_ids",
+                        "notes",
+                        "max_training_epochs",
+                        "min_telescopes",
+                        "stereo",
+                    ],
+                    dtype=[
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        "S256",
+                        int,
+                        "S256",
+                        "S256",
+                        "S256",
+                        int,
+                        int,
+                        bool,
+                    ],
+                ),
+                f"{self.model_manager.model_nickname}/parameters"
+            )
 
         self.IRF = self.IndexTable(
             QTable(
