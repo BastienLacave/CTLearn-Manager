@@ -1389,7 +1389,7 @@ class IndexTables:
                 f"{self.model_manager.model_nickname}/testing/{particle_type.value}",
             )
 
-        if self.model_manager.dl1dh_reader_type == "DLImageReader"
+        if self.model_manager.dl1dh_reader_type == "DLImageReader":
             self.PARAMETERS = self.IndexTable(
                 QTable(
                     names=[
