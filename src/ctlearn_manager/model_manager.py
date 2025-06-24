@@ -251,7 +251,11 @@ class CTLearnModelManager:
             - Telescope names and IDs have the same length.
             - `telescope_ids` is a 1-dimensional array.
             - `telescope_names` is a 1-dimensional array.
-            - `channels` is a 1-dimensional array.
+            - `dl1dh_reader_type` is one of ['DLImageReader', 'DLWaveformReader'].
+            - if `dl1dh_reader_type` is "DLWaveformReader" and `stereo` is False.
+            - `channels` is provided and is a 1-dimensional array if `dl1dh_reader_type` is "DLImageReader".
+            - `cleaning_type` is provided if `dl1dh_reader_type` is "DLWaveformReader".
+            - `sequence_length` is an integer if `dl1dh_reader_type` is "DLWaveformReader".
             - `reco` is one of ['type', 'energy', 'cameradirection', 'skydirection'].
             - `max_training_epochs` is an integer.
             - `min_telescopes` is an integer.
@@ -338,6 +342,9 @@ class CTLearnModelManager:
                 )
                 sequence_length = model_parameters.get(
                     "sequence_length", 20
+                )
+                assert cleaning_type in ["image", "waveform"], (
+                    "cleaning_type must be one of ['image', 'waveform']"
                 )
                 assert type(sequence_length) is int, (
                     "sequence_length must be an integer"
