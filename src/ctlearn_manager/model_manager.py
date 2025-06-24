@@ -216,8 +216,14 @@ class CTLearnModelManager:
             - "model_dir" (str): Absolute path to the model directory.
             - "reco" (str, optional): Reconstruction type, one of
               ['type', 'energy', 'cameradirection', 'skydirection']. Defaults to "default_reco".
-            - "channels" (list of str, optional): List of channel names. Defaults to
-              ["cleaned_image", "cleaned_relative_peak_time"].
+            - "dl1dh_reader_type" (str, optional): Type of DL1 data reader, either
+                "DLImageReader" or "DLWaveformReader". Defaults to "DLImageReader".
+            - "channels" (list of str, optional): List of channels for DLImageReader. Defaults to
+                ["cleaned_image", "cleaned_relative_peak_time"] if `dl1dh_reader_type` is "DLImageReader".
+            - "cleaning_type" (str, optional): Type of cleaning for waveform reader. Defaults to "image"
+                if `dl1dh_reader_type` is "DLWaveformReader".
+            - "sequence_length" (int, optional): Sequence length for waveform reader. Defaults to 20
+                if `dl1dh_reader_type` is "DLWaveformReader".
             - "telescope_names" (list of str, optional): Names of telescopes. Defaults to an empty list.
             - "telescope_ids" (list of int, optional): IDs of telescopes. Defaults to an empty list.
             - "notes" (str, optional): Notes about the model. Defaults to an empty string.
@@ -276,15 +282,19 @@ class CTLearnModelManager:
             reco = model_parameters.get("reco", "default_reco")
             telescope_names = model_parameters.get("telescope_names", [])
             telescope_ids = model_parameters.get("telescope_ids", [])
-            channels = model_parameters.get(
-                "channels", ["cleaned_image", "cleaned_relative_peak_time"]
-            )
+            dl1dh_reader_type = model_parameters.get("dl1dh_reader_type", "DLImageReader")
             max_training_epochs = model_parameters.get("max_training_epochs", 10)
             min_telescopes = model_parameters.get("min_telescopes", 1)
             stereo = model_parameters.get(
                 "stereo", True if min_telescopes >= 2 else False
             )
 
+            assert dl1dh_reader_type in ["DLImageReader", "DLWaveformReader"], (
+                "dl1dh_reader_type must be one of ['DLImageReader', 'DLWaveformReader']"
+            )
+            assert dl1dh_reader_type == "DLWaveformReader" and  stereo == False, (
+                "DLWaveformReader is only supported in mono mode (stereo=False)"
+            )
             assert len(telescope_names) == len(telescope_ids), (
                 "Telescope names and IDs must have the same length"
             )
@@ -294,7 +304,6 @@ class CTLearnModelManager:
             assert np.ndim(telescope_names) == 1, (
                 "telescope_names must be a 1-dimensional array"
             )
-            assert np.ndim(channels) == 1, "channels must be a 1-dimensional array"
             assert reco in ["type", "energy", "cameradirection", "skydirection"], (
                 "reco must be one of ['type', 'energy', 'cameradirection', 'skydirection']"
             )
@@ -302,21 +311,52 @@ class CTLearnModelManager:
                 "max_training_epochs must be an integer"
             )
             assert type(min_telescopes) is int, "min_telescopes must be an integer"
-
-            model_table.add_row(
-                [
-                    self.model_nickname,
-                    model_dir,
-                    reco,
-                    str(channels),
-                    str(telescope_names),
-                    str(telescope_ids),
-                    notes,
-                    max_training_epochs,
-                    min_telescopes,
-                    stereo,
-                ]
-            )
+            if dl1dh_reader_type == "DLImageReader":
+                channels = model_parameters.get(
+                    "channels", ["cleaned_image", "cleaned_relative_peak_time"]
+                )
+                assert np.ndim(channels) == 1, "channels must be a 1-dimensional array"
+                model_table.add_row(
+                    [
+                        self.model_nickname,
+                        model_dir,
+                        reco,
+                        dl1dh_reader_type,
+                        str(channels),
+                        str(telescope_names),
+                        str(telescope_ids),
+                        notes,
+                        max_training_epochs,
+                        min_telescopes,
+                        stereo,
+                    ]
+                )
+            elif dl1dh_reader_type == "DLWaveformReader":
+                cleaning_type = model_parameters.get(
+                    "cleaning_type", "image"
+                )
+                sequence_length = model_parameters.get(
+                    "sequence_length", 20
+                )
+                assert type(sequence_length) is int, (
+                    "sequence_length must be an integer"
+                )
+                model_table.add_row(
+                    [
+                        self.model_nickname,
+                        model_dir,
+                        reco,
+                        dl1dh_reader_type,
+                        cleaning_type,
+                        sequence_length,
+                        str(telescope_names),
+                        str(telescope_ids),
+                        notes,
+                        max_training_epochs,
+                        min_telescopes,
+                        stereo,
+                    ]
+                )
             write_table_hdf5(
                 model_table,
                 self.project_directories.model_index_file,
@@ -511,7 +551,12 @@ class CTLearnModelManager:
             if self.model_parameters_table["reco"][0] == "type"
             else ""
         )
-        channels = ast.literal_eval(self.model_parameters_table["channels"][0])
+        dl1dh_reader_type = self.model_parameters_table["dl1dh_reader_type"][0]
+        if dl1dh_reader_type == "DLImageReader":
+            channels = ast.literal_eval(self.model_parameters_table["channels"][0])
+        elif dl1dh_reader_type == "DLWaveformReader":
+            cleaning_type = self.model_parameters_table["cleaning_type"][0]
+            sequence_length = self.model_parameters_table["sequence_length"][0]
         stereo_mode = "stereo" if self.stereo else "mono"
         stack_telescope_images = True if self.stereo else False
         allowed_tels = ast.literal_eval(self.model_parameters_table["telescope_ids"][0])
@@ -530,17 +575,33 @@ class CTLearnModelManager:
                 self.model_parameters_table["reco"][0]
             ]
             config["TrainCTLearnModel"]["output_dir"] = model_dir
-
-            config["TrainCTLearnModel"]["DLImageReader"] = {}
-            config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
-            config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
-                self.min_telescopes
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
-                force_dl1_lookup
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
-            config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
+            config["TrainCTLearnModel"]["dl1dh_reader_type"] = dl1dh_reader_type
+            if dl1dh_reader_type == "DLImageReader":
+                config["TrainCTLearnModel"]["DLImageReader"] = {}
+                config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
+                config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
+                    self.min_telescopes
+                )
+                config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
+                    force_dl1_lookup
+                )
+                config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
+                config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
+            elif dl1dh_reader_type == "DLWaveformReader":
+                config["TrainCTLearnModel"]["DLWaveformReader"] = {}
+                config["TrainCTLearnModel"]["DLWaveformReader"]["allowed_tels"] = allowed_tels
+                config["TrainCTLearnModel"]["DLWaveformReader"]["min_telescopes"] = int(
+                    self.min_telescopes
+                )
+                config["TrainCTLearnModel"]["DLWaveformReader"][
+                    "force_dl1_lookup"
+                ] = force_dl1_lookup
+                config["TrainCTLearnModel"]["DLWaveformReader"][
+                    "cleaning_type"
+                ] = cleaning_type
+                config["TrainCTLearnModel"]["DLWaveformReader"][
+                    "sequence_length"
+                ] = sequence_length
 
             config["LoadedModel"] = {}
             config["LoadedModel"]["trainable_backbone"] = trainable_backbone
