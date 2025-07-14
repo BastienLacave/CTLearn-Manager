@@ -21,7 +21,9 @@ from ..utils.utils import (
     set_mpl_style,
     ExportCurves,
     CurveType,
-    calc_flux_for_N_sigma_array
+    calc_flux_for_N_sigma_array,
+    get_avg_pointing,
+    ParticleType
 )
 
 
@@ -119,39 +121,7 @@ class DL2DataProcessor:
         self.CTLearn = True
         # self.edep_cuts = edep_cuts
         # print(self.edep_cuts)
-        E_bins_tot = np.empty(len(self.cuts), dtype=object)
-        GH_cuts_tot = np.empty(len(self.cuts), dtype=object)
-        Theta_cuts_tot = np.empty(len(self.cuts), dtype=object)
-        for i, cut in enumerate(self.cuts):
-            if (
-                cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
-                or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
-            ):
-                # print(self.edep_cuts)
-                # get E bins from IRFs cuts file
-                cuts_file = self.CTLearnTriModelCollection.tri_models[
-                    0
-                ].direction_model.get_IRF_data()[
-                    1
-                ][
-                    0
-                ]  # index 1 is the cut file table, index 0 is the first line (the path to the file)
-                with fits.open(cuts_file, mode="readonly") as hdul:
-                    E_bins = hdul["GH_CUTS"].data["low"]
-                    E_bins = np.append(E_bins, hdul["GH_CUTS"].data["high"][-1]) * u.TeV
-                    E_bins_tot[i] = E_bins
-
-                    GH_cuts = hdul["GH_CUTS"].data["cut"]
-                    GH_cuts_tot[i] = GH_cuts
-
-                    Theta_cuts = hdul["RAD_MAX"].data["cut"]
-                    Theta_cuts_tot[i] = Theta_cuts
-            else:
-                E_bins = default_E_bins
-                E_bins_tot[i] = E_bins
-        self.E_bins = E_bins_tot
-        self.GH_cuts = GH_cuts_tot
-        self.Theta_cuts = Theta_cuts_tot
+        
         self.set_keys()
 
         if any("LST" in name and "1" in name for name in self.telscope_names):
@@ -173,6 +143,42 @@ class DL2DataProcessor:
 
         self.process_DL2_data()
         self.load_processed_data()
+
+        E_bins_tot = np.empty(len(self.cuts), dtype=object)
+        GH_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        Theta_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        for i, cut in enumerate(self.cuts):
+            if (
+                cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
+                or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
+            ):
+                
+                # for modelindex, file in zip(self.corresponding_model_indexs, self.DL2_files):
+                # print(self.edep_cuts)
+                # get E bins from IRFs cuts file
+                zenith, azimuth = self.CTLearnTriModelCollection.tri_models[
+                    0 # FIXME
+                ].project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+
+                cuts_file = self.CTLearnTriModelCollection.tri_models[
+                    0 # FIXME
+                ].direction_model.project_directories.get_irf_files(zenith[0], azimuth[0], cut)['cuts_file']
+                with fits.open(cuts_file, mode="readonly") as hdul:
+                    E_bins = hdul["GH_CUTS"].data["low"]
+                    E_bins = np.append(E_bins, hdul["GH_CUTS"].data["high"][-1]) * u.TeV
+                    E_bins_tot[i] = E_bins
+
+                    GH_cuts = hdul["GH_CUTS"].data["cut"]
+                    GH_cuts_tot[i] = GH_cuts
+
+                    Theta_cuts = hdul["RAD_MAX"].data["cut"]
+                    Theta_cuts_tot[i] = Theta_cuts
+            else:
+                E_bins = default_E_bins
+                E_bins_tot[i] = E_bins
+        self.E_bins = E_bins_tot
+        self.GH_cuts = GH_cuts_tot
+        self.Theta_cuts = Theta_cuts_tot
         set_mpl_style()
 
     def set_keys(self):
@@ -326,6 +332,7 @@ class DL2DataProcessor:
         self.I_g_on_counts = np.empty(len(self.DL2_files), dtype=object)
         self.I_g_off_counts = np.empty(len(self.DL2_files), dtype=object)
         self.corresponding_models = np.empty(len(self.DL2_files), dtype=object)
+        self.corresponding_model_indexs = np.empty(len(self.DL2_files), dtype=int)
         failed_mask = np.ones(len(self.DL2_files), dtype=bool)
 
         for i, DL2_file in tqdm(
@@ -339,12 +346,15 @@ class DL2DataProcessor:
                     az_key=self.pointing_az_key,
                     verbose=False,
                 )
+                # corresponding_model_index = np.where(self.CTLearnTriModelCollection.tri_models == corresponding_model)[0][0]
                 if corresponding_model is None:
                     failed_mask[i] = False
                     continue
             else:
                 corresponding_model = self.CTLearnTriModelCollection.tri_models[0]
+                corresponding_model_index = 0
             self.corresponding_models[i] = corresponding_model
+            # self.corresponding_model_indexs[i] = corresponding_model_index
             # if self.dl2_processed_dir is None:
             #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
             #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
@@ -485,13 +495,18 @@ class DL2DataProcessor:
         # Apply cuts to the data
         from astropy.io import fits
 
-        cuts_file = tri_model.direction_model.get_IRF_data(
-            cuts=cuts
-        )[
-            1
-        ][
-            0
-        ]  # index 1 is the cut file table, index 0 is the first line (the path to the file)
+
+        zenith, azimuth = tri_model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+
+        cuts_file = tri_model.project_directories.get_irf_files(zenith[0], azimuth[0], cuts)['cuts_file']
+
+        # cuts_file = tri_model.direction_model.get_IRF_data(
+        #     cuts=cuts
+        # )[
+        #     1
+        # ][
+        #     0
+        # ]  # index 1 is the cut file table, index 0 is the first line (the path to the file)
         with fits.open(cuts_file) as hdul:
             gammaness_cuts = hdul["GH_CUTS"].data["cut"]
             energy_low_gamma = hdul["GH_CUTS"].data["low"]
@@ -567,7 +582,7 @@ class DL2DataProcessor:
             ),
             desc="Computing on-off counts",
             total=len(self.reco_directions),
-            disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster,
+            # disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster,
         ):
             cuts_mask = cuts_mask[
                 cuts_index
@@ -703,6 +718,7 @@ class DL2DataProcessor:
         # plt.yscale('log')
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 
@@ -835,6 +851,8 @@ class DL2DataProcessor:
         I_min=None,
         I_max=None,
     ):
+        if gcut is None:
+            gcut = 0
         if I_min == None or I_max == None:
             mask = (
                 (events[self.energy_key] > E_min)
@@ -975,6 +993,7 @@ class DL2DataProcessor:
         # plt.legend()
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 
@@ -1045,7 +1064,7 @@ class DL2DataProcessor:
                                 pointing_direction,
                                 n_off=n_off,
                                 theta2_cut=(Theta_cut**2) * u.deg**2,
-                                gcut=GH_cut,
+                                gcut=None, # DL2 already cut according to model
                                 E_min=E_min,
                                 E_max=E_max,
                                 I_min=None,
@@ -1083,7 +1102,7 @@ class DL2DataProcessor:
                     1,
                     obs_time,
                     t_eff,
-                    cond=False,
+                    cond=True,
                 )
                 flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
                     5,
@@ -1095,7 +1114,7 @@ class DL2DataProcessor:
                     1,
                     obs_time,
                     t_eff,
-                    cond=False,
+                    cond=True,
                 )
                 flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
                     5,
@@ -1107,7 +1126,7 @@ class DL2DataProcessor:
                     1,
                     obs_time,
                     t_eff,
-                    cond=False,
+                    cond=True,
                 )
                 mask = np.where(flux_factor >= 0)
                 mask = np.ones(len(flux_factor), dtype=bool)
@@ -1291,13 +1310,14 @@ class DL2DataProcessor:
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             if ax is None:
                 plt.show()
 
-    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC=False, export_to_h5: str=None,
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[""], export_to_h5: str=None,
         import_from_h5: str = None,
-        import_label: str = None):
+        import_label: str = None, ylim=(0, 0.6)):
         import matplotlib.pyplot as plt
 
         export_curves = ExportCurves(export_to_h5)
@@ -1345,7 +1365,6 @@ class DL2DataProcessor:
                 ),
                 desc=f"Computing PSF [{cut.get_label()}]",
                 total=len(self.reco_directions),
-                disable=self.CTLearnTriModelCollection.cluster_configuration.use_cluster,
             ):
                 cuts_mask = cuts_mask[i]
                 reco_direction = reco_direction[cuts_mask]
@@ -1370,7 +1389,7 @@ class DL2DataProcessor:
                         pointing_direction,
                         n_off=n_off,
                         theta2_cut=(Theta_cut**2) * u.deg**2,
-                        gcut=GH_cut,
+                        gcut=None,
                         E_min=E_min,
                         E_max=E_max,
                         I_min=None,
@@ -1436,6 +1455,7 @@ class DL2DataProcessor:
                 psf + 1 / np.sqrt(np.sum(h_on, axis=1)),
                 alpha=0.3,
                 zorder=0,
+                color=plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
             )
             export_curves.add_curve(
                 E.value,
@@ -1443,37 +1463,48 @@ class DL2DataProcessor:
                 CurveType.PSF_DATA,
                 cuts=cut,
             )
-            for tri_model in tqdm(self.CTLearnTriModelCollection.tri_models[4:5], desc="Plotting MC curves"):
-                coords = tri_model.get_available_MC_directions(verbose=False)
-                if len(coords) > 0:
-                    for zenith, azimuth in coords:
-                        e_bins, ang_res_err = tri_model.get_angular_resolution_DL2(
-                            zenith = zenith,
-                            azimuth = azimuth,
-                            cuts = cut,
-                        )
-                        e = (e_bins[:-1].value + e_bins[1:].value) / 2
-                        ang_res = [e_r[0].value for e_r in ang_res_err]
-                        ax.plot(e, ang_res, label=f"MC ({zenith.value:.1f}, {azimuth.value:.1f})°", zorder=10)
+            
             cut.efficiency_theta = stored_efficiency_theta
+        for i, cut in enumerate(self.cuts):
+            for tri_model_nickname in tqdm(plot_MC, desc="Plotting MC curves"):
+                    if tri_model_nickname in self.CTLearnTriModelCollection.tri_model_nicknames:
+                        tri_model = self.CTLearnTriModelCollection.get_tri_model_by_nickname(tri_model_nickname)
+                        coords = tri_model.get_available_MC_directions(verbose=False)
+                        if len(coords) > 0:
+                            for zenith, azimuth in coords:
+                                try:
+                                    e_bins, ang_res_err = tri_model.get_angular_resolution_DL2(
+                                        zenith = zenith,
+                                        azimuth = azimuth,
+                                        cuts = cut,
+                                    )
+                                    e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                                    ang_res = [e_r[0].value for e_r in ang_res_err]
+                                    ax.plot(e, ang_res, label=f"MC ({zenith.value:.1f}, {azimuth.value:.1f})° | {cut.get_label()}", zorder=10)
+                                except:
+                                    print(f"IRFs not found for {tri_model.project_directories.tri_model_nickname}: ({zenith.value:.1f}, {azimuth.value:.1f})°, {cut.get_label()}. Skipping.")
+                    else:
+                        print(f"Model {plot_MC} not found in CTLearnTriModelCollection. Skipping MC curves.")
         if export_to_h5 is not None:
             export_curves.export()
         if import_from_h5 is not None:
             import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         ax.legend()
+        ax.set_xscale("log")
         ax.set_ylabel("68% cont. [deg]")
         ax.set_xlabel("Reco Energy [TeV]")
         ax.set_xscale("log")
         # ax.yscale('log')
         # ax.legend()
         # ax.set_xlim(0.03, 2)
-        ax.set_ylim(bottom=0.0)
+        ax.set_ylim(ylim)
         ax.set_title("Point Spread Function")
 
         
 
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             if ax is None:
                 plt.show()
@@ -1528,6 +1559,7 @@ class DL2DataProcessor:
     ):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
+        from matplotlib.ticker import LogFormatterExponent, LogLocator
 
         if axs is None:
             fig, axs = plt.subplots(1, 4, figsize=(20, 5))  # , sharey=True)
@@ -1563,10 +1595,13 @@ class DL2DataProcessor:
         # print(self.I_g_on_counts)
         I_g_on_counts_tot = np.sum(self.I_g_on_counts, axis=0)
         I_g_off_counts_tot = np.sum(self.I_g_off_counts, axis=0)
+        
 
         for i, ax, (I_min, I_max) in zip(
             range(len(intensity_ranges)), axs, intensity_ranges
         ):
+            I_g_on_counts_tot[i][I_g_on_counts_tot[i] == 0] = np.nan
+            I_g_off_counts_tot[i][I_g_on_counts_tot[i] == 0] = np.nan
             ax.plot(
                 I_g_off_counts_tot[i],
                 I_g_on_counts_tot[i],
@@ -1578,15 +1613,32 @@ class DL2DataProcessor:
             ax.set_title(f"[{I_min} - {I_max}] p.e.")
             # ax.set_xscale('log')
             # ax.set_xlim(left=0.1)
+            # Plot statistical uncertainty for ON counts
+            # ax.fill_between(
+            #     I_g_off_counts_tot[i],
+            #     I_g_on_counts_tot[i] - np.sqrt(I_g_on_counts_tot[i]),
+            #     I_g_on_counts_tot[i] + np.sqrt(I_g_on_counts_tot[i]),
+            #     alpha=0.3,
+            # )
 
         axs[0].set_ylabel("Excess Counts")
         axs[0].legend()
         plt.suptitle(
             "Excess Counts vs Background Counts for Different Intensity Ranges"
         )
+        axs[2].set_xscale("log")
+        axs[3].set_xscale("log")
+        # for ax in axs:
+        #     ax.set_xscale("log")
+        #     ax.set_yscale("log")
+        #     ax.xaxis.set_major_locator(LogLocator(base=10.0))
+        #     ax.xaxis.set_major_formatter(LogFormatterExponent(base=10.0))
+        #     ax.yaxis.set_major_locator(LogLocator(base=10.0))
+        #     ax.yaxis.set_major_formatter(LogFormatterExponent(base=10.0))
 
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             if axs is None:
                 plt.show()
@@ -1653,6 +1705,7 @@ class DL2DataProcessor:
         plt.suptitle("Excess Rate vs Background Rate for Different Intensity Ranges")
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 
@@ -1666,10 +1719,11 @@ class DL2DataProcessor:
         #     E_bins = self.E_bins[cuts_index]
         # else:
         #     E_bins = np.logspace(np.log10(0.03), np.log10(2), 10) * u.TeV
+        fig, ax = plt.subplots()
         excess_rates = np.zeros(len(E_bins) - 1)
         background_rates = np.zeros(len(E_bins) - 1)
         t_eff = 0 * u.h
-        self.cuts[cuts_index].plot_cuts_info_plt()
+        self.cuts[cuts_index].plot_cuts_info_plt(ax)
 
         for reco_direction, pointing_direction, dl2 in tqdm(
             zip(self.reco_directions, self.pointings, self.dl2s),
@@ -1715,6 +1769,7 @@ class DL2DataProcessor:
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 
@@ -1743,6 +1798,7 @@ class DL2DataProcessor:
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 
@@ -1777,6 +1833,7 @@ class DL2DataProcessor:
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
+            plt.close()
         else:
             plt.show()
 

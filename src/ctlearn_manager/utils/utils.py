@@ -1237,6 +1237,7 @@ class CTLMDirectories:
         if not Path(project_directory).resolve().is_absolute():
             raise ValueError("The project directory must be an absolute path.")
 
+        self.tri_model_nickname = tri_model_nickname
         self.project_directory = project_directory
         self.model_index_file = f"{self.project_directory}/model_index.h5"
         self.tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
@@ -1273,7 +1274,7 @@ class CTLMDirectories:
 
         if not all(exist):
             raise FileNotFoundError(
-                f"No IRF files found for zenith {zenith.value}° and azimuth {azimuth.value}° with cuts {cuts.get_directory_name()}. "
+                f"[{self.tri_model_nickname}] No IRF files found for zenith {zenith.value}° and azimuth {azimuth.value}° with cuts {cuts.get_directory_name()}. "
             )
 
         return {

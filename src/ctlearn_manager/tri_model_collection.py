@@ -126,6 +126,7 @@ class TriModelCollection:
             self.model_labels = [f"Model_{j}" for j in range(len(self.tri_models))]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
         set_mpl_style()
+        self.tri_model_nicknames = [tri_model.project_directories.tri_model_nickname for tri_model in self.tri_models]
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
         # assert len(set(telescope_names)) == 1, "All telescope_names in the collection must be the same."
 
@@ -868,7 +869,7 @@ class TriModelCollection:
 
     def plot_everything_dl2(
         self,
-        output_directory: str,
+        # output_directory: str,
         dl2_files: list[str],
         gammaness_cut: float = 0.9,
         edep_cuts: bool = False,
@@ -918,8 +919,12 @@ class TriModelCollection:
         grouped_files = {
             model: files for model, files in grouped_files.items() if files
         }
-
+        n = []
+        models = []
         for tri_model, files in grouped_files.items():
+            output_directory = tri_model.project_directories.dl2_post_processed_data_directory
+            n.append(len(files))
+            models.append(tri_model.project_directories.tri_model_nickname)
             print(
                 f"Processing {len(files)} files 🧠🧠🧠 CTLearnTriModelManager ▮ {tri_model.direction_model.model_nickname} ▮ {tri_model.energy_model.model_nickname} ▮ {tri_model.type_model.model_nickname} ▮"
             )
@@ -928,10 +933,11 @@ class TriModelCollection:
 
             use_cluster = tri_model.cluster_configuration.use_cluster
             tri_model.cluster_configuration.use_cluster = False  # if some DL2 files were not processed, they will be processed in the same job as the plotting job, and not submit multiple new jobs
+            os.makedirs(output_directory, exist_ok=True)
             with open(tri_model_file, "wb") as f:
                 pickle.dump(tri_model, f)
             tri_model.cluster_configuration.use_cluster = use_cluster
-            print(edep_cuts)
+            # print(edep_cuts)
             cmd = f"plot_dl2 --stereo_tri_model {tri_model_file} --output_directory {output_directory} --gammaness_cut {gammaness_cut} --edep_cuts={edep_cuts}"
             print(cmd)
             sbatch_file = tri_model.cluster_configuration.write_sbatch_script(
@@ -944,3 +950,29 @@ class TriModelCollection:
                 os.system(f"sbatch {sbatch_file}")
             else:
                 os.system(cmd)
+        if len(self.tri_models) > 1:
+            plt.bar(models, n) 
+            plt.xlabel("CTLearn TriModel")
+            plt.ylabel("Number of DL2 files")
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plt.show()
+
+    def get_tri_model_by_nickname(self, tri_model_nickname):
+        """
+        Get a tri-model by its nickname.
+
+        Parameters
+        ----------
+        nickname : str
+            The nickname of the tri-model to retrieve.
+
+        Returns
+        -------
+        CTLearnTriModel
+            The tri-model with the specified nickname, or None if not found.
+        """
+        for tri_model in self.tri_models:
+            if tri_model.project_directories.tri_model_nickname == tri_model_nickname:
+                return tri_model
+        return None
