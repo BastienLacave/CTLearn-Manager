@@ -144,9 +144,87 @@ class DL2DataProcessor:
         self.process_DL2_data()
         self.load_processed_data()
 
+        import concurrent.futures
+
+        self.cut_file_theta_cuts = []
+        self.cut_file_gammaness_cuts = []
+
+        def extract_cuts(args):
+            model, file, cut = args
+            zenith, azimuth = model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+            file_zenith, file_azimuth = get_avg_pointing(
+                file,
+                self.pointing_table,
+                alt_key=self.pointing_alt_key,
+                az_key=self.pointing_az_key,
+            )
+            zenith = np.asarray(zenith)
+            azimuth = np.asarray(azimuth)
+            # Compute angular distance between file pointing and all available MC directions
+            distances = np.sqrt((zenith - file_zenith.value) ** 2 + (azimuth - file_azimuth.value) ** 2)
+            closest_idx = np.argmin(distances)
+            cuts_file = model.project_directories.get_irf_files(
+                zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut
+            )['cuts_file']
+            with fits.open(cuts_file, mode="readonly") as hdul:
+                theta_cut = hdul["RAD_MAX"].data["cut"]
+                gammaness_cut = hdul["GH_CUTS"].data["cut"]
+            return theta_cut, gammaness_cut
+
+        for i, cut in enumerate(self.cuts):
+            if (
+                cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
+                or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
+            ):
+                file_args = [(model, file, cut) for model, file in zip(self.corresponding_models, self.DL2_files)]
+                file_theta_cuts = []
+                file_gammaness_cuts = []
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    results = list(tqdm(executor.map(extract_cuts, file_args), desc=f"Extracting cuts {cut.get_label()}", total=len(file_args)))
+                for theta_cut, gammaness_cut in results:
+                    file_theta_cuts.append(theta_cut)
+                    file_gammaness_cuts.append(gammaness_cut)
+                self.cut_file_theta_cuts.append(file_theta_cuts)
+                self.cut_file_gammaness_cuts.append(file_gammaness_cuts)
+
+
+        # self.cut_file_theta_cuts = []
+        # self.cut_file_gammaness_cuts = []
+        # for i, cut in enumerate(self.cuts):
+        #     if (
+        #         cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
+        #         or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
+        #     ):
+        #         file_theta_cuts = []
+        #         file_gammaness_cuts = []
+        #         for model, file in zip(self.corresponding_models, self.DL2_files):
+        #             zenith, azimuth = model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+        #             file_zenith, file_azimuth = get_avg_pointing(file, 
+        #                 self.pointing_table, 
+        #                 alt_key=self.pointing_alt_key, 
+        #                 az_key=self.pointing_az_key,
+        #             )
+
+        #             # Find the closest available MC direction (zenith, azimuth) to the file's average pointing
+        #             zenith = np.asarray(zenith)
+        #             azimuth = np.asarray(azimuth)
+        #             # Compute angular distance between file pointing and all available MC directions
+        #             distances = np.sqrt((zenith - file_zenith.value) ** 2 + (azimuth - file_azimuth.value) ** 2)
+        #             closest_idx = np.argmin(distances)
+        #             cuts_file = model.project_directories.get_irf_files(zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut)['cuts_file']
+        #             with fits.open(cuts_file, mode="readonly") as hdul:
+        #                 file_theta_cuts.append(hdul["RAD_MAX"].data["cut"])
+        #                 file_gammaness_cuts.append(hdul["GH_CUTS"].data["cut"])
+        #         self.cut_file_theta_cuts.append(file_theta_cuts)
+        #         self.cut_file_gammaness_cuts.append(file_gammaness_cuts)
+
+        # print(self.cut_file_theta_cuts)
+        # print("Shape of self.file_theta_cuts:", np.shape(self.cut_file_theta_cuts))
+
+
         E_bins_tot = np.empty(len(self.cuts), dtype=object)
-        GH_cuts_tot = np.empty(len(self.cuts), dtype=object)
-        Theta_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        # GH_cuts_tot = np.empty(len(self.cuts), dtype=object)
+        # Theta_cuts_tot = np.empty(len(self.cuts), dtype=object)
         for i, cut in enumerate(self.cuts):
             if (
                 cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
@@ -168,17 +246,18 @@ class DL2DataProcessor:
                     E_bins = np.append(E_bins, hdul["GH_CUTS"].data["high"][-1]) * u.TeV
                     E_bins_tot[i] = E_bins
 
-                    GH_cuts = hdul["GH_CUTS"].data["cut"]
-                    GH_cuts_tot[i] = GH_cuts
+                    # GH_cuts = hdul["GH_CUTS"].data["cut"]
+                    # GH_cuts_tot[i] = GH_cuts
 
-                    Theta_cuts = hdul["RAD_MAX"].data["cut"]
-                    Theta_cuts_tot[i] = Theta_cuts
+                    # Theta_cuts = hdul["RAD_MAX"].data["cut"]
+                    # Theta_cuts_tot[i] = Theta_cuts
             else:
                 E_bins = default_E_bins
                 E_bins_tot[i] = E_bins
         self.E_bins = E_bins_tot
-        self.GH_cuts = GH_cuts_tot
-        self.Theta_cuts = Theta_cuts_tot
+        # self.GH_cuts = GH_cuts_tot
+        # self.Theta_cuts = Theta_cuts_tot
+        
         set_mpl_style()
 
     def set_keys(self):
@@ -259,7 +338,7 @@ class DL2DataProcessor:
         self.cuts_masks_gammaness_only = np.empty(n_files, dtype=object)
         self.I_g_on_counts = np.empty(n_files, dtype=object)
         self.I_g_off_counts = np.empty(n_files, dtype=object)
-        self.corresponding_models = np.empty(n_files, dtype=object)
+        self.corresponding_models = np.empty(n_files, dtype=CTLearnTriModelManager)
         self.corresponding_model_indexs = np.empty(n_files, dtype=int)
         failed_mask = np.ones(n_files, dtype=bool)
 
@@ -814,21 +893,21 @@ class DL2DataProcessor:
                 E_bins = self.E_bins[i]
                 match cut.cut_type:
                     case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                        GH_cuts = self.GH_cuts[i]
-                        Theta_cuts = self.Theta_cuts[i]
+                        # GH_cuts = self.GH_cuts[i]
+                        Theta_cuts = self.cut_file_theta_cuts[i]
                     case _:
-                        GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                        # GH_cuts = [cut.gammaness_cut] * len(E_bins)
                         if cut.theta_cut is None:
-                            Theta_cuts = [0.2] * len(E_bins)
+                            Theta_cuts = [[0.2] * len(E_bins)] * len(self.DL2_files)
                         else:
-                            Theta_cuts = [cut.theta_cut] * len(E_bins)
+                            Theta_cuts = [[cut.theta_cut] * len(E_bins)] * len(self.DL2_files)
                 on_count = np.zeros(len(E_bins) - 1)
                 off_count = np.zeros(len(E_bins) - 1)
                 t_eff = 0 * u.h
                 t_elapsed = 0 * u.h
 
                 def process_file(args):
-                    reco_direction, pointing_direction, dl2, cuts_mask = args
+                    reco_direction, pointing_direction, dl2, cuts_mask, theta_cuts = args
                     cuts_mask = cuts_mask[i]
                     reco_direction = reco_direction[cuts_mask]
                     pointing_direction = pointing_direction[cuts_mask]
@@ -836,8 +915,8 @@ class DL2DataProcessor:
                     dl2 = dl2[cuts_mask]
                     on_count_arr = np.zeros(len(E_bins) - 1)
                     off_count_arr = np.zeros(len(E_bins) - 1)
-                    for j, E_min, E_max, GH_cut, Theta_cut in zip(
-                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts
+                    for j, E_min, E_max, Theta_cut in zip(
+                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], theta_cuts
                     ):
                         on_count_temp, off_count_temp, _, _, _ = self.compute_on_off_counts(
                             dl2,
@@ -855,7 +934,7 @@ class DL2DataProcessor:
                         off_count_arr[j] = off_count_temp / n_off
                     return on_count_arr, off_count_arr, t_eff_temp, t_elapsed_temp
 
-                file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only))
+                file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, Theta_cuts))
                 results = []
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [{cut.get_label()}]"):
@@ -1114,14 +1193,14 @@ class DL2DataProcessor:
             E_bins = self.E_bins[i]
             match cut.cut_type:
                 case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                    GH_cuts = self.GH_cuts[i]
-                    Theta_cuts = self.Theta_cuts[i]
+                    # GH_cuts = self.GH_cuts[i]
+                    Theta_cuts = self.cut_file_theta_cuts[i]
                 case _:
-                    GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                    # GH_cuts = [cut.gammaness_cut] * len(E_bins)
                     if cut.theta_cut is None:
-                        Theta_cuts = [0.2] * len(E_bins)
+                        Theta_cuts = [[0.2] * len(E_bins)] * len(self.DL2_files)
                     else:
-                        Theta_cuts = [cut.theta_cut] * len(E_bins)
+                        Theta_cuts = [[cut.theta_cut] * len(E_bins)] * len(self.DL2_files)
             angle_bins = np.linspace(0, 0.4, 25)
             h_on = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
             h_off = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
@@ -1129,7 +1208,7 @@ class DL2DataProcessor:
             t_elapsed = 0 * u.h
 
             def process_file(args):
-                reco_direction, pointing_direction, dl2, cuts_mask = args
+                reco_direction, pointing_direction, dl2, cuts_mask, theta_cuts = args
                 cuts_mask = cuts_mask[i]
                 reco_direction = reco_direction[cuts_mask]
                 pointing_direction = pointing_direction[cuts_mask]
@@ -1137,8 +1216,8 @@ class DL2DataProcessor:
                 dl2 = dl2[cuts_mask]
                 h_on_file = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
                 h_off_file = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
-                for j, E_min, E_max, GH_cut, Theta_cut in zip(
-                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], GH_cuts, Theta_cuts
+                for j, E_min, E_max, Theta_cut in zip(
+                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], theta_cuts
                 ):
                     on_count_temp, off_count_temp, on_separation_temp, all_off_separation_temp, _ = self.compute_on_off_counts(
                         dl2,
@@ -1158,7 +1237,7 @@ class DL2DataProcessor:
                     h_off_file[j] += h_off_temp / n_off
                 return h_on_file, h_off_file, t_eff_temp, t_elapsed_temp
 
-            file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only))
+            file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, Theta_cuts))
             results = []
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing PSF [{cut.get_label()}]"):
@@ -1219,7 +1298,31 @@ class DL2DataProcessor:
             )
             cut.efficiency_theta = stored_efficiency_theta
 
+
         # ...rest of the MC plotting and export code unchanged...
+        for i, cut in enumerate(self.cuts):
+            # stored_efficiency_theta = cut.efficiency_theta
+            # cut.efficiency_theta = None
+            for tri_model_nickname in tqdm(plot_MC, desc="Plotting MC curves"):
+                    if tri_model_nickname in self.CTLearnTriModelCollection.tri_model_nicknames:
+                        tri_model = self.CTLearnTriModelCollection.get_tri_model_by_nickname(tri_model_nickname)
+                        coords = tri_model.get_available_MC_directions(verbose=False)
+                        if len(coords) > 0:
+                            for zenith, azimuth in coords:
+                                try:
+                                    e_bins, ang_res_err = tri_model.get_angular_resolution_DL2(
+                                        zenith = zenith,
+                                        azimuth = azimuth,
+                                        cuts = cut,
+                                    )
+                                    e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                                    ang_res = [e_r[0].value for e_r in ang_res_err]
+                                    ax.plot(e, ang_res, label=f"MC ({zenith.value:.1f}, {azimuth.value:.1f})° | {cut.get_label()}", zorder=10)
+                                except:
+                                    print(f"IRFs not found for {tri_model.project_directories.tri_model_nickname}: ({zenith.value:.1f}, {azimuth.value:.1f})°, {cut.get_label()}. Skipping.")
+                    else:
+                        print(f"Model {plot_MC} not found in CTLearnTriModelCollection. Skipping MC curves.")
+            # cut.efficiency_theta = stored_efficiency_theta
         if export_to_h5 is not None:
             export_curves.export()
         if import_from_h5 is not None:

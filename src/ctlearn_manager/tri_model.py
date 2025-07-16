@@ -120,7 +120,7 @@ class CTLearnTriModelManager:
         reco_field_suffix : str
             The suffix for the reconstruction field, determined by the stereo value.
         """
-        self.project_directories = project_directories
+        self.project_directories:CTLMDirectories  = project_directories
         if direction_model.model_parameters_table["reco"][0] in [
             "direction",
             "cameradirection",
