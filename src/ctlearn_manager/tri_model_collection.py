@@ -898,12 +898,11 @@ class TriModelCollection:
         """
         import os
         import pickle
+        import concurrent.futures
 
         grouped_files = {tri_model: [] for tri_model in self.tri_models}
 
-        for dl2_file in tqdm(
-            dl2_files, desc="Grouping DL2 files per model", unit="file"
-        ):
+        def assign_model(dl2_file):
             closest_tri_model = self.find_closest_model_to(
                 dl2_file,
                 pointing_table=pointing_table,
@@ -912,8 +911,33 @@ class TriModelCollection:
                 az_key="azimuth",
                 verbose=False,
             )
+            return (closest_tri_model, dl2_file)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = list(tqdm(
+                executor.map(assign_model, dl2_files),
+                total=len(dl2_files),
+                desc="Grouping DL2 files per model",
+                unit="file"
+            ))
+
+        for closest_tri_model, dl2_file in results:
             if closest_tri_model is not None:
                 grouped_files[closest_tri_model].append(dl2_file)
+
+        # for dl2_file in tqdm(
+        #     dl2_files, desc="Grouping DL2 files per model", unit="file"
+        # ):
+        #     closest_tri_model = self.find_closest_model_to(
+        #         dl2_file,
+        #         pointing_table=pointing_table,
+        #         plot=False,
+        #         alt_key="altitude",
+        #         az_key="azimuth",
+        #         verbose=False,
+        #     )
+        #     if closest_tri_model is not None:
+        #         grouped_files[closest_tri_model].append(dl2_file)
 
         # Filter out empty groups
         grouped_files = {
