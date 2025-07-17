@@ -25,6 +25,7 @@ from ..utils.utils import (
     get_avg_pointing,
     ParticleType
 )
+import h5py
 
 
 class DL2DataProcessor:
@@ -642,7 +643,6 @@ class DL2DataProcessor:
         t_eff = t_elapsed / (1 + rate * dead_time)
         return t_eff.to(u.h), t_elapsed.to(u.h)
 
-
     def compute_on_off_counts_array(
         self,
         events,
@@ -659,35 +659,54 @@ class DL2DataProcessor:
         n_theta = len(theta2_cut)
         n_g = len(gcut)
 
-        # Precompute separations once
-        on_separation_all = reco_coord.separation(self.source_position)
-        off_regions = self.compute_off_regions(pointing_coord, n_off)
-        off_separation_all = [reco_coord.separation(off_regions[i]) for i in range(n_off)]
-
-        # Precompute energy mask once
+        # --- Mask in energy first ---
+        if hasattr(E_min, "value"):
+            E_min = E_min.value
+        if hasattr(E_max, "value"):
+            E_max = E_max.value
         energy_mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max)
-        gammaness = events[self.gammaness_key][energy_mask]
-        on_sep = on_separation_all[energy_mask].value  # in deg
+        if np.sum(energy_mask) == 0:
+            # No events in this energy bin
+            shape = (n_g, n_theta)
+            return np.zeros(shape), np.zeros(shape), None, None, np.zeros(shape)
+
+        # Mask all arrays
+        events = events[energy_mask]
+        print("Energy mask applied, remaining events:", len(events))
+        gammaness = events[self.gammaness_key]
+        reco_coord = reco_coord[energy_mask]
+        pointing_coord = pointing_coord[energy_mask]
+
+        # --- Compute ON separations ---
+        on_sep = reco_coord.separation(self.source_position).to(u.deg).value  # (N_events,)
 
         # Prepare 3D mask for ON: (n_g, n_theta, N_events)
-        gammaness_2d = gammaness[None, None, :]  # shape (1, 1, N_events)
-        gcut_2d = gcut[:, None, None]            # shape (n_g, 1, 1)
-        on_sep_2d = on_sep[None, None, :]        # shape (1, 1, N_events)
-        t2_sqrt = np.sqrt(theta2_cut)[None, :, None]  # shape (1, n_theta, 1)
+        gammaness_2d = gammaness[None, None, :]  # (1, 1, N_events)
+        gcut_2d = gcut[:, None, None]            # (n_g, 1, 1)
+        on_sep_2d = on_sep[None, None, :]        # (1, 1, N_events)
+        t2_sqrt = np.sqrt(theta2_cut)[None, :, None]  # (1, n_theta, 1)
 
         g_mask = gammaness_2d > gcut_2d          # (n_g, 1, N_events)
         theta_mask = on_sep_2d < t2_sqrt         # (1, n_theta, N_events)
         on_mask = g_mask & theta_mask            # (n_g, n_theta, N_events)
         on_count = np.sum(on_mask, axis=2)       # (n_g, n_theta)
 
-        # OFF regions: sum over all regions
-        off_count = np.zeros((n_g, n_theta), dtype=int)
-        for off_sep_all in off_separation_all:
-            off_sep = off_sep_all[energy_mask].value
-            off_sep_2d = off_sep[None, None, :]      # (1, 1, N_events)
-            theta_mask_off = off_sep_2d < t2_sqrt    # (1, n_theta, N_events)
-            off_mask = g_mask & theta_mask_off       # (n_g, n_theta, N_events)
-            off_count += np.sum(off_mask, axis=2)    # (n_g, n_theta)
+        # --- Compute OFF separations ---
+        off_regions = self.compute_off_regions(pointing_coord, n_off)
+        # Vectorized: stack all off regions and compute separations in one call
+        off_sep = np.array([
+            reco_coord.separation(off_regions[i]).to(u.deg).value for i in range(n_off)
+        ])  # (n_off, N_events)
+
+        # Prepare for broadcasting
+        off_sep_3d = off_sep[None, None, :, :]  # (1, 1, n_off, N_events)
+        t2_sqrt_3d = t2_sqrt[:, :, None]        # (1, n_theta, 1)
+        g_mask_3d = g_mask[:, :, None, :]       # (n_g, 1, 1, N_events)
+
+        # Mask for all off regions at once
+        theta_mask_off = off_sep_3d < t2_sqrt_3d  # (1, n_theta, n_off, N_events)
+        off_mask = g_mask_3d & theta_mask_off     # (n_g, n_theta, n_off, N_events)
+        off_count = np.sum(off_mask, axis=(2, 3)) # (n_g, n_theta)
 
         alpha = 1 / n_off
         significance_lima = li_ma_significance(on_count, off_count, alpha)
@@ -716,39 +735,33 @@ class DL2DataProcessor:
         off_separation_all = [reco_coord.separation(off_regions[i]) for i in range(n_off)]
 
         # Precompute energy mask once
-        energy_mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max)
+        energy_mask = (events[self.energy_key] > E_min.value) & (events[self.energy_key] < E_max.value)
         gammaness = events[self.gammaness_key][energy_mask]
         on_sep = on_separation_all[energy_mask].value  # in deg
-        # Prepare 2D arrays for ON
-        gammaness_2d = np.broadcast_to(gammaness, (n_g, gammaness.size))
-        gcut_2d = gcut[:, None]
-        g_mask = gammaness_2d > gcut_2d  # shape (n_g, N_events)
-
-        on_sep_2d = np.broadcast_to(on_sep, (n_g, on_sep.size))
-        # For each theta2_cut, count events with sep^2 < theta2_cut
-        on_count = np.zeros((n_g, n_theta), dtype=int)
-        for i_t, t2 in enumerate(theta2_cut):
-            t2_sqrt = np.sqrt(t2)
-            theta_mask = on_sep_2d < t2_sqrt
-            on_count[:, i_t] = np.sum(g_mask & theta_mask, axis=1)
-
-        # Repeat for OFF regions
+        # print("3D mask preparation...")
+        # Prepare 3D mask for ON: (n_g, n_theta, N_events)
+        gammaness_2d = gammaness[None, None, :]  # shape (1, 1, N_events)
+        gcut_2d = gcut[:, None, None]            # shape (n_g, 1, 1)
+        on_sep_2d = on_sep[None, None, :]        # shape (1, 1, N_events)
+        t2_sqrt = np.sqrt(theta2_cut)[None, :, None]  # shape (1, n_theta, 1)
+        # print("3D mask preparation done.")
+        g_mask = gammaness_2d > gcut_2d          # (n_g, 1, N_events)
+        theta_mask = on_sep_2d < t2_sqrt         # (1, n_theta, N_events)
+        on_mask = g_mask & theta_mask            # (n_g, n_theta, N_events)
+        on_count = np.sum(on_mask, axis=2)       # (n_g, n_theta)
+        # print("ON regions: sum over all regions")
+        # OFF regions: sum over all regions
         off_count = np.zeros((n_g, n_theta), dtype=int)
-        # print("Computing off counts...")
         for off_sep_all in off_separation_all:
             off_sep = off_sep_all[energy_mask].value
-            off_sep_2d = np.broadcast_to(off_sep, (n_g, off_sep.size))
-            # print("t2 loop")
-            for i_t, t2 in enumerate(theta2_cut):
-                t2_sqrt = np.sqrt(t2)
-                theta_mask = off_sep_2d < t2_sqrt
-                off_count[:, i_t] += np.sum(g_mask & theta_mask, axis=1)
-
+            off_sep_2d = off_sep[None, None, :]      # (1, 1, N_events)
+            theta_mask_off = off_sep_2d < t2_sqrt    # (1, n_theta, N_events)
+            off_mask = g_mask & theta_mask_off       # (n_g, n_theta, N_events)
+            off_count += np.sum(off_mask, axis=2)    # (n_g, n_theta)
+        # print("OFF regions: sum over all regions")
         alpha = 1 / n_off
-        # print('lima')
         significance_lima = li_ma_significance(on_count, off_count, alpha)
 
-        # If you need the separation arrays, you can reconstruct them similarly, but it's memory intensive.
         return on_count, off_count, None, None, significance_lima
 
     def compute_on_off_counts(
@@ -915,6 +928,239 @@ class DL2DataProcessor:
         else:
             plt.show()
     
+
+    def overfit_cuts_and_store(self, n_off=3, output_prefix="optimal_cuts"):
+        """
+        Compute and store optimal gammaness/theta2 cuts for even and odd events for each energy bin.
+        """
+        import concurrent.futures
+        from astropy.coordinates import concatenate
+
+        E_bins = self.E_bins[0]
+        gammaness_bins = np.linspace(0, 1, 201) #2001
+        theta2bins = np.linspace(0, 0.6, 601) # 6001
+        n_bins = len(E_bins) - 1
+
+        # Prepare storage
+        best_gammaness_even = np.zeros(n_bins)
+        best_theta2_even = np.zeros(n_bins)
+        best_gammaness_odd = np.zeros(n_bins)
+        best_theta2_odd = np.zeros(n_bins)
+
+        def mask_events(args):
+            reco_direction, pointing_direction, dl2 = args
+            even_mask = dl2["event_id"] % 2 == 0
+            odd_mask = dl2["event_id"] % 2 == 1
+            return (
+                dl2[even_mask], dl2[odd_mask],
+                reco_direction[even_mask], reco_direction[odd_mask],
+                pointing_direction[even_mask], pointing_direction[odd_mask]
+            )
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = list(tqdm(executor.map(mask_events, zip(self.reco_directions, self.pointings, self.dl2s)), desc="Masking events", total=len(self.reco_directions)))
+
+        even_dl2_temp, odd_dl2_temp, even_reco_temp, odd_reco_temp, even_pointing_temp, odd_pointing_temp = zip(*results)
+        # print(even_reco_temp)
+        print("Concatenating even_dl2...", flush=True)
+        even_dl2 = np.concatenate(even_dl2_temp)
+        print(f"# of even events: {len(even_dl2)}", flush=True)
+        print("Concatenating odd_dl2...", flush=True)
+        odd_dl2 = np.concatenate(odd_dl2_temp)
+        print(f"# of odd events: {len(odd_dl2)}", flush=True)
+        
+        # even_reco = np.concatenate(list(tqdm(even_reco, desc="even_reco")))
+        # print("Concatenating odd_reco...")
+        # odd_reco = np.concatenate(list(tqdm(odd_reco, desc="odd_reco")))
+        # print("Concatenating even_pointing...")
+        # even_pointing = np.concatenate(list(tqdm(even_pointing, desc="even_pointing")))
+        # print("Concatenating odd_pointing...")
+        # odd_pointing = np.concatenate(list(tqdm(odd_pointing, desc="odd_pointing")))
+        print(even_reco_temp)
+        if len(even_reco_temp) > 1:
+            print("Concatenating even_reco...", flush=True)
+            even_reco = concatenate(even_reco_temp)
+            print("Concatenating odd_reco...", flush=True)
+            odd_reco = concatenate(odd_reco_temp)
+            print("Concatenating even_pointing...", flush=True)
+            even_pointing = concatenate(even_pointing_temp)
+            print("Concatenating odd_pointing...", flush=True)
+            odd_pointing = concatenate(odd_pointing_temp)
+        else:
+            even_reco = even_reco_temp[0]
+            odd_reco = odd_reco_temp[0]
+            even_pointing = even_pointing_temp[0]
+            odd_pointing = odd_pointing_temp[0]
+
+        # even_reco = SkyCoord([coord for coords in even_reco for coord in coords])
+        # odd_reco = SkyCoord([coord for coords in odd_reco for coord in coords])
+        # even_pointing = SkyCoord([coord for coords in even_pointing for coord in coords])
+        # odd_pointing = SkyCoord([coord for coords in odd_pointing for coord in coords])
+
+        def process_bin(args):
+            i, E_min, E_max = args
+            # Compute on/off counts for all grid points (vectorized)
+            # print(even_reco)
+            print(f"Processing bin {i} : [{E_min}, {E_max}]", flush=True)
+            # EVEN
+            _on, _off, _, _, _ = self.compute_on_off_counts_array(
+                even_dl2, even_reco, even_pointing, n_off,
+                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
+            )
+            _nexcess = _on - _off / n_off
+            flux_even, _ = calc_flux_for_N_sigma_array(
+                5, _nexcess, _off, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            )
+
+            # ODD
+            _on, _off, _, _, _ = self.compute_on_off_counts_array(
+                odd_dl2, odd_reco, odd_pointing, n_off,
+                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
+            )
+            _nexcess = _on - _off / n_off
+            flux_odd, _ = calc_flux_for_N_sigma_array(
+                5, _nexcess, _off, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            )
+
+            # Find minimum
+            min_idx_even = np.unravel_index(np.nanargmin(flux_even), flux_even.shape)
+            min_idx_odd = np.unravel_index(np.nanargmin(flux_odd), flux_odd.shape)
+            print(f"Min flux even: {flux_even[min_idx_even]:.2e} at gammaness={gammaness_bins[min_idx_even[0]]:.2f}, theta2={theta2bins[min_idx_even[1]]:.2f}")
+            print(f"Min flux odd: {flux_odd[min_idx_odd]:.2e} at gammaness={gammaness_bins[min_idx_odd[0]]:.2f}, theta2={theta2bins[min_idx_odd[1]]:.2f}")
+            return (
+                i,
+                gammaness_bins[min_idx_even[0]], theta2bins[min_idx_even[1]],
+                gammaness_bins[min_idx_odd[0]], theta2bins[min_idx_odd[1]]
+            )
+
+        # Prepare arguments for parallel processing
+        bin_args = [(i, E_min, E_max) for i, (E_min, E_max) in enumerate(zip(E_bins[:-1], E_bins[1:]))]
+        bin_args.reverse()
+        # print(bin_args)
+        # with concurrent.futures.ThreadPoolExecutor() as executor:
+        #     results = list(tqdm(executor.map(process_bin, bin_args), total=n_bins, desc="Finding optimal cuts", unit="bins"))
+        results = []
+        for bin_arg in tqdm(bin_args, desc="Finding optimal cuts", total=n_bins, unit="bins"):
+            i, g_even, t_even, g_odd, t_odd = process_bin(bin_arg)
+            print(f"Gcuts {g_even:.2f}\t{g_odd:.2f}\tTheta2 {t_even:.2f}\t{t_odd:.2f}")
+            results.append((i, g_even, t_even, g_odd, t_odd))
+
+        # Store results
+        for j, g_even, t_even, g_odd, t_odd in results:
+            print(g_even, g_odd, t_even, t_odd)
+            best_gammaness_even[j] = g_even
+            best_theta2_even[j] = t_even
+            best_gammaness_odd[j] = g_odd
+            best_theta2_odd[j] = t_odd
+        print(best_gammaness_even)
+        print(best_gammaness_odd)
+        # Save to disk
+        # Save to HDF5 file
+        with h5py.File(f"{output_prefix}.h5", "w") as f:
+            f.create_dataset("even/gammaness", data=best_gammaness_even)
+            f.create_dataset("even/theta2", data=best_theta2_even)
+            f.create_dataset("even/E_bins", data=E_bins)
+            f.create_dataset("odd/gammaness", data=best_gammaness_odd)
+            f.create_dataset("odd/theta2", data=best_theta2_odd)
+            f.create_dataset("odd/E_bins", data=E_bins)
+
+    @staticmethod
+    def read_optimal_cuts_from_h5(h5_filename):
+        """
+        Read optimal gammaness/theta2 cuts for even and odd events from an HDF5 file.
+        Returns a dict with keys: 'even' and 'odd', each containing a dict with keys 'gammaness', 'theta2', 'E_bins'.
+        """
+        cuts = {}
+        with h5py.File(h5_filename, "r") as f:
+            cuts["even"] = {
+            "gammaness": f["even/gammaness"][:],
+            "theta2": f["even/theta2"][:],
+            "E_bins": f["even/E_bins"][:],
+            }
+            cuts["odd"] = {
+            "gammaness": f["odd/gammaness"][:],
+            "theta2": f["odd/theta2"][:],
+            "E_bins": f["odd/E_bins"][:],
+            }
+        return cuts
+
+    def overfit_cuts_and_store_old(self, n_off=3, output_prefix="optimal_cuts"):
+        """
+        Compute and store optimal gammaness/theta2 cuts for even and odd events for each energy bin.
+        """
+        E_bins = self.E_bins[0]
+        gammaness_bins = np.linspace(0, 1, 2001)
+        theta2bins = np.linspace(0, 0.6, 6001)
+        n_bins = len(E_bins) - 1
+
+        # Prepare storage
+        best_gammaness_even = np.zeros(n_bins)
+        best_theta2_even = np.zeros(n_bins)
+        best_gammaness_odd = np.zeros(n_bins)
+        best_theta2_odd = np.zeros(n_bins)
+
+        # Aggregate even/odd events across all files
+        even_dl2 = []
+        odd_dl2 = []
+        even_reco = []
+        odd_reco = []
+        even_pointing = []
+        odd_pointing = []
+        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Aggregating events", total=len(self.reco_directions)):
+            even_mask = dl2["event_id"] % 2 == 0
+            odd_mask = dl2["event_id"] % 2 == 1
+            even_dl2.append(dl2[even_mask])
+            odd_dl2.append(dl2[odd_mask])
+            even_reco.append(reco_direction[even_mask])
+            odd_reco.append(reco_direction[odd_mask])
+            even_pointing.append(pointing_direction[even_mask])
+            odd_pointing.append(pointing_direction[odd_mask])
+
+        # Concatenate all events
+        print("Concatenating events...")
+        even_dl2 = np.hstack(even_dl2)
+        odd_dl2 = np.hstack(odd_dl2)
+        even_reco = np.hstack(even_reco)
+        odd_reco = np.hstack(odd_reco)
+        even_pointing = np.hstack(even_pointing)
+        odd_pointing = np.hstack(odd_pointing)
+
+        # For each energy bin, scan grid and find best cuts
+        for i, (E_min, E_max) in tqdm(enumerate(zip(E_bins[:-1], E_bins[1:])), desc="Finding optimal cuts", total=n_bins):
+            # Compute on/off counts for all grid points (vectorized)
+            on_even, off_even, _, _, _ = self.compute_on_off_counts_array(
+                even_dl2, even_reco, even_pointing, n_off,
+                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
+            )
+            on_odd, off_odd, _, _, _ = self.compute_on_off_counts_array(
+                odd_dl2, odd_reco, odd_pointing, n_off,
+                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
+            )
+            nexcess_even = on_even - off_even / n_off
+            nexcess_odd = on_odd - off_odd / n_off
+
+            # Compute sensitivity for all grid points (vectorized)
+            # You may want to vectorize your calc_flux_for_N_sigma_array for this!
+            flux_even, _ = calc_flux_for_N_sigma_array(
+                5, nexcess_even, off_even, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            )
+            flux_odd, _ = calc_flux_for_N_sigma_array(
+                5, nexcess_odd, off_odd, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            )
+
+            # Find minimum
+            min_idx_even = np.unravel_index(np.argmin(flux_even), flux_even.shape)
+            min_idx_odd = np.unravel_index(np.argmin(flux_odd), flux_odd.shape)
+            best_gammaness_even[i] = gammaness_bins[min_idx_even[0]]
+            best_theta2_even[i] = theta2bins[min_idx_even[1]]
+            best_gammaness_odd[i] = gammaness_bins[min_idx_odd[0]]
+            best_theta2_odd[i] = theta2bins[min_idx_odd[1]]
+
+        # Save to disk
+        np.savez(f"{output_prefix}_even.npz", gammaness=best_gammaness_even, theta2=best_theta2_even, E_bins=E_bins)
+        np.savez(f"{output_prefix}_odd.npz", gammaness=best_gammaness_odd, theta2=best_theta2_odd, E_bins=E_bins)
+        
+
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None,
@@ -1445,6 +1691,7 @@ class DL2DataProcessor:
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
         from matplotlib.ticker import LogFormatterExponent, LogLocator
+
 
         if axs is None:
             fig, axs = plt.subplots(1, 4, figsize=(20, 5))  # , sharey=True)

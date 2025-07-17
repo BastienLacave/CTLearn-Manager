@@ -9,6 +9,7 @@ import ctadata
 import numpy as np
 from astropy.table import Table
 import matplotlib.pyplot as plt
+from pyirf.statistics import li_ma_significance
 
 
 # from astropy.time import Time
@@ -538,13 +539,13 @@ def calc_flux_for_N_sigma_array(
     )
     
     # Invalidate bins that don't meet the criteria
-    flux_factor[~good_bin_mask] = np.nan
+    # flux_factor[~good_bin_mask] = np.nan
 
     # Calculate significance of the actual observed data
     initial_signi = li_ma_significance(on_counts, off_counts, alpha=alpha)
 
     # Also invalidate bins where initial significance is too low
-    flux_factor[initial_signi < min_signi] = np.nan
+    # flux_factor[initial_signi < min_signi] = np.nan
 
     # --- Iterative Search for Flux Factor ---
     # We now have a starting flux_factor, which is 1 for good bins and NaN for bad ones.
@@ -606,7 +607,6 @@ def calc_flux_for_N_sigma(
     cond=True,
 ):
     import astropy.units as u
-    from pyirf.statistics import li_ma_significance
 
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
