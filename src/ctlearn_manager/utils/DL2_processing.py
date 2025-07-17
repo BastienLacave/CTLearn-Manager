@@ -448,8 +448,6 @@ class DL2DataProcessor:
         self.corresponding_models = self.corresponding_models[failed_mask]
         self.DL2_files = self.DL2_files[failed_mask]
 
-    
-
     def get_energy_dependent_mask_data(
         self,
         data,
@@ -488,7 +486,6 @@ class DL2DataProcessor:
                 else:
                     mask |= (e_mask & g_mask)
             return mask
-
 
     def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
@@ -671,6 +668,57 @@ class DL2DataProcessor:
         energy_mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max)
         gammaness = events[self.gammaness_key][energy_mask]
         on_sep = on_separation_all[energy_mask].value  # in deg
+
+        # Prepare 3D mask for ON: (n_g, n_theta, N_events)
+        gammaness_2d = gammaness[None, None, :]  # shape (1, 1, N_events)
+        gcut_2d = gcut[:, None, None]            # shape (n_g, 1, 1)
+        on_sep_2d = on_sep[None, None, :]        # shape (1, 1, N_events)
+        t2_sqrt = np.sqrt(theta2_cut)[None, :, None]  # shape (1, n_theta, 1)
+
+        g_mask = gammaness_2d > gcut_2d          # (n_g, 1, N_events)
+        theta_mask = on_sep_2d < t2_sqrt         # (1, n_theta, N_events)
+        on_mask = g_mask & theta_mask            # (n_g, n_theta, N_events)
+        on_count = np.sum(on_mask, axis=2)       # (n_g, n_theta)
+
+        # OFF regions: sum over all regions
+        off_count = np.zeros((n_g, n_theta), dtype=int)
+        for off_sep_all in off_separation_all:
+            off_sep = off_sep_all[energy_mask].value
+            off_sep_2d = off_sep[None, None, :]      # (1, 1, N_events)
+            theta_mask_off = off_sep_2d < t2_sqrt    # (1, n_theta, N_events)
+            off_mask = g_mask & theta_mask_off       # (n_g, n_theta, N_events)
+            off_count += np.sum(off_mask, axis=2)    # (n_g, n_theta)
+
+        alpha = 1 / n_off
+        significance_lima = li_ma_significance(on_count, off_count, alpha)
+
+        return on_count, off_count, None, None, significance_lima
+
+    def compute_on_off_counts_array_old(
+        self,
+        events,
+        reco_coord,
+        pointing_coord,
+        n_off,
+        theta2_cut=0.04 * u.deg**2,
+        gcut=0.5,
+        E_min=0,
+        E_max=100,
+    ):
+        theta2_cut = np.atleast_1d(theta2_cut)
+        gcut = np.atleast_1d(gcut)
+        n_theta = len(theta2_cut)
+        n_g = len(gcut)
+
+        # Precompute separations once
+        on_separation_all = reco_coord.separation(self.source_position)
+        off_regions = self.compute_off_regions(pointing_coord, n_off)
+        off_separation_all = [reco_coord.separation(off_regions[i]) for i in range(n_off)]
+
+        # Precompute energy mask once
+        energy_mask = (events[self.energy_key] > E_min) & (events[self.energy_key] < E_max)
+        gammaness = events[self.gammaness_key][energy_mask]
+        on_sep = on_separation_all[energy_mask].value  # in deg
         # Prepare 2D arrays for ON
         gammaness_2d = np.broadcast_to(gammaness, (n_g, gammaness.size))
         gcut_2d = gcut[:, None]
@@ -679,30 +727,29 @@ class DL2DataProcessor:
         on_sep_2d = np.broadcast_to(on_sep, (n_g, on_sep.size))
         # For each theta2_cut, count events with sep^2 < theta2_cut
         on_count = np.zeros((n_g, n_theta), dtype=int)
-        for i_t, t2 in tqdm(enumerate(theta2_cut)):
+        for i_t, t2 in enumerate(theta2_cut):
             t2_sqrt = np.sqrt(t2)
             theta_mask = on_sep_2d < t2_sqrt
             on_count[:, i_t] = np.sum(g_mask & theta_mask, axis=1)
 
         # Repeat for OFF regions
         off_count = np.zeros((n_g, n_theta), dtype=int)
-        print("Computing off counts...")
-        for off_sep_all in tqdm(off_separation_all):
+        # print("Computing off counts...")
+        for off_sep_all in off_separation_all:
             off_sep = off_sep_all[energy_mask].value
             off_sep_2d = np.broadcast_to(off_sep, (n_g, off_sep.size))
-            print("t2 loop")
+            # print("t2 loop")
             for i_t, t2 in enumerate(theta2_cut):
                 t2_sqrt = np.sqrt(t2)
                 theta_mask = off_sep_2d < t2_sqrt
                 off_count[:, i_t] += np.sum(g_mask & theta_mask, axis=1)
 
         alpha = 1 / n_off
-        print('lima')
+        # print('lima')
         significance_lima = li_ma_significance(on_count, off_count, alpha)
 
         # If you need the separation arrays, you can reconstruct them similarly, but it's memory intensive.
         return on_count, off_count, None, None, significance_lima
-
 
     def compute_on_off_counts(
         self,
@@ -768,7 +815,6 @@ class DL2DataProcessor:
         # N_excess = on_count - alpha*off_count
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
-
 
     def plot_skymap(self, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
@@ -869,7 +915,6 @@ class DL2DataProcessor:
         else:
             plt.show()
     
-
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None,
@@ -1027,6 +1072,33 @@ class DL2DataProcessor:
 
         # ...rest of the function unchanged (overfitting branch, plotting, export, etc.)...
         else:
+            from concurrent.futures import ThreadPoolExecutor
+
+            def process_energy_bin(args):
+                j, E_min, E_max, even_dl2, reco_direction_even, pointing_direction_even, odd_dl2, reco_direction_odd, pointing_direction_odd, n_off, theta2bins, gammaness_bins = args
+                # Even
+                on_count_temp_even, off_count_temp_even, _, _, _ = self.compute_on_off_counts_array(
+                    even_dl2,
+                    reco_direction_even,
+                    pointing_direction_even,
+                    n_off,
+                    theta2_cut=theta2bins,
+                    gcut=gammaness_bins,
+                    E_min=E_min,
+                    E_max=E_max,
+                )
+                # Odd
+                on_count_temp_odd, off_count_temp_odd, _, _, _ = self.compute_on_off_counts_array(
+                    odd_dl2,
+                    reco_direction_odd,
+                    pointing_direction_odd,
+                    n_off,
+                    theta2_cut=theta2bins,
+                    gcut=gammaness_bins,
+                    E_min=E_min,
+                    E_max=E_max,
+                )
+                return j, on_count_temp_even, off_count_temp_even, on_count_temp_odd, off_count_temp_odd
             # Split the cuts into two groups: even and odd, optimize cuts and apply on the other group
             E_bins = self.E_bins[0]
             gammaness_bins = np.linspace(0, 1, 2001)
@@ -1041,11 +1113,7 @@ class DL2DataProcessor:
             t_elapsed = [0 * u.h, 0 * u.h]
 
             for reco_direction, pointing_direction, dl2 in tqdm(
-                    zip(
-                        self.reco_directions,
-                        self.pointings,
-                        self.dl2s,
-                    ),
+                    zip(self.reco_directions, self.pointings, self.dl2s),
                     desc=f"Computing sensitivity using overfitting",
                     total=len(self.reco_directions),
                 ):
@@ -1064,39 +1132,27 @@ class DL2DataProcessor:
                 t_elapsed[0] += t_elapsed_temp_even
                 t_elapsed[1] += t_elapsed_temp_odd
 
+                # Prepare arguments for parallel processing
+                energy_args = [
+                    (
+                        j, E_min, E_max,
+                        even_dl2, reco_direction_even, pointing_direction_even,
+                        odd_dl2, reco_direction_odd, pointing_direction_odd,
+                        n_off, theta2bins, gammaness_bins
+                    )
+                    for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:])
+                ]
 
-                for j, E_min, E_max in zip(
-                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:]
-                    ):
-                        print(f"Computing on-off counts for E_min={E_min}, E_max={E_max}")
-                        (on_count_temp_even, off_count_temp_even, _, _, _) = (
-                            self.compute_on_off_counts_array(
-                                even_dl2,
-                                reco_direction_even,
-                                pointing_direction_even,
-                                n_off,
-                                theta2_cut=theta2bins,
-                                gcut=gammaness_bins,
-                                E_min=E_min,
-                                E_max=E_max,
-                            )
-                        )
-                        on_count[0][j] += on_count_temp_even
-                        off_count[0][j] += off_count_temp_even / n_off
-                        (on_count_temp_odd, off_count_temp_odd, _, _, _) = (
-                            self.compute_on_off_counts_array(
-                                odd_dl2,
-                                reco_direction_odd,
-                                pointing_direction_odd,
-                                n_off,
-                                theta2_cut=theta2bins,
-                                gcut=gammaness_bins,
-                                E_min=E_min,
-                                E_max=E_max,
-                            )
-                        )
-                        on_count[1][j] += on_count_temp_odd
-                        off_count[1][j] += off_count_temp_odd / n_off
+                with ThreadPoolExecutor() as executor:
+                    results = list(executor.map(process_energy_bin, energy_args))
+
+                for j, on_count_temp_even, off_count_temp_even, on_count_temp_odd, off_count_temp_odd in results:
+                    on_count[0][j] += on_count_temp_even
+                    off_count[0][j] += off_count_temp_even / n_off
+                    on_count[1][j] += on_count_temp_odd
+                    off_count[1][j] += off_count_temp_odd / n_off
+
+
             nexcess = [on_count[0] - off_count[0], on_count[1] - off_count[1]]
             min_signi = 3  # below this value (significance of the test source, Crab, for the *actual* observation
             min_exc = 0.002  # in fraction of off. Below this we ignore the corresponding cut combination.
@@ -1167,8 +1223,6 @@ class DL2DataProcessor:
         else:
             if ax is None:
                 plt.show()
-
-
 
     def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[""], export_to_h5: str=None,
         import_from_h5: str = None,
@@ -1341,7 +1395,6 @@ class DL2DataProcessor:
         else:
             if ax is None:
                 plt.show()
-
 
     def get_gammaness_cuts_for_efficiencies(
         self, MC_dl2, efficiencies, E_min=None, E_max=None, I_min=None, I_max=None
