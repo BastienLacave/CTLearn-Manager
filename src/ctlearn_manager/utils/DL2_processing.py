@@ -1025,8 +1025,8 @@ class DL2DataProcessor:
             # Find minimum
             min_idx_even = np.unravel_index(np.nanargmin(flux_even), flux_even.shape)
             min_idx_odd = np.unravel_index(np.nanargmin(flux_odd), flux_odd.shape)
-            print(f"Min flux even: {flux_even[min_idx_even]:.2e} at gammaness={gammaness_bins[min_idx_even[0]]:.2f}, theta2={theta2bins[min_idx_even[1]]:.2f}")
-            print(f"Min flux odd: {flux_odd[min_idx_odd]:.2e} at gammaness={gammaness_bins[min_idx_odd[0]]:.2f}, theta2={theta2bins[min_idx_odd[1]]:.2f}")
+            # print(f"Min flux even: {flux_even[min_idx_even]:.2e} at gammaness={gammaness_bins[min_idx_even[0]]:.2f}, theta2={theta2bins[min_idx_even[1]]:.2f}")
+            # print(f"Min flux odd: {flux_odd[min_idx_odd]:.2e} at gammaness={gammaness_bins[min_idx_odd[0]]:.2f}, theta2={theta2bins[min_idx_odd[1]]:.2f}")
             return (
                 i,
                 gammaness_bins[min_idx_even[0]], theta2bins[min_idx_even[1]],
@@ -1047,13 +1047,13 @@ class DL2DataProcessor:
 
         # Store results
         for j, g_even, t_even, g_odd, t_odd in results:
-            print(g_even, g_odd, t_even, t_odd)
+            # print(g_even, g_odd, t_even, t_odd)
             best_gammaness_even[j] = g_even
             best_theta2_even[j] = t_even
             best_gammaness_odd[j] = g_odd
             best_theta2_odd[j] = t_odd
-        print(best_gammaness_even)
-        print(best_gammaness_odd)
+        # print(best_gammaness_even)
+        # print(best_gammaness_odd)
         # Save to disk
         # Save to HDF5 file
         with h5py.File(f"{output_prefix}.h5", "w") as f:
@@ -1083,82 +1083,6 @@ class DL2DataProcessor:
             "E_bins": f["odd/E_bins"][:],
             }
         return cuts
-
-    def overfit_cuts_and_store_old(self, n_off=3, output_prefix="optimal_cuts"):
-        """
-        Compute and store optimal gammaness/theta2 cuts for even and odd events for each energy bin.
-        """
-        E_bins = self.E_bins[0]
-        gammaness_bins = np.linspace(0, 1, 2001)
-        theta2bins = np.linspace(0, 0.6, 6001)
-        n_bins = len(E_bins) - 1
-
-        # Prepare storage
-        best_gammaness_even = np.zeros(n_bins)
-        best_theta2_even = np.zeros(n_bins)
-        best_gammaness_odd = np.zeros(n_bins)
-        best_theta2_odd = np.zeros(n_bins)
-
-        # Aggregate even/odd events across all files
-        even_dl2 = []
-        odd_dl2 = []
-        even_reco = []
-        odd_reco = []
-        even_pointing = []
-        odd_pointing = []
-        for reco_direction, pointing_direction, dl2 in tqdm(zip(self.reco_directions, self.pointings, self.dl2s), desc="Aggregating events", total=len(self.reco_directions)):
-            even_mask = dl2["event_id"] % 2 == 0
-            odd_mask = dl2["event_id"] % 2 == 1
-            even_dl2.append(dl2[even_mask])
-            odd_dl2.append(dl2[odd_mask])
-            even_reco.append(reco_direction[even_mask])
-            odd_reco.append(reco_direction[odd_mask])
-            even_pointing.append(pointing_direction[even_mask])
-            odd_pointing.append(pointing_direction[odd_mask])
-
-        # Concatenate all events
-        print("Concatenating events...")
-        even_dl2 = np.hstack(even_dl2)
-        odd_dl2 = np.hstack(odd_dl2)
-        even_reco = np.hstack(even_reco)
-        odd_reco = np.hstack(odd_reco)
-        even_pointing = np.hstack(even_pointing)
-        odd_pointing = np.hstack(odd_pointing)
-
-        # For each energy bin, scan grid and find best cuts
-        for i, (E_min, E_max) in tqdm(enumerate(zip(E_bins[:-1], E_bins[1:])), desc="Finding optimal cuts", total=n_bins):
-            # Compute on/off counts for all grid points (vectorized)
-            on_even, off_even, _, _, _ = self.compute_on_off_counts_array(
-                even_dl2, even_reco, even_pointing, n_off,
-                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
-            )
-            on_odd, off_odd, _, _, _ = self.compute_on_off_counts_array(
-                odd_dl2, odd_reco, odd_pointing, n_off,
-                theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
-            )
-            nexcess_even = on_even - off_even / n_off
-            nexcess_odd = on_odd - off_odd / n_off
-
-            # Compute sensitivity for all grid points (vectorized)
-            # You may want to vectorize your calc_flux_for_N_sigma_array for this!
-            flux_even, _ = calc_flux_for_N_sigma_array(
-                5, nexcess_even, off_even, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
-            )
-            flux_odd, _ = calc_flux_for_N_sigma_array(
-                5, nexcess_odd, off_odd, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
-            )
-
-            # Find minimum
-            min_idx_even = np.unravel_index(np.argmin(flux_even), flux_even.shape)
-            min_idx_odd = np.unravel_index(np.argmin(flux_odd), flux_odd.shape)
-            best_gammaness_even[i] = gammaness_bins[min_idx_even[0]]
-            best_theta2_even[i] = theta2bins[min_idx_even[1]]
-            best_gammaness_odd[i] = gammaness_bins[min_idx_odd[0]]
-            best_theta2_odd[i] = theta2bins[min_idx_odd[1]]
-
-        # Save to disk
-        np.savez(f"{output_prefix}_even.npz", gammaness=best_gammaness_even, theta2=best_theta2_even, E_bins=E_bins)
-        np.savez(f"{output_prefix}_odd.npz", gammaness=best_gammaness_odd, theta2=best_theta2_odd, E_bins=E_bins)
         
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
@@ -1470,7 +1394,7 @@ class DL2DataProcessor:
             if ax is None:
                 plt.show()
 
-    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[""], export_to_h5: str=None,
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[], export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None, ylim=(0, 0.6)):
         import matplotlib.pyplot as plt

@@ -1,16 +1,18 @@
 import matplotlib.pyplot as plt
+from ctlearn_manager.utils.DL2_processing import DL2DataProcessor
 
 __all__ = ["WhoIsBetter"]
 
 
 class WhoIsBetter:
-    def __init__(self, dl2_processors, labels):
+    def __init__(self, dl2_processors: list[DL2DataProcessor], labels: list[str]):
         self.dl2_processors = dl2_processors
         cuts = [dl2_processor.cuts for dl2_processor in dl2_processors]
         if not all(cut == cuts[0] for cut in cuts):
             raise ValueError("Cuts from each dl2_processor are not identical.")
         self.cuts = cuts[0]
         self.labels = labels
+        assert len(self.dl2_processors) == len(self.labels), "Number of dl2_processors and labels must match."
 
     def plot_theta2_distribution(self):
         for dl2_processor in self.dl2_processors:
