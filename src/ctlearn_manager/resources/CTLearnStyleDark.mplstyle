@@ -1,0 +1,58 @@
+# To check more avaialble options see:
+# https://matplotlib.org/tutorials/introductory/customizing.html
+
+font.family : Outfit
+text.color : white
+
+# AXES
+axes.titlesize : 16
+axes.labelsize : 14
+axes.linewidth : 1
+axes.spines.top : True
+axes.spines.right : True
+axes.spines.bottom : True
+axes.spines.left : True
+#axes.xmargin : 0.1
+axes.ymargin : 0.1
+axes.facecolor : black
+axes.edgecolor : white
+axes.labelcolor : white
+axes.titlecolor : white
+legend.fontsize : 9
+legend.markerscale : 1.
+patch.linewidth : 2
+legend.labelcolor : white
+
+# GRID
+axes.grid : False
+grid.alpha : 0.7
+grid.linestyle : --
+grid.linewidth : 0.6
+grid.color : "#363636"
+
+# LINES
+axes.prop_cycle : cycler('color', ['00c6ff', '00a693', '58c68b', '016279', 'cf004b', '923e51', 'ff7f0e', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf', '1a55FF']) #hex colours
+lines.linewidth : 2
+lines.markeredgewidth : 0.0
+lines.solid_capstyle : round
+lines.dash_capstyle : round
+
+# SCATTER PLOT
+scatter.marker : o
+
+# TICKS
+xtick.labelsize : 13
+xtick.color : white
+#xtick.direction : in
+ytick.labelsize : 13
+ytick.color : white
+#ytick.direction : in
+
+# FIGURE OUTPUT 
+# figure.figsize  : 7, 5
+# figure.dpi : 330
+figure.facecolor : black
+savefig.dpi : 330
+savefig.facecolor : black
+savefig.edgecolor : black
+savefig.transparent : True

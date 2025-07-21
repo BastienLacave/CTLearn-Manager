@@ -24,7 +24,6 @@ __all__ = [
     "CutType",
     "get_irf_type_from_config",
     "IRFType",
-    "CTLearnManagerStyle",
     "set_mpl_style",
     "angular_distance",
     "get_dates_from_runs",
@@ -45,42 +44,85 @@ __all__ = [
     "CTLMDirectories",
     "get_user_confirmation",
     "calc_flux_for_N_sigma_array",
+    "ColorTheme",
+    "get_color",
+    "set_global_theme",
 ]
 
 
-class CTLearnManagerStyle(Enum):
+
+class CTLearnManagerLightTheme(Enum):
     """
     A class to manage predefined colors and plot styles for consistent visualization.
     """
-
-    # def __init__(self):
-    #     # Predefined colors
-    #     self.colors = {
-    #         "ctlearn_1": "#016279" ,
-    #         "ctlearn_2": "#00a693" ,
-    #         "ctlearn_3": "#58c68b" ,
-    #         "ctlearn_highlight": "#00c6ff" ,
-    #         "ctlearn_accent_1": "#cf004b",
-    #         "ctlearn_accent_2": "#923e51",
-    #         "random_forest": "#000000" ,
-    #     }
-    # self.ctlearn_1 = "#016279"
-    # self.ctlearn_2 = "#00a693"
-    # self.ctlearn_3 = "#58c68b"
-    # self.ctlearn_highlight = "#00c6ff"
-    # self.ctlearn_accent_1 = "#cf004b"
-    # self.ctlearn_accent_2 = "#923e51"
-    # self.random_forest = "#000000"
     ctlearn_1 = "#016279"
     ctlearn_2 = "#00a693"
     ctlearn_3 = "#58c68b"
     ctlearn_highlight = "#00c6ff"
     ctlearn_accent_1 = "#cf004b"
     ctlearn_accent_2 = "#923e51"
+    background = "#ffffff"
+    on_background = "#000000"
     random_forest = "#000000"
+    surface = "#00c6ff"
+    on_surface = "#016279"
+    error_surface = "#923e51"
+    on_error_surface = "#cf004b"
+    
 
+class CTLearnManagerDarkTheme(Enum):
+    """
+    A class to manage predefined colors and plot styles for consistent visualization.
+    """
+    ctlearn_1 = "#016279"
+    ctlearn_2 = "#00a693"
+    ctlearn_3 = "#58c68b"
+    ctlearn_highlight = "#00c6ff"
+    ctlearn_accent_1 = "#cf004b"
+    ctlearn_accent_2 = "#923e51"
+    background = "#000000"
+    on_background = "#ffffff"
+    random_forest = "#ffffff"
+    surface = "#016279"
+    on_surface = "#00c6ff"
+    error_surface = "#923e51"
+    on_error_surface = "#cf004b"
+    
 
-def set_mpl_style():
+class ColorTheme(Enum):
+
+    light_theme = CTLearnManagerLightTheme
+    dark_theme = CTLearnManagerDarkTheme
+
+CURRENT_THEME = ColorTheme.light_theme
+
+def set_global_theme(theme: ColorTheme):
+    global CURRENT_THEME
+    CURRENT_THEME = theme
+    set_theme(theme)
+    print(f"Global theme set to {CURRENT_THEME.name}")
+
+def get_color(name: str):
+    theme_enum = CURRENT_THEME.value
+    return getattr(theme_enum, name).value
+
+def set_theme(theme: ColorTheme = ColorTheme.light_theme):
+    """
+    Set the color theme for the plots.
+    
+    Parameters
+    ----------
+    theme : ColorTheme, optional
+        The color theme to use. Default is ColorTheme.light_theme.
+    """
+    if theme == ColorTheme.light_theme:
+        set_mpl_style("CTLearnStyleLight.mplstyle")
+    elif theme == ColorTheme.dark_theme:
+        set_mpl_style("CTLearnStyleDark.mplstyle")
+    else:
+        raise ValueError(f"Unsupported theme: {theme}. Use ColorTheme.light_theme or ColorTheme.dark_theme.")
+
+def set_mpl_style(mplstyle_file: str = "CTLearnStyleLight.mplstyle"):
     # font_path = "./resources/Outfit-Medium.ttf"
     import importlib.resources as pkg_resources
 
@@ -96,7 +138,7 @@ def set_mpl_style():
     prop = font_manager.FontProperties(fname=font_path)
     rcParams["font.sans-serif"] = prop.get_name()
     rcParams["font.family"] = prop.get_name()
-    with pkg_resources.path(resources, "CTLearnStyle.mplstyle") as style_path:
+    with pkg_resources.path(resources, mplstyle_file) as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
 
@@ -923,11 +965,16 @@ class Cuts:
     def plot_cuts_info_plt(
         self,
         ax,
-        text_color=CTLearnManagerStyle.ctlearn_1.value,
-        background_color=CTLearnManagerStyle.ctlearn_highlight.value,
+        text_color=None,
+        background_color=None,
         alpha=0.2,
     ):
         final_string = self.get_label()
+        if text_color is None:
+            text_color=get_color("on_surface")
+        if background_color is None:
+            background_color=get_color("surface")
+        # print(background_color, text_color)
 
         if final_string:
             ax.text(
@@ -1035,8 +1082,8 @@ class DefaultCuts(Enum):
 
 @u.quantity_input(zenith=u.deg, azimuth=u.deg)
 def plot_pointing_on_ax(ax, zenith, azimuth):
-    text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-    background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+    text_color = get_color("error_surface")
+    background_color = get_color("on_error_surface")
     ax.text(
         0.02,
         0.02,

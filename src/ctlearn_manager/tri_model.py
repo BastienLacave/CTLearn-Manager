@@ -11,7 +11,6 @@ from .io.io import load_DL2_data_MC, load_true_shower_parameters
 from .model_manager import CTLearnModelManager, DataSample
 from .utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     CutType,
     DefaultCuts,
@@ -25,6 +24,7 @@ from .utils.utils import (
     IRFType,
     CutType,
     get_irf_type_from_config,
+    get_color,
 )
 
 __all__ = [
@@ -195,7 +195,7 @@ class CTLearnTriModelManager:
             f"🧠🧠🧠 CTLearnTriModelManager ▮ {self.direction_model.model_nickname} ▮ {self.energy_model.model_nickname} ▮ {self.type_model.model_nickname} ▮"
         )
         self.get_available_MC_directions()
-        set_mpl_style()
+        # set_mpl_style()
 
     def set_keys(self):
         """
@@ -1259,7 +1259,7 @@ class CTLearnTriModelManager:
             ax.scatter(
                 dl2_data[self.pointing_alt_key][0] / np.pi * 180,
                 dl2_data[self.pointing_az_key][0] / np.pi * 180,
-                color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                color=get_color("ctlearn_accent_1"),
                 label="Array pointing",
                 marker="x",
                 s=80,
@@ -1370,7 +1370,7 @@ class CTLearnTriModelManager:
             ax.plot(
                 [log_bins[0], log_bins[-1]],
                 [log_bins[0], log_bins[-1]],
-                color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                color=get_color("ctlearn_accent_1"),
                 ls="--",
             )
             ax.hist2d(
@@ -3078,7 +3078,7 @@ class CTLearnTriModelManager:
             flux_sensitivity_table["flux_sensitivity"]
             + flux_sensitivity_table["flux_sensitivity_err_plus"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color= get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],
@@ -3107,7 +3107,7 @@ class CTLearnTriModelManager:
             angular_resolution_table["angular_res_err_lo"],
             angular_resolution_table["angular_res_err_hi"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color=get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],
@@ -3134,7 +3134,7 @@ class CTLearnTriModelManager:
             energy_resolution_table["energy_res_err_lo"],
             energy_resolution_table["energy_res_err_hi"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color=get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],

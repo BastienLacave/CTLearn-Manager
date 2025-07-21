@@ -13,7 +13,6 @@ from astropy.table import QTable
 
 from ctlearn_manager.utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     DataSample,
     IRFType,
@@ -22,6 +21,7 @@ from ctlearn_manager.utils.utils import (
     remove_row_from_table_utils,
     set_mpl_style,
     CTLMDirectories,
+    get_color,
 )
 
 # from ctlearn_manager.utils.index_tables import IndexTables
@@ -191,7 +191,7 @@ class CTLearnModelManager:
         #     raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
-        set_mpl_style()
+        # set_mpl_style()
 
         # current_model_dir = self.model_parameters_table['model_dir'][0]
         # if f"/{self.model_nickname}" not in current_model_dir:
@@ -838,7 +838,7 @@ class CTLearnModelManager:
                     s=100,
                     zorder=0,
                     label="Training",
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                    color=get_color("ctlearn_1")
                 )
             else:
                 # Plot a portion of a circle between the azimuth range at the correct zenith
@@ -861,7 +861,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                        color=get_color("ctlearn_1"),
                         label="Training",
                     )
         else:
@@ -876,20 +876,20 @@ class CTLearnModelManager:
                     r2.value,
                     alpha=0.3,
                     zorder=0,
-                    color=CTLearnManagerStyle.ctlearn_highlight.value,
+                    color=get_color("ctlearn_highlight"),
                 )
                 ax.plot(
                     theta,
                     r1,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     theta,
                     r2,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
             else:
@@ -903,34 +903,34 @@ class CTLearnModelManager:
                     r2,
                     alpha=0.3,
                     zorder=0,
-                    color=CTLearnManagerStyle.ctlearn_highlight.value,
+                    color=get_color("ctlearn_highlight"),
                 )
                 ax.plot(
                     theta,
                     r1,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     theta,
                     r2,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     (theta[0], theta[0]),
                     (r1[0], r2[0]),
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     (theta[-1], theta[-1]),
                     (r1[-1], r2[-1]),
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.set_ylim(0, 60)
@@ -949,7 +949,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                        color=get_color("ctlearn_1"),
                         label="Training",
                     )
 
@@ -968,7 +968,7 @@ class CTLearnModelManager:
                         zenith,
                         s=50,
                         facecolors="none",
-                        edgecolors=CTLearnManagerStyle.ctlearn_accent_1.value,
+                        edgecolors=get_color("ctlearn_accent_1"),
                         label="Testing DL1",
                         zorder=3,
                     )
@@ -989,7 +989,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=CTLearnManagerStyle.ctlearn_accent_2.value,
+                        color=get_color("ctlearn_accent_2"),
                         label="Testing DL2",
                         zorder=2,
                     )
@@ -1062,7 +1062,7 @@ class CTLearnModelManager:
                     azimuth,
                     zenith,
                     s=50,
-                    color=CTLearnManagerStyle.ctlearn_1.value,
+                    color=get_color("ctlearn_1"),
                     label="Gammas",
                     zorder=10,
                 )
@@ -1087,7 +1087,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         label="Protons",
-                        edgecolor=CTLearnManagerStyle.ctlearn_accent_1.value,
+                        edgecolor=get_color("ctlearn_accent_1"),
                         facecolors="w",
                         zorder=1,
                         s=100,

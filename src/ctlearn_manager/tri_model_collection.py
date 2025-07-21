@@ -12,7 +12,6 @@ from . import CTLearnTriModelManager
 
 from .utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     CutType,
     DefaultCuts,
@@ -21,6 +20,8 @@ from .utils.utils import (
     get_files_cscs,
     get_files_LST_cluster,
     set_mpl_style,
+    CTLMDirectories,
+    get_color
 )
 
 __all__ = ["TriModelCollection"]
@@ -109,9 +110,11 @@ class TriModelCollection:
         self.cluster_configuration = cluster_configuration
 
         # Assert that all tri_models have the same project_directory
-        if not allow_muliple_projects:
+        self.allow_muliple_projects = allow_muliple_projects
+        if not self.allow_muliple_projects:
             project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
             assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
+            self.project_directories: CTLMDirectories = project_directories[0]
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
         telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]
@@ -125,7 +128,7 @@ class TriModelCollection:
         else:
             self.model_labels = [f"Model_{j}" for j in range(len(self.tri_models))]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
-        set_mpl_style()
+        # set_mpl_style()
         self.tri_model_nicknames = [tri_model.project_directories.tri_model_nickname for tri_model in self.tri_models]
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
         # assert len(set(telescope_names)) == 1, "All telescope_names in the collection must be the same."
@@ -446,7 +449,7 @@ class TriModelCollection:
                 avg_data_az.to(u.rad),
                 avg_data_ze,
                 label="Average pointing",
-                color=plt.rcParams["axes.prop_cycle"].by_key()["color"][3],
+                color=get_color("ctlearn_highlight"),
             )
             ax.legend()
             plt.show()
@@ -569,8 +572,8 @@ class TriModelCollection:
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
-            text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-            background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+            text_color = get_color("ctlearn_accent_2")
+            background_color = get_color("ctlearn_accent_1")
             ax.text(
                 0.02,
                 0.02,
@@ -739,8 +742,8 @@ class TriModelCollection:
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
-            text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-            background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+            text_color = get_color("ctlearn_accent_2")
+            background_color = get_color("ctlearn_accent_1")
             ax.text(
                 0.02,
                 0.02,

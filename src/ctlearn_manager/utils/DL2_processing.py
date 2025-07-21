@@ -12,18 +12,17 @@ from tqdm import tqdm
 from ..tri_model import CTLearnTriModelManager
 from ..tri_model_collection import TriModelCollection
 from ..utils.utils import (
-    CTLearnManagerStyle,
     Cuts,
     CutType,
     DefaultCuts,
     calc_flux_for_N_sigma,
     find_68_percent_range,
-    set_mpl_style,
     ExportCurves,
     CurveType,
     calc_flux_for_N_sigma_array,
     get_avg_pointing,
-    ParticleType
+    ParticleType,
+    get_color,
 )
 import h5py
 
@@ -96,8 +95,10 @@ class DL2DataProcessor:
             self.CTLearnTriModelCollection = TriModelCollection(
                 [CTLearn_TriModel_Manager],
                 cluster_configuration=CTLearn_TriModel_Manager.cluster_configuration,
+                allow_muliple_projects=False,
             )
         else:
+            assert CTLearn_TriModel_Manager.allow_muliple_projects == False, "CTLearnTriModelManager must be a single project."
             self.CTLearnTriModelCollection = CTLearn_TriModel_Manager
         self.source_position = source_position
         self.telscope_names = self.CTLearnTriModelCollection.tri_models[
@@ -259,7 +260,7 @@ class DL2DataProcessor:
         # self.GH_cuts = GH_cuts_tot
         # self.Theta_cuts = Theta_cuts_tot
         
-        set_mpl_style()
+        # set_mpl_style()
 
     def set_keys(self):
         self.gammaness_key = (
@@ -555,7 +556,7 @@ class DL2DataProcessor:
         )
         props = dict(
             boxstyle="round",
-            facecolor=CTLearnManagerStyle.ctlearn_highlight.value,
+            facecolor=get_color("surface"),
             alpha=0.2,
             edgecolor="none",
         )
@@ -564,17 +565,52 @@ class DL2DataProcessor:
             0.96,
             label,
             transform=ax.transAxes,
-            fontsize=12,
+            fontsize=11,
             verticalalignment="top",
             bbox=props,
-            color=CTLearnManagerStyle.ctlearn_1.value,
+            color=get_color("on_surface"),
         )
-        plt.plot(angle2_center, h_off, label="off source", zorder=0, color=CTLearnManagerStyle.ctlearn_1.value)
-        plt.fill_between(angle2_center, h_off - np.sqrt(h_off), h_off + np.sqrt(h_off), color=CTLearnManagerStyle.ctlearn_1.value, alpha=0.3, zorder=1, edgecolor="none")
-        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=CTLearnManagerStyle.ctlearn_accent_1.value, alpha=0.3, zorder=1, edgecolor="none")
-        plt.plot(angle2_center, h_on, label="on source", color=CTLearnManagerStyle.ctlearn_accent_1.value)
+        # plt.plot(angle2_center, h_off, label="off source", zorder=0, color=get_color("ctlearn_1"))
+        # plt.errorbar(
+        #     angle2_center,
+        #     h_on,
+        #     yerr=np.sqrt(h_on),
+        #     label="On source",
+        #     zorder=0,
+        #     color=get_color("ctlearn_accent_1"),
+        #     marker="o",
+        #     ls="none",)
+        # plt.errorbar(
+        #     angle2_center,
+        #     h_off,
+        #     yerr=np.sqrt(h_off),
+        #     label="Off source",
+        #     zorder=0,
+        #     color=get_color("ctlearn_1")
+        #     , marker="o", ls="none")
+        plt.scatter(
+            angle2_center,
+            h_on,
+            label="On source",
+            zorder=2,
+            color=get_color("ctlearn_accent_1"),
+            marker="o",
+            s=20,
+        )
+        plt.scatter(
+            angle2_center,
+            h_off,
+            label="Off source",
+            zorder=2,
+            color=get_color("ctlearn_1"),
+            marker="o",
+            s=20,
+        )
+        plt.fill_between(angle2_center, h_off - np.sqrt(h_off), h_off + np.sqrt(h_off), color=get_color("ctlearn_1"), alpha=0.3, zorder=1, edgecolor="none")
+        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=get_color("ctlearn_accent_1"), alpha=0.3, zorder=1, edgecolor="none")
+        # plt.plot(angle2_center, h_on, label="on source", color=get_color("ctlearn_accent_1"))
         plt.xlim(0, 0.4)
-        plt.axvline(0.04, color="black", linestyle="--")
+        plt.axvline(0.04, color=get_color('on_background'), linestyle="--")
         plt.legend()
         plt.xlabel(r"Separation [deg$^2$]")
         plt.ylabel("Counts")
@@ -832,6 +868,7 @@ class DL2DataProcessor:
     def plot_skymap(self, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
         import concurrent.futures
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         fig, ax = plt.subplots(figsize=(10, 8))
         plt.xlabel("RA (deg)")
@@ -880,11 +917,17 @@ class DL2DataProcessor:
 
         self.cuts[cuts_index].plot_cuts_info_plt(
             ax,
-            text_color=CTLearnManagerStyle.ctlearn_highlight.value,
-            background_color=CTLearnManagerStyle.ctlearn_1.value,
+            text_color=get_color("ctlearn_highlight"),
+            background_color=get_color("ctlearn_1"),
         )
         plt.hist2d(ra_values, dec_values, bins=100, cmap="viridis", zorder=0)
-        plt.colorbar(label="Counts")
+        # Add colorbar with same height as the plot
+        im = plt.gca().collections[0]
+        # Make colorbar the same height as the axes (not the whole figure)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        cbar = plt.colorbar(im, cax=cax, aspect=10)
+        cbar.set_label("Counts")
 
         # Plot pointings and off regions (not parallelized, usually fast)
         for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
@@ -897,7 +940,7 @@ class DL2DataProcessor:
                 pointing.ra.deg,
                 pointing.dec.deg,
                 label="pointing",
-                color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                color=get_color("ctlearn_accent_1"),
                 marker="x",
             )
             for off_region in off_regions:
@@ -928,8 +971,7 @@ class DL2DataProcessor:
         else:
             plt.show()
     
-
-    def overfit_cuts_and_store(self, n_off=3, output_prefix="optimal_cuts"):
+    def optimize_cuts_on_crab(self, n_off=3, output_suffix=""):
         """
         Compute and store optimal gammaness/theta2 cuts for even and odd events for each energy bin.
         """
@@ -1056,7 +1098,8 @@ class DL2DataProcessor:
         # print(best_gammaness_odd)
         # Save to disk
         # Save to HDF5 file
-        with h5py.File(f"{output_prefix}.h5", "w") as f:
+        output_file = f"{self.CTLearnTriModelCollection.project_directories.dl2_post_processed_data_directory}/crab_optimized_cuts_{len(self.DL2_files)}_files{output_suffix}.h5"
+        with h5py.File(output_file, "w") as f:
             f.create_dataset("even/gammaness", data=best_gammaness_even)
             f.create_dataset("even/theta2", data=best_theta2_even)
             f.create_dataset("even/E_bins", data=E_bins)
@@ -1064,8 +1107,9 @@ class DL2DataProcessor:
             f.create_dataset("odd/theta2", data=best_theta2_odd)
             f.create_dataset("odd/E_bins", data=E_bins)
 
+
     @staticmethod
-    def read_optimal_cuts_from_h5(h5_filename):
+    def read_cuts_optimized_on_crab_from_h5(h5_filename):
         """
         Read optimal gammaness/theta2 cuts for even and odd events from an HDF5 file.
         Returns a dict with keys: 'even' and 'odd', each containing a dict with keys 'gammaness', 'theta2', 'E_bins'.
@@ -1084,11 +1128,33 @@ class DL2DataProcessor:
             }
         return cuts
         
+    def plot_cuts_optimized_on_crab(self, cuts_h5_file):
+        import matplotlib.pyplot as plt
+        cuts = self.read_cuts_optimized_on_crab_from_h5(cuts_h5_file)
+        gcuts_even, tcuts_even, E_bins = cuts["even"]["gammaness"], cuts["even"]["theta2"], cuts["even"]["E_bins"]
+        gcuts_odd, tcuts_odd = cuts["odd"]["gammaness"], cuts["odd"]["theta2"]
+        E_center = (E_bins[:-1] + E_bins[1:]) / 2
+        # for i in range(len(E_center)):
+        #     print(f"Energy: {E_center[i]:.2f} TeV, {gcuts_even[i]:.2f},{gcuts_odd[i]:.2f}, Even Theta2 Cut: {tcuts_even[i]:.2f}, Odd Theta2 Cut: {tcuts_odd[i]:.2f}")
+        plt.scatter(E_center, gcuts_even, label="Even Cuts")
+        plt.scatter(E_center, gcuts_odd, label="Odd Cuts", marker='x')
+        plt.legend()
+        plt.xlabel("Energy [TeV]")
+        plt.ylabel("Gammaness Cut")
+        plt.xscale("log")
+        plt.show()
+        plt.scatter(E_center, np.sqrt(tcuts_even), label="Even Cuts")
+        plt.scatter(E_center, np.sqrt(tcuts_odd), label="Odd Cuts", marker='x')
+        plt.legend()
+        plt.xlabel("Energy [TeV]")
+        plt.ylabel("Theta Cut [deg]")
+        plt.xscale("log")
+        plt.show()
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None,
-        overfitting=False):
+        optimized_on_crab: bool = False):
         import matplotlib.pyplot as plt
         import concurrent.futures
 
@@ -1103,7 +1169,7 @@ class DL2DataProcessor:
         if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
 
-        if not overfitting:
+        if not optimized_on_crab:
             for i, cut in enumerate(self.cuts):
                 E_bins = self.E_bins[i]
                 match cut.cut_type:
@@ -1232,6 +1298,7 @@ class DL2DataProcessor:
                     flux_plus[mask] * 100,
                     alpha=0.2,
                     zorder=0,
+                    edgecolor="none"
                 )
                 export_curves.add_curve(
                     E[mask],
@@ -1240,7 +1307,7 @@ class DL2DataProcessor:
                     cuts=cut,
                 )
 
-        # ...rest of the function unchanged (overfitting branch, plotting, export, etc.)...
+        # ...rest of the function unchanged (optimized_on_crab branch, plotting, export, etc.)...
         else:
             from concurrent.futures import ThreadPoolExecutor
 
@@ -1284,7 +1351,7 @@ class DL2DataProcessor:
 
             for reco_direction, pointing_direction, dl2 in tqdm(
                     zip(self.reco_directions, self.pointings, self.dl2s),
-                    desc=f"Computing sensitivity using overfitting",
+                    desc=f"Computing sensitivity using optimized_on_crab",
                     total=len(self.reco_directions),
                 ):
                 even_mask = dl2["event_id"] % 2 == 0
@@ -1513,6 +1580,7 @@ class DL2DataProcessor:
                 alpha=0.3,
                 zorder=0,
                 color=plt.rcParams['axes.prop_cycle'].by_key()['color'][i],
+                edgecolor="none"
             )
             export_curves.add_curve(
                 E.value,
@@ -1617,6 +1685,7 @@ class DL2DataProcessor:
         from matplotlib.ticker import LogFormatterExponent, LogLocator
 
 
+
         if axs is None:
             fig, axs = plt.subplots(1, 4, figsize=(20, 5))  # , sharey=True)
         intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
@@ -1684,6 +1753,9 @@ class DL2DataProcessor:
         )
         axs[2].set_xscale("log")
         axs[3].set_xscale("log")
+        # from matplotlib.ticker import LogFormatterExponent
+        # # ax.yaxis.set_major_locator(LogLocator(base=10.0))
+        # ax.yaxis.set_major_formatter(LogFormatterExponent(base=10.0))
         # for ax in axs:
         #     ax.set_xscale("log")
         #     ax.set_yscale("log")

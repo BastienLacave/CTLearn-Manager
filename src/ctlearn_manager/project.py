@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 from . import CTLearnModelManager, CTLearnTriModelManager
-from .utils import CTLMDirectories, get_user_confirmation, ClusterConfiguration
+from .utils import CTLMDirectories, get_user_confirmation, ClusterConfiguration, set_mpl_style
+from ctlearn_manager.utils.utils import set_global_theme, ColorTheme
 # from.io import load_model_from_index
 
 __all__ = [
@@ -13,7 +14,7 @@ __all__ = [
 class CTLearnManagerProject:
 
 
-    def __init__(self, project_directory: str):
+    def __init__(self, project_directory: str, theme:ColorTheme = ColorTheme.light_theme):
 
         if not Path(project_directory).resolve().is_absolute():
             raise ValueError("The project directory must be an absolute path.")
@@ -22,6 +23,7 @@ class CTLearnManagerProject:
             os.makedirs(project_directory, exist_ok=True)
 
         self.project_directory = project_directory
+        set_global_theme(theme)
 
     def create_tri_model(
         self,
