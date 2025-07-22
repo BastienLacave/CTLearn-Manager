@@ -25,7 +25,168 @@ from ..utils.utils import (
     get_color,
 )
 import h5py
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
+import faulthandler
 
+def extract_cuts(args):
+    model, file, cut, pointing_table, pointing_alt_key, pointing_az_key = args
+    zenith, azimuth = model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+    file_zenith, file_azimuth = get_avg_pointing(
+        file,
+        pointing_table,
+        alt_key=pointing_alt_key,
+        az_key=pointing_az_key,
+    )
+    zenith = np.asarray(zenith)
+    azimuth = np.asarray(azimuth)
+    # Compute angular distance between file pointing and all available MC directions
+    distances = np.sqrt((zenith - file_zenith.value) ** 2 + (azimuth - file_azimuth.value) ** 2)
+    closest_idx = np.argmin(distances)
+    cuts_file = model.project_directories.get_irf_files(
+        zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut
+    )['cuts_file']
+    with fits.open(cuts_file, mode="readonly") as hdul:
+        theta_cut = hdul["RAD_MAX"].data["cut"]
+        gammaness_cut = hdul["GH_CUTS"].data["cut"]
+    return theta_cut, gammaness_cut
+
+def get_energy_dependent_mask_data(
+    data,
+    source_position,
+    energy_key,
+    gammaness_key,
+    tri_model: CTLearnTriModelManager,
+    reco_coord,
+    theta_cut=True,
+    cuts: Cuts = DefaultCuts.EFF_70.value,
+):
+    from astropy.io import fits
+
+    zenith, azimuth = tri_model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+    cuts_file = tri_model.project_directories.get_irf_files(zenith[0], azimuth[0], cuts)['cuts_file']
+
+    with fits.open(cuts_file) as hdul:
+        gammaness_cuts = hdul["GH_CUTS"].data["cut"]
+        energy_low = hdul["GH_CUTS"].data["low"]
+        energy_high = hdul["GH_CUTS"].data["high"]
+        theta_cuts = hdul["RAD_MAX"].data["cut"]
+
+        # Compute separation only once
+        if "angular_separation" not in data.colnames:
+            data["angular_separation"] = reco_coord.separation(source_position)
+
+        energy = data[energy_key]
+        gammaness = data[gammaness_key]
+        separation = data["angular_separation"]
+
+        # Vectorized mask creation
+        mask = np.zeros(len(data), dtype=bool)
+        for E_min, E_max, gcut, tcut in zip(energy_low, energy_high, gammaness_cuts, theta_cuts):
+            e_mask = (energy > E_min) & (energy < E_max)
+            g_mask = gammaness > gcut
+            if theta_cut:
+                t_mask = separation < tcut
+                mask |= (e_mask & g_mask & t_mask)
+            else:
+                mask |= (e_mask & g_mask)
+        return mask
+    
+
+def load_one_worker(args):
+    (
+        i, CTLearn, pointing_table, pointing_alt_key, pointing_az_key,
+        DL2_file, CTLearnTriModelCollection, source_position,
+        gammaness_key, energy_key, intensity_key, intensity_cut,
+        cuts, dl2_processed_dir, global_gammaness_cut
+    ) = args
+    # try:
+    # Find corresponding model
+    if CTLearn:
+        corresponding_model = CTLearnTriModelCollection.find_closest_model_to(
+            DL2_file,
+            pointing_table,
+            alt_key=pointing_alt_key,
+            az_key=pointing_az_key,
+            verbose=False,
+        )
+        if corresponding_model is None:
+            return i, False
+    else:
+        corresponding_model = CTLearnTriModelCollection.tri_models[0]
+
+    # File paths
+    dl2_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+    reco_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+    pointing_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+    I_g_on_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+    I_g_off_counts_output_file = os.path.join(dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+
+    # Load files
+    if not (os.path.exists(reco_output_file) and os.path.exists(pointing_output_file) and os.path.exists(dl2_output_file)):
+        return (i, None, None, None, None, None, None, None, None, False, 0, 0)
+
+    with open(reco_output_file, "rb") as f:
+        transformed_reco_dict = pickle.load(f)
+    with open(pointing_output_file, "rb") as f:
+        transformed_pointing_dict = pickle.load(f)
+    transformed_reco = SkyCoord(
+        ra=transformed_reco_dict["ra"] * u.deg,
+        dec=transformed_reco_dict["dec"] * u.deg,
+        frame=source_position,
+    )
+    transformed_pointing = SkyCoord(
+        ra=transformed_pointing_dict["ra"] * u.deg,
+        dec=transformed_pointing_dict["dec"] * u.deg,
+        frame=source_position,
+    )
+    
+
+    with open(dl2_output_file, "rb") as f:
+        dl2 = pickle.load(f)
+    # print(dl2.colnames)
+    if gammaness_key in dl2.colnames:
+        n_before = len(dl2)
+        garbage_mask = (dl2[gammaness_key] > global_gammaness_cut) & (dl2[energy_key] > 0) & (dl2[intensity_key] > intensity_cut)
+        dl2 = dl2[garbage_mask]
+        n_after = len(dl2)
+        # print(f"Cut {n_before - n_after} events based on intensity cuts.")
+        cut_mask = np.empty(len(cuts), dtype=object)
+        cut_mask_gammaness_only = np.empty(len(cuts), dtype=object)
+        for j, cut in enumerate(cuts):
+            if cut.cut_type in [CutType.GLOBAL]:
+                mask = dl2[gammaness_key] > cut.gammaness_cut
+                cut_mask[j] = mask
+                cut_mask_gammaness_only[j] = mask
+            else:
+                mask = get_energy_dependent_mask_data(
+                    dl2, source_position,
+                    energy_key,
+                    gammaness_key, corresponding_model, transformed_reco[garbage_mask], cuts=cut
+                )
+                mask_gam = get_energy_dependent_mask_data(
+                    dl2, source_position,
+                    energy_key,
+                    gammaness_key, corresponding_model, transformed_reco[garbage_mask], False, cuts=cut
+                )
+                cut_mask[j] = mask
+                cut_mask_gammaness_only[j] = mask_gam
+    else:
+        cut_mask = [np.ones(len(dl2), dtype=bool)]
+        cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
+    reco_direction = transformed_reco[garbage_mask]
+    pointing = transformed_pointing[garbage_mask]
+
+    # On-off counts
+    if os.path.exists(I_g_on_counts_output_file) and os.path.exists(I_g_off_counts_output_file):
+        with open(I_g_on_counts_output_file, "rb") as f:
+            I_g_on_counts = pickle.load(f)
+        with open(I_g_off_counts_output_file, "rb") as f:
+            I_g_off_counts = pickle.load(f)
+    else:
+        return (i, None, None, None, None, None, None, None, None, False, 0, 0)
+
+    return (i, reco_direction, pointing, dl2, cut_mask, cut_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, True, n_before, n_after)
 
 class DL2DataProcessor:
     """
@@ -89,8 +250,14 @@ class DL2DataProcessor:
             np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)
         )
         * u.TeV,
+        intensity_cut: int=80,
+        global_gammaness_cut: float=0.
     ):
+        mp.set_start_method("fork", force=True)
+        faulthandler.enable()
         self.DL2_files = np.sort(DL2_files)
+        self.intensity_cut = intensity_cut
+        self.global_gammaness_cut = global_gammaness_cut
         if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
             self.CTLearnTriModelCollection = TriModelCollection(
                 [CTLearn_TriModel_Manager],
@@ -146,42 +313,24 @@ class DL2DataProcessor:
         self.process_DL2_data()
         self.load_processed_data()
 
-        import concurrent.futures
 
         self.cut_file_theta_cuts = []
         self.cut_file_gammaness_cuts = []
 
-        def extract_cuts(args):
-            model, file, cut = args
-            zenith, azimuth = model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
-            file_zenith, file_azimuth = get_avg_pointing(
-                file,
-                self.pointing_table,
-                alt_key=self.pointing_alt_key,
-                az_key=self.pointing_az_key,
-            )
-            zenith = np.asarray(zenith)
-            azimuth = np.asarray(azimuth)
-            # Compute angular distance between file pointing and all available MC directions
-            distances = np.sqrt((zenith - file_zenith.value) ** 2 + (azimuth - file_azimuth.value) ** 2)
-            closest_idx = np.argmin(distances)
-            cuts_file = model.project_directories.get_irf_files(
-                zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut
-            )['cuts_file']
-            with fits.open(cuts_file, mode="readonly") as hdul:
-                theta_cut = hdul["RAD_MAX"].data["cut"]
-                gammaness_cut = hdul["GH_CUTS"].data["cut"]
-            return theta_cut, gammaness_cut
+        
 
         for i, cut in enumerate(self.cuts):
             if (
                 cut.cut_type == CutType.EFFICIENCY_OPTIMIZED
                 or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
             ):
-                file_args = [(model, file, cut) for model, file in zip(self.corresponding_models, self.DL2_files)]
+                file_args = [
+                    (model, file, cut, self.pointing_table, self.pointing_alt_key, self.pointing_az_key)
+                    for model, file in zip(self.corresponding_models, self.DL2_files)
+                ]
                 file_theta_cuts = []
                 file_gammaness_cuts = []
-                with concurrent.futures.ThreadPoolExecutor() as executor:
+                with ProcessPoolExecutor() as executor:
                     results = list(tqdm(executor.map(extract_cuts, file_args), desc=f"Extracting cuts {cut.get_label()}", total=len(file_args)))
                 for theta_cut, gammaness_cut in results:
                     file_theta_cuts.append(theta_cut)
@@ -346,99 +495,152 @@ class DL2DataProcessor:
 
         def load_one(i_DL2_file):
             i, DL2_file = i_DL2_file
-            try:
-                # Find corresponding model
-                if self.CTLearn:
-                    corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(
-                        DL2_file,
-                        self.pointing_table,
-                        alt_key=self.pointing_alt_key,
-                        az_key=self.pointing_az_key,
-                        verbose=False,
-                    )
-                    if corresponding_model is None:
-                        return i, False
-                else:
-                    corresponding_model = self.CTLearnTriModelCollection.tri_models[0]
-
-                self.corresponding_models[i] = corresponding_model
-
-                # File paths
-                dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-                reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-                pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-                I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-                I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
-
-                # Load files
-                if not (os.path.exists(reco_output_file) and os.path.exists(pointing_output_file) and os.path.exists(dl2_output_file)):
-                    return i, False
-
-                with open(reco_output_file, "rb") as f:
-                    transformed_reco_dict = pickle.load(f)
-                with open(pointing_output_file, "rb") as f:
-                    transformed_pointing_dict = pickle.load(f)
-                transformed_reco = SkyCoord(
-                    ra=transformed_reco_dict["ra"] * u.deg,
-                    dec=transformed_reco_dict["dec"] * u.deg,
-                    frame=self.source_position,
+            # try:
+            # Find corresponding model
+            if self.CTLearn:
+                corresponding_model = self.CTLearnTriModelCollection.find_closest_model_to(
+                    DL2_file,
+                    self.pointing_table,
+                    alt_key=self.pointing_alt_key,
+                    az_key=self.pointing_az_key,
+                    verbose=False,
                 )
-                transformed_pointing = SkyCoord(
-                    ra=transformed_pointing_dict["ra"] * u.deg,
-                    dec=transformed_pointing_dict["dec"] * u.deg,
-                    frame=self.source_position,
-                )
-                self.reco_directions[i] = transformed_reco
-                self.pointings[i] = transformed_pointing
-
-                with open(dl2_output_file, "rb") as f:
-                    dl2 = pickle.load(f)
-                if self.gammaness_key in dl2.colnames:
-                    dl2 = dl2[dl2[self.gammaness_key] > 0]
-                    cut_mask = np.empty(len(self.cuts), dtype=object)
-                    cut_mask_gammaness_only = np.empty(len(self.cuts), dtype=object)
-                    for j, cut in enumerate(self.cuts):
-                        if cut.cut_type in [CutType.GLOBAL]:
-                            mask = dl2[self.gammaness_key] > cut.gammaness_cut
-                            cut_mask[j] = mask
-                            cut_mask_gammaness_only[j] = mask
-                        else:
-                            mask = self.get_energy_dependent_mask_data(
-                                dl2, corresponding_model, transformed_reco, cuts=cut
-                            )
-                            mask_gam = self.get_energy_dependent_mask_data(
-                                dl2, corresponding_model, transformed_reco, False, cuts=cut
-                            )
-                            cut_mask[j] = mask
-                            cut_mask_gammaness_only[j] = mask_gam
-                else:
-                    cut_mask = [np.ones(len(dl2), dtype=bool)]
-                    cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
-                self.cuts_masks[i] = cut_mask
-                self.cuts_masks_gammaness_only[i] = cut_mask_gammaness_only
-                self.dl2s[i] = dl2
-
-                # On-off counts
-                if os.path.exists(I_g_on_counts_output_file) and os.path.exists(I_g_off_counts_output_file):
-                    with open(I_g_on_counts_output_file, "rb") as f:
-                        self.I_g_on_counts[i] = pickle.load(f)
-                    with open(I_g_off_counts_output_file, "rb") as f:
-                        self.I_g_off_counts[i] = pickle.load(f)
-                else:
+                if corresponding_model is None:
                     return i, False
+            else:
+                corresponding_model = self.CTLearnTriModelCollection.tri_models[0]
 
-                return i, True
-            except Exception as e:
-                print(f"Error loading {DL2_file}: {e}")
+            self.corresponding_models[i] = corresponding_model
+
+            # File paths
+            dl2_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+            reco_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+            pointing_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+            I_g_on_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+            I_g_off_counts_output_file = os.path.join(self.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+
+            # Load files
+            if not (os.path.exists(reco_output_file) and os.path.exists(pointing_output_file) and os.path.exists(dl2_output_file)):
                 return i, False
 
+            with open(reco_output_file, "rb") as f:
+                transformed_reco_dict = pickle.load(f)
+            with open(pointing_output_file, "rb") as f:
+                transformed_pointing_dict = pickle.load(f)
+            transformed_reco = SkyCoord(
+                ra=transformed_reco_dict["ra"] * u.deg,
+                dec=transformed_reco_dict["dec"] * u.deg,
+                frame=self.source_position,
+            )
+            transformed_pointing = SkyCoord(
+                ra=transformed_pointing_dict["ra"] * u.deg,
+                dec=transformed_pointing_dict["dec"] * u.deg,
+                frame=self.source_position,
+            )
+            
+
+            with open(dl2_output_file, "rb") as f:
+                dl2 = pickle.load(f)
+            # print(dl2.colnames)
+            if self.gammaness_key in dl2.colnames:
+                n_before = len(dl2)
+                garbage_mask = (dl2[self.gammaness_key] > 0) & (dl2[self.energy_key] > 0) & (dl2[self.intensity_key] > self.intensity_cut)
+                dl2 = dl2[garbage_mask]
+                n_after = len(dl2)
+                print(f"Cut {n_before - n_after} events based on intensity cuts.")
+                cut_mask = np.empty(len(self.cuts), dtype=object)
+                cut_mask_gammaness_only = np.empty(len(self.cuts), dtype=object)
+                for j, cut in enumerate(self.cuts):
+                    if cut.cut_type in [CutType.GLOBAL]:
+                        mask = dl2[self.gammaness_key] > cut.gammaness_cut
+                        cut_mask[j] = mask
+                        cut_mask_gammaness_only[j] = mask
+                    else:
+                        mask = self.get_energy_dependent_mask_data(
+                            dl2, corresponding_model, transformed_reco[garbage_mask], cuts=cut
+                        )
+                        mask_gam = self.get_energy_dependent_mask_data(
+                            dl2, corresponding_model, transformed_reco[garbage_mask], False, cuts=cut
+                        )
+                        cut_mask[j] = mask
+                        cut_mask_gammaness_only[j] = mask_gam
+            else:
+                cut_mask = [np.ones(len(dl2), dtype=bool)]
+                cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
+            self.cuts_masks[i] = cut_mask
+            self.cuts_masks_gammaness_only[i] = cut_mask_gammaness_only
+            self.dl2s[i] = dl2
+            self.reco_directions[i] = transformed_reco[garbage_mask]
+            self.pointings[i] = transformed_pointing[garbage_mask]
+
+            # On-off counts
+            if os.path.exists(I_g_on_counts_output_file) and os.path.exists(I_g_off_counts_output_file):
+                with open(I_g_on_counts_output_file, "rb") as f:
+                    self.I_g_on_counts[i] = pickle.load(f)
+                with open(I_g_off_counts_output_file, "rb") as f:
+                    self.I_g_off_counts[i] = pickle.load(f)
+            else:
+                return i, False
+
+            return i, True
+            # except Exception as e:
+            #     print(f"Error loading {DL2_file}: {e}")
+            #     return i, False
+
+
+        n_files = len(self.DL2_files)
+        results = []
+        args_list = [
+            (
+                i,
+                self.CTLearn,
+                self.pointing_table,
+                self.pointing_alt_key,
+                self.pointing_az_key,
+                DL2_file,
+                self.CTLearnTriModelCollection,
+                self.source_position,
+                self.gammaness_key,
+                self.energy_key,
+                self.intensity_key,
+                self.intensity_cut,
+                self.cuts,
+                self.dl2_processed_dir,
+                self.global_gammaness_cut,
+            )
+            for i, DL2_file in enumerate(self.DL2_files)
+        ]
+
+        with ProcessPoolExecutor() as executor:
+            for result in tqdm(executor.map(load_one_worker, args_list), total=n_files, desc="Loading processed data"):
+                results.append(result)
         # Parallel loading
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            results = list(tqdm(executor.map(load_one, enumerate(self.DL2_files)), total=n_files, desc="Loading processed data"))
+        # with ProcessPoolExecutor() as executor:
+        #     results = list(tqdm(executor.map(load_one, enumerate(self.DL2_files)), total=n_files, desc="Loading processed data"))
+        
+        
 
-        for i, success in results:
+        # for i, success in results:
+        #     failed_mask[i] = success
+        n_saved_tot = 0
+        n_tot = 0
+        for res in results:
+            i, reco_direction, pointing, dl2, cuts_mask, cuts_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, success, n_before, n_after = res
             failed_mask[i] = success
+            if success:
+                n_saved_tot += n_before - n_after
+                n_tot += n_before
+                self.reco_directions[i] = reco_direction
+                self.pointings[i] = pointing
+                self.dl2s[i] = dl2
+                self.cuts_masks[i] = cuts_mask
+                self.cuts_masks_gammaness_only[i] = cuts_mask_gammaness_only
+                self.I_g_on_counts[i] = I_g_on_counts
+                self.I_g_off_counts[i] = I_g_off_counts
+                self.corresponding_models[i] = corresponding_model
 
+        print(f"Cut {n_saved_tot} ({(n_saved_tot/n_tot * 100):.2f}%) events in total from intensity cut {self.intensity_cut}p.e. and global gammaness cut {self.global_gammaness_cut}.")
+        print(f"Remaining {n_tot - n_saved_tot} ({((n_tot - n_saved_tot)/n_tot * 100):.2f}%) events in total after cuts.")
         # Filter arrays
         self.reco_directions = self.reco_directions[failed_mask]
         self.pointings = self.pointings[failed_mask]
@@ -450,44 +652,6 @@ class DL2DataProcessor:
         self.corresponding_models = self.corresponding_models[failed_mask]
         self.DL2_files = self.DL2_files[failed_mask]
 
-    def get_energy_dependent_mask_data(
-        self,
-        data,
-        tri_model: CTLearnTriModelManager,
-        reco_coord,
-        theta_cut=True,
-        cuts: Cuts = DefaultCuts.EFF_70.value,
-    ):
-        from astropy.io import fits
-
-        zenith, azimuth = tri_model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
-        cuts_file = tri_model.project_directories.get_irf_files(zenith[0], azimuth[0], cuts)['cuts_file']
-
-        with fits.open(cuts_file) as hdul:
-            gammaness_cuts = hdul["GH_CUTS"].data["cut"]
-            energy_low = hdul["GH_CUTS"].data["low"]
-            energy_high = hdul["GH_CUTS"].data["high"]
-            theta_cuts = hdul["RAD_MAX"].data["cut"]
-
-            # Compute separation only once
-            if "angular_separation" not in data.colnames:
-                data["angular_separation"] = reco_coord.separation(self.source_position)
-
-            energy = data[self.energy_key]
-            gammaness = data[self.gammaness_key]
-            separation = data["angular_separation"]
-
-            # Vectorized mask creation
-            mask = np.zeros(len(data), dtype=bool)
-            for E_min, E_max, gcut, tcut in zip(energy_low, energy_high, gammaness_cuts, theta_cuts):
-                e_mask = (energy > E_min) & (energy < E_max)
-                g_mask = gammaness > gcut
-                if theta_cut:
-                    t_mask = separation < tcut
-                    mask |= (e_mask & g_mask & t_mask)
-                else:
-                    mask |= (e_mask & g_mask)
-            return mask
 
     def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0):
         import matplotlib.pyplot as plt
@@ -871,8 +1035,8 @@ class DL2DataProcessor:
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         fig, ax = plt.subplots(figsize=(10, 8))
-        plt.xlabel("RA (deg)")
-        plt.ylabel("Dec (deg)")
+        ax.set_xlabel("RA (deg)")
+        ax.set_ylabel("Dec (deg)")
         if len(self.DL2_files) == 1:
             plt.title(f"Sky Map for {self.DL2_files[0].split('/')[-1]}")
         else:
@@ -920,7 +1084,7 @@ class DL2DataProcessor:
             text_color=get_color("ctlearn_highlight"),
             background_color=get_color("ctlearn_1"),
         )
-        plt.hist2d(ra_values, dec_values, bins=100, cmap="viridis", zorder=0)
+        ax.hist2d(ra_values, dec_values, bins=100, zorder=0)
         # Add colorbar with same height as the plot
         im = plt.gca().collections[0]
         # Make colorbar the same height as the axes (not the whole figure)
@@ -934,9 +1098,10 @@ class DL2DataProcessor:
             cuts_mask = cuts_mask[cuts_index]
             pointing = pointing[cuts_mask]
             if len(pointing) == 0:
+                print("No pointings available for this cuts index, skipping plotting.")
                 continue
             off_regions = self.compute_off_regions(pointing[0], n_off=3)
-            plt.scatter(
+            ax.scatter(
                 pointing.ra.deg,
                 pointing.dec.deg,
                 label="pointing",
@@ -953,7 +1118,7 @@ class DL2DataProcessor:
                     ls="--",
                     alpha=0.9,
                 )
-                plt.gca().add_artist(off_circle)
+                ax.add_artist(off_circle)
 
         on_circle = plt.Circle(
             (self.source_position.ra.deg, self.source_position.dec.deg),
@@ -962,8 +1127,8 @@ class DL2DataProcessor:
             fill=False,
             lw=1,
         )
-        plt.gca().add_artist(on_circle)
-        plt.gca().set_aspect("equal", adjustable="box")
+        ax.add_artist(on_circle)
+        ax.set_aspect("equal", adjustable="box")
 
         if output_file is not None:
             plt.savefig(output_file)
@@ -977,9 +1142,11 @@ class DL2DataProcessor:
         """
         import concurrent.futures
         from astropy.coordinates import concatenate
+        import csv
+        import pickle
 
         E_bins = self.E_bins[0]
-        gammaness_bins = np.linspace(0, 1, 201) #2001
+        gammaness_bins = np.linspace(self.global_gammaness_cut, 1, int((1-self.global_gammaness_cut)*201)) #2001
         theta2bins = np.linspace(0, 0.6, 601) # 6001
         n_bins = len(E_bins) - 1
 
@@ -1004,21 +1171,37 @@ class DL2DataProcessor:
 
         even_dl2_temp, odd_dl2_temp, even_reco_temp, odd_reco_temp, even_pointing_temp, odd_pointing_temp = zip(*results)
         # print(even_reco_temp)
+
+        even_dl2_pkl = os.path.join(self.dl2_processed_dir, f"even_dl2_{len(self.DL2_files)}_files{output_suffix}.pkl")
+        odd_dl2_pkl = os.path.join(self.dl2_processed_dir, f"odd_dl2_{len(self.DL2_files)}_files{output_suffix}.pkl")
+        even_reco_pkl = os.path.join(self.dl2_processed_dir, f"even_reco_{len(self.DL2_files)}_files{output_suffix}.pkl")
+        odd_reco_pkl = os.path.join(self.dl2_processed_dir, f"odd_reco_{len(self.DL2_files)}_files{output_suffix}.pkl")
+        even_pointing_pkl = os.path.join(self.dl2_processed_dir, f"even_pointing_{len(self.DL2_files)}_files{output_suffix}.pkl")
+        odd_pointing_pkl = os.path.join(self.dl2_processed_dir, f"odd_pointing_{len(self.DL2_files)}_files{output_suffix}.pkl")
+
+        # if all(os.path.exists(f) for f in [even_dl2_pkl, odd_dl2_pkl, even_reco_pkl, odd_reco_pkl, even_pointing_pkl, odd_pointing_pkl]):
+        #     print("Loading concatenated arrays from pickle files...", flush=True)
+        #     with open(even_dl2_pkl, "rb") as f:
+        #         even_dl2 = pickle.load(f)
+        #     with open(odd_dl2_pkl, "rb") as f:
+        #         odd_dl2 = pickle.load(f)
+        #     with open(even_reco_pkl, "rb") as f:
+        #         even_reco = pickle.load(f)
+        #     with open(odd_reco_pkl, "rb") as f:
+        #         odd_reco = pickle.load(f)
+        #     with open(even_pointing_pkl, "rb") as f:
+        #         even_pointing = pickle.load(f)
+        #     with open(odd_pointing_pkl, "rb") as f:
+        #         odd_pointing = pickle.load(f)
+        # else:
         print("Concatenating even_dl2...", flush=True)
         even_dl2 = np.concatenate(even_dl2_temp)
         print(f"# of even events: {len(even_dl2)}", flush=True)
         print("Concatenating odd_dl2...", flush=True)
         odd_dl2 = np.concatenate(odd_dl2_temp)
         print(f"# of odd events: {len(odd_dl2)}", flush=True)
-        
-        # even_reco = np.concatenate(list(tqdm(even_reco, desc="even_reco")))
-        # print("Concatenating odd_reco...")
-        # odd_reco = np.concatenate(list(tqdm(odd_reco, desc="odd_reco")))
-        # print("Concatenating even_pointing...")
-        # even_pointing = np.concatenate(list(tqdm(even_pointing, desc="even_pointing")))
-        # print("Concatenating odd_pointing...")
-        # odd_pointing = np.concatenate(list(tqdm(odd_pointing, desc="odd_pointing")))
-        print(even_reco_temp)
+    
+        # print(even_reco_temp)
         if len(even_reco_temp) > 1:
             print("Concatenating even_reco...", flush=True)
             even_reco = concatenate(even_reco_temp)
@@ -1033,6 +1216,20 @@ class DL2DataProcessor:
             odd_reco = odd_reco_temp[0]
             even_pointing = even_pointing_temp[0]
             odd_pointing = odd_pointing_temp[0]
+        # # Save to pickle
+        # with open(even_dl2_pkl, "wb") as f:
+        #     pickle.dump(even_dl2, f)
+        # with open(odd_dl2_pkl, "wb") as f:
+        #     pickle.dump(odd_dl2, f)
+        # with open(even_reco_pkl, "wb") as f:
+        #     pickle.dump(even_reco, f)
+        # with open(odd_reco_pkl, "wb") as f:
+        #     pickle.dump(odd_reco, f)
+        # with open(even_pointing_pkl, "wb") as f:
+        #     pickle.dump(even_pointing, f)
+        # with open(odd_pointing_pkl, "wb") as f:
+        #     pickle.dump(odd_pointing, f)
+        
 
         # even_reco = SkyCoord([coord for coords in even_reco for coord in coords])
         # odd_reco = SkyCoord([coord for coords in odd_reco for coord in coords])
@@ -1043,7 +1240,7 @@ class DL2DataProcessor:
             i, E_min, E_max = args
             # Compute on/off counts for all grid points (vectorized)
             # print(even_reco)
-            print(f"Processing bin {i} : [{E_min}, {E_max}]", flush=True)
+            print(f"Processing bin {i} : [{E_min:.4f}, {E_max:.4f}]", flush=True)
             # EVEN
             _on, _off, _, _, _ = self.compute_on_off_counts_array(
                 even_dl2, even_reco, even_pointing, n_off,
@@ -1081,31 +1278,75 @@ class DL2DataProcessor:
         # print(bin_args)
         # with concurrent.futures.ThreadPoolExecutor() as executor:
         #     results = list(tqdm(executor.map(process_bin, bin_args), total=n_bins, desc="Finding optimal cuts", unit="bins"))
-        results = []
+        output_file = f"{self.dl2_processed_dir}/crab_optimized_cuts_{len(self.DL2_files)}_files{output_suffix}.csv"
+
+        # Step 1: Read existing bin indices
+        existing_bins = set()
+        try:
+            with open(output_file, "r", newline="") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    existing_bins.add(int(row["bin_index"]))
+        except FileNotFoundError:
+            # File does not exist yet, will be created below
+            pass
+
+        # Step 2: Write header if file does not exist
+        if not os.path.exists(output_file):
+            with open(output_file, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["bin_index", "E_min", "E_max", "even_gammaness", "even_theta2", "odd_gammaness", "odd_theta2"])
+
+
+        # results = []
         for bin_arg in tqdm(bin_args, desc="Finding optimal cuts", total=n_bins, unit="bins"):
+            i, _, _ = bin_arg
+            if i in existing_bins:
+                print(f"Bin {i} already in {output_file}, skipping.", flush=True)
+                continue
             i, g_even, t_even, g_odd, t_odd = process_bin(bin_arg)
-            print(f"Gcuts {g_even:.2f}\t{g_odd:.2f}\tTheta2 {t_even:.2f}\t{t_odd:.2f}")
-            results.append((i, g_even, t_even, g_odd, t_odd))
+            print(f"Gcuts {g_even:.2f}\t{g_odd:.2f}\tTheta2 {t_even:.2f}\t{t_odd:.2f}", flush=True)
+            # results.append((i, g_even, t_even, g_odd, t_odd))
+            with open(output_file, "a", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow([
+                    i,
+                    E_bins[i],
+                    E_bins[i + 1],
+                    g_even,
+                    t_even,
+                    g_odd,
+                    t_odd,
+                ])
+            print(f"Saved cuts for bin {i} to {output_file}", flush=True)
 
         # Store results
-        for j, g_even, t_even, g_odd, t_odd in results:
-            # print(g_even, g_odd, t_even, t_odd)
-            best_gammaness_even[j] = g_even
-            best_theta2_even[j] = t_even
-            best_gammaness_odd[j] = g_odd
-            best_theta2_odd[j] = t_odd
+        # for j, g_even, t_even, g_odd, t_odd in results:
+        #     # print(g_even, g_odd, t_even, t_odd)
+        #     best_gammaness_even[j] = g_even
+        #     best_theta2_even[j] = t_even
+        #     best_gammaness_odd[j] = g_odd
+        #     best_theta2_odd[j] = t_odd
         # print(best_gammaness_even)
         # print(best_gammaness_odd)
         # Save to disk
         # Save to HDF5 file
-        output_file = f"{self.CTLearnTriModelCollection.project_directories.dl2_post_processed_data_directory}/crab_optimized_cuts_{len(self.DL2_files)}_files{output_suffix}.h5"
-        with h5py.File(output_file, "w") as f:
-            f.create_dataset("even/gammaness", data=best_gammaness_even)
-            f.create_dataset("even/theta2", data=best_theta2_even)
-            f.create_dataset("even/E_bins", data=E_bins)
-            f.create_dataset("odd/gammaness", data=best_gammaness_odd)
-            f.create_dataset("odd/theta2", data=best_theta2_odd)
-            f.create_dataset("odd/E_bins", data=E_bins)
+        
+        # with open(output_file, "w", newline="") as csvfile:
+        #     writer = csv.writer(csvfile)
+        #     # Write header
+        #     writer.writerow(["bin_index", "E_min", "E_max", "even_gammaness", "even_theta2", "odd_gammaness", "odd_theta2"])
+        #     for i in range(len(E_bins) - 1):
+        #         writer.writerow([
+        #             i,
+        #             E_bins[i],
+        #             E_bins[i + 1],
+        #             best_gammaness_even[i],
+        #             best_theta2_even[i],
+        #             best_gammaness_odd[i],
+        #             best_theta2_odd[i],
+        #         ])
+        # print(f"Optimized cuts saved to {output_file}")
 
 
     @staticmethod
@@ -1136,19 +1377,29 @@ class DL2DataProcessor:
         E_center = (E_bins[:-1] + E_bins[1:]) / 2
         # for i in range(len(E_center)):
         #     print(f"Energy: {E_center[i]:.2f} TeV, {gcuts_even[i]:.2f},{gcuts_odd[i]:.2f}, Even Theta2 Cut: {tcuts_even[i]:.2f}, Odd Theta2 Cut: {tcuts_odd[i]:.2f}")
-        plt.scatter(E_center, gcuts_even, label="Even Cuts")
-        plt.scatter(E_center, gcuts_odd, label="Odd Cuts", marker='x')
-        plt.legend()
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Gammaness Cut")
-        plt.xscale("log")
-        plt.show()
-        plt.scatter(E_center, np.sqrt(tcuts_even), label="Even Cuts")
-        plt.scatter(E_center, np.sqrt(tcuts_odd), label="Odd Cuts", marker='x')
-        plt.legend()
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Theta Cut [deg]")
-        plt.xscale("log")
+        import matplotlib.pyplot as plt
+
+        fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+
+        # Gammaness cuts subplot
+        axs[0].scatter(E_center, gcuts_even, label="Even Cuts")
+        axs[0].scatter(E_center, gcuts_odd, label="Odd Cuts", marker='x')
+        axs[0].legend()
+        axs[0].set_xlabel("Energy [TeV]")
+        axs[0].set_ylabel("Gammaness Cut")
+        axs[0].set_xscale("log")
+        axs[0].set_title("Gammaness Cuts Optimized on Crab")
+
+        # Theta cuts subplot
+        axs[1].scatter(E_center, np.sqrt(tcuts_even), label="Even Cuts")
+        axs[1].scatter(E_center, np.sqrt(tcuts_odd), label="Odd Cuts", marker='x')
+        axs[1].legend()
+        axs[1].set_xlabel("Energy [TeV]")
+        axs[1].set_ylabel("Theta Cut [deg]")
+        axs[1].set_xscale("log")
+        axs[1].set_title("Theta Cuts Optimized on Crab")
+
+        plt.tight_layout()
         plt.show()
 
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
@@ -1271,7 +1522,9 @@ class DL2DataProcessor:
                     t_eff,
                     cond=True,
                 )
-                mask = np.ones(len(flux_factor), dtype=bool)
+                # mask = np.ones(len(flux_factor), dtype=bool)
+                # Mask where flux_minus is negative or -inf, and handle upper limits
+                mask = np.isfinite(flux_minus) & np.isfinite(flux_plus) & np.isfinite(flux_factor)
                 E = (E_bins[:-1] + E_bins[1:]) / 2
 
                 if len(self.cuts) > 1:
@@ -1309,133 +1562,181 @@ class DL2DataProcessor:
 
         # ...rest of the function unchanged (optimized_on_crab branch, plotting, export, etc.)...
         else:
-            from concurrent.futures import ThreadPoolExecutor
+            print('Cuts omptimized on Crab')
+            output_suffix = ""
+            cuts_h5_file = f"{self.dl2_processed_dir}/crab_optimized_cuts_{len(self.DL2_files)}_files{output_suffix}.csv"
+            cuts = self.read_cuts_optimized_on_crab_from_h5(cuts_h5_file)
+            gcuts_even, tcuts_even, E_bins = cuts["even"]["gammaness"], np.sqrt(cuts["even"]["theta2"]), cuts["even"]["E_bins"]
+            gcuts_odd, tcuts_odd = cuts["odd"]["gammaness"], np.sqrt(cuts["odd"]["theta2"])
+            # E_center = (E_bins[:-1] + E_bins[1:]) / 2
+            on_count = np.zeros(len(E_bins) - 1)
+            off_count = np.zeros(len(E_bins) - 1)
+            t_eff = 0 * u.h
+            t_elapsed = 0 * u.h
 
-            def process_energy_bin(args):
-                j, E_min, E_max, even_dl2, reco_direction_even, pointing_direction_even, odd_dl2, reco_direction_odd, pointing_direction_odd, n_off, theta2bins, gammaness_bins = args
-                # Even
-                on_count_temp_even, off_count_temp_even, _, _, _ = self.compute_on_off_counts_array(
-                    even_dl2,
-                    reco_direction_even,
-                    pointing_direction_even,
-                    n_off,
-                    theta2_cut=theta2bins,
-                    gcut=gammaness_bins,
-                    E_min=E_min,
-                    E_max=E_max,
-                )
-                # Odd
-                on_count_temp_odd, off_count_temp_odd, _, _, _ = self.compute_on_off_counts_array(
-                    odd_dl2,
-                    reco_direction_odd,
-                    pointing_direction_odd,
-                    n_off,
-                    theta2_cut=theta2bins,
-                    gcut=gammaness_bins,
-                    E_min=E_min,
-                    E_max=E_max,
-                )
-                return j, on_count_temp_even, off_count_temp_even, on_count_temp_odd, off_count_temp_odd
-            # Split the cuts into two groups: even and odd, optimize cuts and apply on the other group
-            E_bins = self.E_bins[0]
-            gammaness_bins = np.linspace(0, 1, 2001)
-            alphabins = np.linspace(0, 60, 3001)
-            theta2bins = np.linspace(0, 0.6, 6001)
-            # E_bins = np.linspace(-2.0, 2.2, 22) # 5 per decade
-
-            optimization_matrix_size = (len(E_bins) - 1, len(gammaness_bins), len(theta2bins))
-            on_count = [np.zeros(optimization_matrix_size), np.zeros(optimization_matrix_size)]
-            off_count = [np.zeros(optimization_matrix_size), np.zeros(optimization_matrix_size)]
-            t_eff = [0 * u.h, 0 * u.h]
-            t_elapsed = [0 * u.h, 0 * u.h]
-
-            for reco_direction, pointing_direction, dl2 in tqdm(
-                    zip(self.reco_directions, self.pointings, self.dl2s),
-                    desc=f"Computing sensitivity using optimized_on_crab",
-                    total=len(self.reco_directions),
-                ):
+            def mask_events(args):
+                reco_direction, pointing_direction, dl2 = args
                 even_mask = dl2["event_id"] % 2 == 0
                 odd_mask = dl2["event_id"] % 2 == 1
-                even_dl2 = dl2[even_mask]
-                odd_dl2 = dl2[odd_mask]
-                reco_direction_even = reco_direction[even_mask]
-                reco_direction_odd = reco_direction[odd_mask]
-                pointing_direction_even = pointing_direction[even_mask]
-                pointing_direction_odd = pointing_direction[odd_mask]
-                t_eff_temp_even, t_elapsed_temp_even = self.compute_eff_time(dl2)
-                t_eff_temp_odd, t_elapsed_temp_odd = self.compute_eff_time(dl2)
-                t_eff[0] += t_eff_temp_even
-                t_eff[1] += t_eff_temp_odd
-                t_elapsed[0] += t_elapsed_temp_even
-                t_elapsed[1] += t_elapsed_temp_odd
+                return (
+                    dl2[even_mask], dl2[odd_mask],
+                    reco_direction[even_mask], reco_direction[odd_mask],
+                    pointing_direction[even_mask], pointing_direction[odd_mask]
+                )
 
-                # Prepare arguments for parallel processing
-                energy_args = [
-                    (
-                        j, E_min, E_max,
-                        even_dl2, reco_direction_even, pointing_direction_even,
-                        odd_dl2, reco_direction_odd, pointing_direction_odd,
-                        n_off, theta2bins, gammaness_bins
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                results = list(tqdm(executor.map(mask_events, zip(self.reco_directions, self.pointings, self.dl2s)), desc="Masking events", total=len(self.reco_directions)))
+
+            even_dl2s, odd_dl2s, even_recos, odd_recos, even_pointings, odd_pointings = zip(*results)
+            # Prepare per-file gammaness/theta cuts for even and odd events
+            # For each dl2, create boolean masks for even and odd events using the optimized gammaness cuts
+            # Build a single boolean mask for even and odd events for each dl2
+
+
+            def process_file(args):
+                even_reco_direction, even_pointing_direction, even_dl2, odd_reco_direction, odd_pointing_direction, odd_dl2, even_gcuts, odd_gcuts, even_theta_cuts, odd_theta_cuts = args
+                # EVEN
+                even_t_eff_temp, even_t_elapsed_temp = self.compute_eff_time(even_dl2)
+                even_on_count_arr = np.zeros(len(E_bins) - 1)
+                even_off_count_arr = np.zeros(len(E_bins) - 1)
+                for j, E_min, E_max, gcut, Theta_cut in zip(
+                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], odd_gcuts, odd_theta_cuts # Apply odd cuts to even events (as per the optimization on Crab)
+                ):
+                    on_count_temp, off_count_temp, _, _, _ = self.compute_on_off_counts(
+                        even_dl2,
+                        even_reco_direction,
+                        even_pointing_direction,
+                        n_off=n_off,
+                        theta2_cut=(Theta_cut**2) * u.deg**2,
+                        gcut=gcut,
+                        E_min=E_min,
+                        E_max=E_max,
+                        I_min=None,
+                        I_max=None,
                     )
-                    for j, E_min, E_max in zip(range(len(E_bins) - 1), E_bins[:-1], E_bins[1:])
-                ]
+                    even_on_count_arr[j] = on_count_temp
+                    even_off_count_arr[j] = off_count_temp / n_off
+                # ODD
+                odd_t_eff_temp, odd_t_elapsed_temp = self.compute_eff_time(odd_dl2)
+                odd_on_count_arr = np.zeros(len(E_bins) - 1)
+                odd_off_count_arr = np.zeros(len(E_bins) - 1)
+                for j, E_min, E_max, gcut, Theta_cut in zip(
+                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], even_gcuts, even_theta_cuts # Apply even cuts to odd events (as per the optimization on Crab)
+                ):
+                    on_count_temp, off_count_temp, _, _, _ = self.compute_on_off_counts(
+                        odd_dl2,
+                        odd_reco_direction,
+                        odd_pointing_direction,
+                        n_off=n_off,
+                        theta2_cut=(Theta_cut**2) * u.deg**2,
+                        gcut=gcut,
+                        E_min=E_min,
+                        E_max=E_max,
+                        I_min=None,
+                        I_max=None,
+                    )
+                    odd_on_count_arr[j] = on_count_temp
+                    odd_off_count_arr[j] = off_count_temp / n_off
 
-                with ThreadPoolExecutor() as executor:
-                    results = list(executor.map(process_energy_bin, energy_args))
 
-                for j, on_count_temp_even, off_count_temp_even, on_count_temp_odd, off_count_temp_odd in results:
-                    on_count[0][j] += on_count_temp_even
-                    off_count[0][j] += off_count_temp_even / n_off
-                    on_count[1][j] += on_count_temp_odd
-                    off_count[1][j] += off_count_temp_odd / n_off
+                return even_on_count_arr + odd_on_count_arr, even_off_count_arr + odd_off_count_arr, even_t_eff_temp + odd_t_eff_temp, even_t_elapsed_temp + odd_t_elapsed_temp 
 
+            file_args = list(zip(even_recos, even_pointings, even_dl2s, 
+                                 odd_recos, odd_pointings, odd_dl2s, 
+                                 [gcuts_even] * len(self.DL2_files), [gcuts_odd] * len(self.DL2_files),
+                                 [tcuts_even] * len(self.DL2_files), [tcuts_odd] * len(self.DL2_files)))
+            results = []
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [{cut.get_label()}]"):
+                    results.append(result)
 
-            nexcess = [on_count[0] - off_count[0], on_count[1] - off_count[1]]
-            min_signi = 3  # below this value (significance of the test source, Crab, for the *actual* observation
-            min_exc = 0.002  # in fraction of off. Below this we ignore the corresponding cut combination.
-            min_off_events = 10 
+            for r in results:
+                on_count += r[0]
+                off_count += r[1]
+                t_eff += r[2]
+                t_elapsed += r[3]
+
+            nexcess = on_count - off_count
+
+            min_signi = 3
+            min_exc = 0.002
+            min_off_events = 10
             backg_syst = 0.01
+            obs_time = 50.0 * u.h
 
-            GH_cuts = [np.empty(len(E_bins) - 1), np.empty(len(E_bins) - 1)]
-            Theta_cuts = GH_cuts
-            for i in range(len(E_bins) - 1):
-                flux_factor_even, _ = calc_flux_for_N_sigma_array(
-                    5,
-                    nexcess[0],
-                    off_count[0],
-                    min_signi,
-                    min_exc,
-                    min_off_events,
-                    1,
-                    obs_time,
-                    t_eff,
-                    cond=True,
+            flux_factor, lima_signi = calc_flux_for_N_sigma(
+                5,
+                nexcess,
+                off_count,
+                min_signi,
+                min_exc,
+                min_off_events,
+                1,
+                obs_time,
+                t_eff,
+                cond=True,
+            )
+            flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
+                5,
+                nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
+                off_count,
+                min_signi,
+                min_exc,
+                min_off_events,
+                1,
+                obs_time,
+                t_eff,
+                cond=True,
+            )
+            flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
+                5,
+                nexcess - backg_syst * off_count - (nexcess + 2 * off_count) ** 0.5,
+                off_count,
+                min_signi,
+                min_exc,
+                min_off_events,
+                1,
+                obs_time,
+                t_eff,
+                cond=True,
+            )
+            # mask = np.ones(len(flux_factor), dtype=bool)
+            # Mask where flux_minus is negative or -inf, and handle upper limits
+            mask = np.isfinite(flux_minus) & np.isfinite(flux_plus) & np.isfinite(flux_factor)
+            E = (E_bins[:-1] + E_bins[1:]) / 2
+            if len(self.cuts) > 1:
+                ax.plot(
+                    E[mask],
+                    flux_factor[mask] * 100,
+                    marker="o",
+                    label=cut.get_label(),
+                    zorder=10,
+                    ls="--",
                 )
-                flux_factor_odd, _ = calc_flux_for_N_sigma_array(
-                    5,
-                    nexcess[1],
-                    off_count[1],
-                    min_signi,
-                    min_exc,
-                    min_off_events,
-                    1,
-                    obs_time,
-                    t_eff,
-                    cond=True,
+            else:
+                ax.plot(
+                    E[mask],
+                    flux_factor[mask] * 100,
+                    marker="o",
+                    label=label,
+                    zorder=10,
+                    ls="--",
                 )
+            ax.fill_between(
+                E[mask].value,
+                flux_minus[mask] * 100,
+                flux_plus[mask] * 100,
+                alpha=0.2,
+                zorder=0,
+                edgecolor="none"
+            )
+            export_curves.add_curve(
+                E[mask],
+                flux_factor[mask] * 100,
+                CurveType.SENSITIVITY_DATA,
+                cuts=cut,
+            )
 
-                
-
-                min_flux_index_even = np.argmin(flux_factor_even)
-                print(min_flux_index_even)
-                min_flux_index_odd = np.argmin(flux_factor_odd)
-                print(min_flux_index_odd)
-        
-                GH_cuts[0][i] = gammaness_bins[min_flux_index_even]
-                GH_cuts[1][i] = gammaness_bins[min_flux_index_odd]
-                
-                Theta_cuts[0][i] = theta2bins[min_flux_index_even]
-                Theta_cuts[1][i] = theta2bins[min_flux_index_odd]
 
         ax.set_xscale("log")
         ax.set_yscale("log")

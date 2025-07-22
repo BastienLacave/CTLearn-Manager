@@ -983,6 +983,7 @@ class TriModelCollection:
             plt.ylabel("Number of DL2 files")
             plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
+            plt.savefig("dl2_files_per_model.png")
             plt.show()
 
     def get_tri_model_by_nickname(self, tri_model_nickname):

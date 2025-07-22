@@ -14,23 +14,25 @@ class WhoIsBetter:
         self.labels = labels
         assert len(self.dl2_processors) == len(self.labels), "Number of dl2_processors and labels must match."
 
-    def plot_theta2_distribution(self):
-        for dl2_processor in self.dl2_processors:
-            dl2_processor.plot_theta2_distribution()
+    def plot_theta2_distribution(self, output_file=None):
+        for dl2_processor, label in zip(self.dl2_processors, self.labels):
+            dl2_processor.plot_theta2_distribution(output_file=output_file.replace(".png", f"_{label}.png") if output_file else None)
 
-    def plot_skymap(self):
-        for dl2_processor in self.dl2_processors:
-            dl2_processor.plot_skymap()
+    def plot_skymap(self, output_file=None):
+        for dl2_processor, label in zip(self.dl2_processors, self.labels):
+            dl2_processor.plot_skymap(output_file=output_file.replace(".png", f"_{label}.png") if output_file else None)
 
-    def plot_sensitivity(self):
+    def plot_sensitivity(self, output_file=None):
         fig, ax = plt.subplots()
         if len(self.cuts) == 1:
             self.cuts[0].plot_cuts_info_plt(ax)
         for dl2_processor, label in zip(self.dl2_processors, self.labels):
             dl2_processor.plot_sensitivity(ax=ax, label=label)
+        if output_file:
+            plt.savefig(output_file)
         plt.show()
 
-    def plot_PSF(self):
+    def plot_PSF(self, output_file=None):
         fig, ax = plt.subplots()
         if len(self.cuts) == 1:
             stored_efficiency_theta = self.cuts[0].efficiency_theta
@@ -39,12 +41,14 @@ class WhoIsBetter:
             self.cuts[0].efficiency_theta = stored_efficiency_theta
         for dl2_processor, label in zip(self.dl2_processors, self.labels):
             dl2_processor.plot_PSF(ax=ax, label=label)
-
+        if output_file:
+            plt.savefig(output_file)
         plt.show()
 
-    def plot_bkg_discrimination_capability(self):
+    def plot_bkg_discrimination_capability(self, output_file=None):
         fig, axs = plt.subplots(1, 4, figsize=(20, 5))
         for dl2_processor, label in zip(self.dl2_processors, self.labels):
             dl2_processor.plot_bkg_discrimination_capability(axs=axs, label=label)
-
+        if output_file:
+            plt.savefig(output_file)
         plt.show()
