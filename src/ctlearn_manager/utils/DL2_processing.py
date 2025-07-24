@@ -92,13 +92,52 @@ def get_energy_dependent_mask_data(
                 mask |= (e_mask & g_mask)
         return mask
     
+def compute_eff_time(events, CTLearn, time_key):
+    # Extract timestamps and delta_t as numpy arrays
+    if CTLearn:
+        # print(events[time_key])
+        timestamp = np.asarray(events[time_key].to_value("unix"))
+    else:
+        timestamp = np.asarray(events[time_key])
+
+    delta_t = np.asarray(events["delta_t"])
+
+    # Ensure units are attached only once
+    if not isinstance(timestamp, u.Quantity):
+        timestamp = timestamp * u.s
+    if not isinstance(delta_t, u.Quantity):
+        delta_t = delta_t * u.s
+
+    # Fast diff and mask for elapsed time (DAQ breaks >0.01s)
+    time_diff = np.diff(timestamp)
+    t_elapsed = np.sum(time_diff[time_diff < 0.01 * u.s])
+
+    # Mask for valid delta_t (exclude first event and DAQ breaks)
+    valid_delta = (delta_t > 0.0 * u.s) & (delta_t < 0.01 * u.s)
+    delta_t_valid = delta_t[valid_delta]
+
+    if delta_t_valid.size == 0:
+        # Avoid division by zero if no valid delta_t
+        return 0 * u.h, 0 * u.h
+
+    dead_time = np.min(delta_t_valid)
+    mean_delta = np.mean(delta_t_valid)
+    # Avoid division by zero in rate calculation
+    denom = mean_delta - dead_time
+    if denom <= 0:
+        rate = 0
+    else:
+        rate = 1 / denom
+
+    t_eff = t_elapsed / (1 + rate * dead_time)
+    return t_eff.to(u.h), t_elapsed.to(u.h)
 
 def load_one_worker(args):
     (
         i, CTLearn, pointing_table, pointing_alt_key, pointing_az_key,
         DL2_file, CTLearnTriModelCollection, source_position,
         gammaness_key, energy_key, intensity_key, intensity_cut,
-        cuts, dl2_processed_dir, global_gammaness_cut
+        cuts, dl2_processed_dir, global_gammaness_cut, time_key
     ) = args
     # try:
     # Find corresponding model
@@ -124,7 +163,7 @@ def load_one_worker(args):
 
     # Load files
     if not (os.path.exists(reco_output_file) and os.path.exists(pointing_output_file) and os.path.exists(dl2_output_file)):
-        return (i, None, None, None, None, None, None, None, None, False, 0, 0)
+        return (i, None, None, None, None, None, None, None, None, False, 0, 0, 0)
 
     with open(reco_output_file, "rb") as f:
         transformed_reco_dict = pickle.load(f)
@@ -145,6 +184,7 @@ def load_one_worker(args):
     with open(dl2_output_file, "rb") as f:
         dl2 = pickle.load(f)
     # print(dl2.colnames)
+    eff_time, _ = compute_eff_time(dl2, CTLearn, time_key)
     if gammaness_key in dl2.colnames:
         n_before = len(dl2)
         garbage_mask = (dl2[gammaness_key] > global_gammaness_cut) & (dl2[energy_key] > 0) & (dl2[intensity_key] > intensity_cut)
@@ -184,9 +224,9 @@ def load_one_worker(args):
         with open(I_g_off_counts_output_file, "rb") as f:
             I_g_off_counts = pickle.load(f)
     else:
-        return (i, None, None, None, None, None, None, None, None, False, 0, 0)
+        return (i, None, None, None, None, None, None, None, None, False, 0, 0, 0)
 
-    return (i, reco_direction, pointing, dl2, cut_mask, cut_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, True, n_before, n_after)
+    return (i, reco_direction, pointing, dl2, cut_mask, cut_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, True, n_before, n_after, eff_time)
 
 class DL2DataProcessor:
     """
@@ -251,13 +291,15 @@ class DL2DataProcessor:
         )
         * u.TeV,
         intensity_cut: int=80,
-        global_gammaness_cut: float=0.
+        global_gammaness_cut: float=0.,
+        max_theta2: float=0.2,
     ):
         mp.set_start_method("fork", force=True)
         faulthandler.enable()
         self.DL2_files = np.sort(DL2_files)
         self.intensity_cut = intensity_cut
         self.global_gammaness_cut = global_gammaness_cut
+        self.max_theta2 = max_theta2
         if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
             self.CTLearnTriModelCollection = TriModelCollection(
                 [CTLearn_TriModel_Manager],
@@ -607,6 +649,7 @@ class DL2DataProcessor:
                 self.cuts,
                 self.dl2_processed_dir,
                 self.global_gammaness_cut,
+                self.time_key,
             )
             for i, DL2_file in enumerate(self.DL2_files)
         ]
@@ -624,8 +667,9 @@ class DL2DataProcessor:
         #     failed_mask[i] = success
         n_saved_tot = 0
         n_tot = 0
+        self.effective_times = np.empty(n_files, dtype=object)
         for res in results:
-            i, reco_direction, pointing, dl2, cuts_mask, cuts_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, success, n_before, n_after = res
+            i, reco_direction, pointing, dl2, cuts_mask, cuts_mask_gammaness_only, I_g_on_counts, I_g_off_counts, corresponding_model, success, n_before, n_after, eff_time = res
             failed_mask[i] = success
             if success:
                 n_saved_tot += n_before - n_after
@@ -638,6 +682,7 @@ class DL2DataProcessor:
                 self.I_g_on_counts[i] = I_g_on_counts
                 self.I_g_off_counts[i] = I_g_off_counts
                 self.corresponding_models[i] = corresponding_model
+                self.effective_times[i] = eff_time
 
         print(f"Cut {n_saved_tot} ({(n_saved_tot/n_tot * 100):.2f}%) events in total from intensity cut {self.intensity_cut}p.e. and global gammaness cut {self.global_gammaness_cut}.")
         print(f"Remaining {n_tot - n_saved_tot} ({((n_tot - n_saved_tot)/n_tot * 100):.2f}%) events in total after cuts.")
@@ -651,6 +696,12 @@ class DL2DataProcessor:
         self.I_g_off_counts = self.I_g_off_counts[failed_mask]
         self.corresponding_models = self.corresponding_models[failed_mask]
         self.DL2_files = self.DL2_files[failed_mask]
+        self.effective_times = self.effective_times[failed_mask]
+        self.effective_time = np.sum(self.effective_times) if len(self.effective_times) > 0 else 0 * u.h
+        # print(self.effective_time)
+        # print(self.effective_times)
+        print(f"Total effective time: {self.effective_time.to(u.h):.2f}")
+
 
 
     def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0):
@@ -661,15 +712,15 @@ class DL2DataProcessor:
         angle2_center = (angle2_bins[:-1] + angle2_bins[1:]) / 2
         h_on = np.zeros(bins - 1)
         h_off = np.zeros(bins - 1)
-        t_eff = 0 * u.h
-        t_elapsed = 0 * u.h
+        t_eff = self.effective_time
+        # t_elapsed = 0 * u.h
 
         def process_file(args):
             reco_direction, pointing_direction, dl2, cuts_mask = args
             cuts_mask = cuts_mask[cuts_index]
             reco_direction = reco_direction[cuts_mask]
             pointing_direction = pointing_direction[cuts_mask]
-            t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+            # t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2, self.CTLearn, self.time_key)
             dl2 = dl2[cuts_mask]
             on_count_temp, off_count_temp, on_separation_temp, all_off_separation_temp, _ = self.compute_on_off_counts(
                 dl2,
@@ -685,7 +736,7 @@ class DL2DataProcessor:
             )
             h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value ** 2, bins=angle2_bins)
             h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value ** 2, bins=angle2_bins)
-            return (on_count_temp, off_count_temp, h_on_temp, h_off_temp, t_eff_temp, t_elapsed_temp)
+            return (on_count_temp, off_count_temp, h_on_temp, h_off_temp)
 
         file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only))
         results = []
@@ -698,8 +749,6 @@ class DL2DataProcessor:
         for r in results:
             h_on += r[2]
             h_off += r[3] / n_off
-            t_eff += r[4]
-            t_elapsed += r[5]
 
         lima_signi = li_ma_significance(
             np.float64(on_count_tot), np.float64(off_count_tot), alpha=1 / n_off
@@ -708,7 +757,7 @@ class DL2DataProcessor:
         self.cuts[cuts_index].plot_cuts_info_plt(ax)
         label = (
             "$t_{eff}$ = "
-            + f"{t_elapsed.to(u.h):.2f}"
+            + f"{t_eff.to(u.h):.2f}"
             + "\n$N_{on}$ = "
             + f"{on_count_tot}\t"
             + r"$\overline{N}_{off}$ = "
@@ -804,44 +853,7 @@ class DL2DataProcessor:
         off_regions = SkyCoord(ra=new_ra[1:] * u.degree, dec=new_dec[1:] * u.degree)
         return off_regions
     
-    def compute_eff_time(self, events):
-        # Extract timestamps and delta_t as numpy arrays
-        if self.CTLearn:
-            timestamp = np.asarray(events[self.time_key].to_value("unix"))
-        else:
-            timestamp = np.asarray(events[self.time_key])
-
-        delta_t = np.asarray(events["delta_t"])
-
-        # Ensure units are attached only once
-        if not isinstance(timestamp, u.Quantity):
-            timestamp = timestamp * u.s
-        if not isinstance(delta_t, u.Quantity):
-            delta_t = delta_t * u.s
-
-        # Fast diff and mask for elapsed time (DAQ breaks >0.01s)
-        time_diff = np.diff(timestamp)
-        t_elapsed = np.sum(time_diff[time_diff < 0.01 * u.s])
-
-        # Mask for valid delta_t (exclude first event and DAQ breaks)
-        valid_delta = (delta_t > 0.0 * u.s) & (delta_t < 0.01 * u.s)
-        delta_t_valid = delta_t[valid_delta]
-
-        if delta_t_valid.size == 0:
-            # Avoid division by zero if no valid delta_t
-            return 0 * u.h, 0 * u.h
-
-        dead_time = np.min(delta_t_valid)
-        mean_delta = np.mean(delta_t_valid)
-        # Avoid division by zero in rate calculation
-        denom = mean_delta - dead_time
-        if denom <= 0:
-            rate = 0
-        else:
-            rate = 1 / denom
-
-        t_eff = t_elapsed / (1 + rate * dead_time)
-        return t_eff.to(u.h), t_elapsed.to(u.h)
+    
 
     def compute_on_off_counts_array(
         self,
@@ -849,8 +861,8 @@ class DL2DataProcessor:
         reco_coord,
         pointing_coord,
         n_off,
-        theta2_cut=0.04 * u.deg**2,
-        gcut=0.5,
+        theta2_cut,
+        gcut,
         E_min=0,
         E_max=100,
     ):
@@ -858,6 +870,9 @@ class DL2DataProcessor:
         gcut = np.atleast_1d(gcut)
         n_theta = len(theta2_cut)
         n_g = len(gcut)
+        print(n_g, n_theta)
+        # print(gcut)
+        # print(theta2_cut)
 
         # --- Mask in energy first ---
         if hasattr(E_min, "value"):
@@ -910,6 +925,27 @@ class DL2DataProcessor:
 
         alpha = 1 / n_off
         significance_lima = li_ma_significance(on_count, off_count, alpha)
+        import matplotlib.pyplot as plt
+
+        # Plot the 2D image of excess (on_count - off_count / n_off) as a function of gcut and theta2_cut
+        excess = on_count - off_count / n_off
+        plt.figure(figsize=(8, 6))
+        plt.imshow(
+            excess,
+            aspect='auto',
+            origin='lower',
+            extent=[
+            theta2_cut[0], theta2_cut[-1],
+            gcut[0], gcut[-1]
+            ],
+            interpolation='nearest'
+        )
+        plt.colorbar(label='Excess (On - Off/n_off)')
+        plt.xlabel('Theta2 Cut')
+        plt.ylabel('Gammaness Cut')
+        plt.title(f'Excess vs Gammaness and Theta2 Cut [{E_min:.4f}, {E_max:.4f}]')
+        plt.savefig(f"/users/blacave/PhD/New_Manager_Test/plots/excess_vs_gcut_theta2_cut_{E_min:.4f}_{E_max:.4f}.png")
+        plt.close()
 
         return on_count, off_count, None, None, significance_lima
 
@@ -1146,8 +1182,10 @@ class DL2DataProcessor:
         import pickle
 
         E_bins = self.E_bins[0]
-        gammaness_bins = np.linspace(self.global_gammaness_cut, 1, int((1-self.global_gammaness_cut)*201)) #2001
-        theta2bins = np.linspace(0, 0.6, 601) # 6001
+        gammaness_bins = np.arange(self.global_gammaness_cut, 1 + 0.001, 0.005)
+        theta2bins = np.arange(0, self.max_theta2 + 0.0001, 0.001)
+        # gammaness_bins = np.linspace(self.global_gammaness_cut, 1, int((1-self.global_gammaness_cut)*201)) #2001
+        # theta2bins = np.linspace(0, self.max_theta2, 301) # 6001
         n_bins = len(E_bins) - 1
 
         # Prepare storage
@@ -1160,18 +1198,26 @@ class DL2DataProcessor:
             reco_direction, pointing_direction, dl2 = args
             even_mask = dl2["event_id"] % 2 == 0
             odd_mask = dl2["event_id"] % 2 == 1
+            if self.time_key in dl2.colnames:
+                dl2.remove_column(self.time_key)
             return (
                 dl2[even_mask], dl2[odd_mask],
                 reco_direction[even_mask], reco_direction[odd_mask],
-                pointing_direction[even_mask], pointing_direction[odd_mask]
+                pointing_direction[even_mask], pointing_direction[odd_mask],
             )
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             results = list(tqdm(executor.map(mask_events, zip(self.reco_directions, self.pointings, self.dl2s)), desc="Masking events", total=len(self.reco_directions)))
 
         even_dl2_temp, odd_dl2_temp, even_reco_temp, odd_reco_temp, even_pointing_temp, odd_pointing_temp = zip(*results)
+        t_eff_temp = self.effective_time
         # print(even_reco_temp)
-
+        # print(t_eff_temp)
+        # t_eff_temp = 0 * u.h
+        # for dl2 in self.dl2s:
+        #     # _t_eff, _ = self.compute_eff_time(dl2)
+        #     t_eff_temp += _t_eff
+        print(f"Total effective time: {self.effective_time.to(u.h):.2f}", flush=True)
         even_dl2_pkl = os.path.join(self.dl2_processed_dir, f"even_dl2_{len(self.DL2_files)}_files{output_suffix}.pkl")
         odd_dl2_pkl = os.path.join(self.dl2_processed_dir, f"odd_dl2_{len(self.DL2_files)}_files{output_suffix}.pkl")
         even_reco_pkl = os.path.join(self.dl2_processed_dir, f"even_reco_{len(self.DL2_files)}_files{output_suffix}.pkl")
@@ -1235,9 +1281,12 @@ class DL2DataProcessor:
         # odd_reco = SkyCoord([coord for coords in odd_reco for coord in coords])
         # even_pointing = SkyCoord([coord for coords in even_pointing for coord in coords])
         # odd_pointing = SkyCoord([coord for coords in odd_pointing for coord in coords])
-
+        from matplotlib.colors import LogNorm
+        import matplotlib.patches as mpatches
+        
         def process_bin(args):
             i, E_min, E_max = args
+            from matplotlib.colors import ListedColormap
             # Compute on/off counts for all grid points (vectorized)
             # print(even_reco)
             print(f"Processing bin {i} : [{E_min:.4f}, {E_max:.4f}]", flush=True)
@@ -1246,26 +1295,241 @@ class DL2DataProcessor:
                 even_dl2, even_reco, even_pointing, n_off,
                 theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
             )
-            _nexcess = _on - _off / n_off
-            flux_even, _ = calc_flux_for_N_sigma_array(
-                5, _nexcess, _off, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            # _nexcess = _on - _off# / 
+            
+     
+            flux_even, signi_even, min_off_mask, excess_vs_bkg_mask = calc_flux_for_N_sigma_array(
+                N_sigma = 5, 
+                on_counts = _on, 
+                off_counts = _off, 
+                min_signi = 3, 
+                min_excess = 0.05, 
+                min_off_events = 10, 
+                alpha = 1 / n_off, # Already devided by n_off in compute_on_off_counts_array
+                target_obs_time = 50.0 * u.h, 
+                actual_obs_time = t_eff_temp / 2, 
+                cond=True
             )
+            try:
+                min_idx_even = np.unravel_index(np.nanargmin(flux_even), flux_even.shape)
+            except ValueError as e:
+                if "All-NaN slice encountered" in str(e):
+                    min_idx_even = -1
+                else:
+                    raise
+            import matplotlib.pyplot as plt
+            cmap = ListedColormap([get_color('ctlearn_highlight'), 'none'])  # All transparent
+            signi_even = np.clip(signi_even, 0, 1)  # Clip to avoid NaN issues in plotting
+
+            # plt.figure(figsize=(12, 5))
+            # plt.subplot(1, 2, 1)
+            # plt.imshow(signi_even, aspect='auto', origin='lower', cmap=cmap, extent=[
+            #         theta2bins[0], theta2bins[-1],
+            #         gammaness_bins[0], gammaness_bins[-1]
+            #     ],)
+            # # plt.colorbar(label='Significance')
+            # plt.title('5-sigma Significance ')
+            # plt.xlabel('Theta2 Cut')
+            # plt.ylabel('Gammaness Cut')
+            # if min_idx_even != -1:
+            #     plt.scatter(
+            #         theta2bins[min_idx_even[1]],
+            #         gammaness_bins[min_idx_even[0]],
+            #         color='red',
+            #         marker='o',
+            #         s=120,
+            #         label='Min Flux',
+            #         facecolors='none',
+            #         edgecolors='red'
+            #     )
+            # # Plot the area corresponding to min_off_mask
+            # # Only show hashed area where min_off_mask is True, rest transparent
+            
+
+            # # Create a mask array for plotting
+            # mask =(~min_off_mask).astype(float)
+            # mask[min_off_mask] = np.nan  # Set False to nan (transparent)
+            
+
+            # # Use imshow with a transparent colormap and hatch for True area
+            cmap_min_off = ListedColormap([get_color('ctlearn_accent_1'), 'none'])
+            # im = plt.imshow(
+            #     mask,
+            #     aspect='auto',
+            #     origin='lower',
+            #     extent=[
+            #         theta2bins[0], theta2bins[-1],
+            #         gammaness_bins[0], gammaness_bins[-1]
+            #     ],
+            #     interpolation='nearest',
+            #     alpha=0.8,  # Fully transparent
+            #     cmap=cmap_min_off
+            # )
+            
+            # # Create a mask array for plotting
+            # mask = (~excess_vs_bkg_mask).astype(float)
+            # mask[excess_vs_bkg_mask] = np.nan  # Set False to nan (transparent)
+            # from matplotlib.colors import ListedColormap
+
+            # # Use imshow with a transparent colormap and hatch for True area
+            cmap_excess = ListedColormap([get_color('ctlearn_accent_2'), 'none'])
+            # im = plt.imshow(
+            #     mask,
+            #     aspect='auto',
+            #     origin='lower',
+            #     extent=[
+            #         theta2bins[0], theta2bins[-1],
+            #         gammaness_bins[0], gammaness_bins[-1]
+            #     ],
+            #     interpolation='nearest',
+            #     alpha=0.8,  # Fully transparent
+            #     cmap=cmap_excess
+            # )
+            # plt.legend(
+            #     handles=[
+            #         mpatches.Patch(color=get_color('ctlearn_highlight'), label='5-sigma Significance'),
+            #         mpatches.Patch(color=get_color('ctlearn_accent_1'), label='Bkg. < 10ev.'),
+            #         mpatches.Patch(color=get_color('ctlearn_accent_2'), label='Exc. < 5% bkg.'),
+            #         plt.Line2D([], [], color='red', marker='o', linestyle='None',markerfacecolor='none',
+            #         markeredgecolor='red', label='Min Flux', markeredgewidth=2)
+            #     ],
+            #     loc='upper right',
+            #     title=f"[{E_min:.3f}, {E_max:.3f}] TeV"
+
+            # )
+
+            # plt.subplot(1, 2, 2)
+            im = plt.imshow(
+                flux_even,
+                aspect='auto',
+                origin='lower',
+                cmap='viridis',
+                norm=LogNorm(vmin=np.nanmin(flux_even[flux_even > 0]), vmax=np.nanmax(flux_even)),
+                extent=[
+                    theta2bins[0], theta2bins[-1],
+                    gammaness_bins[0], gammaness_bins[-1]
+                ],
+            )
+            cbar = plt.colorbar(im, label='Flux Factor [a.u.]')
+            cbar.set_ticks([])
+            cbar.ax.tick_params(which='minor', length=0)
+            cbar.ax.set_yticklabels([])
+            cbar.ax.set_xticks([])
+            cbar.ax.set_yticks([])
+            # Remove minor tick labels
+            from matplotlib.ticker import NullLocator
+            cbar.ax.yaxis.set_minor_locator(NullLocator())
+            cbar.ax.yaxis.set_minor_formatter(lambda *args, **kwargs: "")
+            # plt.colorbar(label='Flux Factor')
+            plt.title(f"[{E_min:.3f}, {E_max:.3f}] TeV")
+            plt.xlabel('Theta2 Cut')
+            plt.ylabel('Gammaness Cut')
+
+            plt.tight_layout()
+            if min_idx_even != -1:
+                plt.scatter(
+                    theta2bins[min_idx_even[1]],
+                    gammaness_bins[min_idx_even[0]],
+                    color='red',
+                    marker='o',
+                    s=120,
+                    label='Min Flux',
+                    facecolors='none',
+                    edgecolors='red'
+                )
+            mask =(~min_off_mask).astype(float)
+            mask[min_off_mask] = np.nan  # Set False to nan (transparent)
+            
+
+            # Use imshow with a transparent colormap and hatch for True area
+            # cmap = ListedColormap(['g', 'none'])  # All transparent
+            im = plt.imshow(
+                mask,
+                aspect='auto',
+                origin='lower',
+                extent=[
+                    theta2bins[0], theta2bins[-1],
+                    gammaness_bins[0], gammaness_bins[-1]
+                ],
+                interpolation='nearest',
+                alpha=0.8,  # Fully transparent
+                cmap=cmap_min_off
+            )
+            
+            # Create a mask array for plotting
+            mask = (~excess_vs_bkg_mask).astype(float)
+            mask[excess_vs_bkg_mask] = np.nan  # Set False to nan (transparent)
+            from matplotlib.colors import ListedColormap
+
+            # Use imshow with a transparent colormap and hatch for True area
+            # cmap = ListedColormap(['r', 'none'])  # All transparent
+            im = plt.imshow(
+                mask,
+                aspect='auto',
+                origin='lower',
+                extent=[
+                    theta2bins[0], theta2bins[-1],
+                    gammaness_bins[0], gammaness_bins[-1]
+                ],
+                interpolation='nearest',
+                alpha=0.8,  # Fully transparent
+                cmap=cmap_excess
+            )
+            plt.legend(
+                handles=[
+                    mpatches.Patch(color=get_color('ctlearn_accent_1'), label='Bkg. < 10ev.'),
+                    mpatches.Patch(color=get_color('ctlearn_accent_2'), label='Exc. < 5% bkg.'),
+                    plt.Line2D([], [], color='red', marker='o', linestyle='None',markerfacecolor='none',
+                    markeredgecolor='red', label='Min Flux', markeredgewidth=2)
+                ],
+                loc='upper right',
+                # title=f"[{E_min:.3f}, {E_max:.3f}] TeV"
+            )
+
+            plt.savefig(f"/users/blacave/PhD/New_Manager_Test/plots/flux_even_vs_gcut_theta2_cut_{len(self.DL2_files)}_files{output_suffix}_{E_min:.4f}_{E_max:.4f}.png")
+            plt.show()
+            plt.close()
 
             # ODD
             _on, _off, _, _, _ = self.compute_on_off_counts_array(
                 odd_dl2, odd_reco, odd_pointing, n_off,
                 theta2_cut=theta2bins, gcut=gammaness_bins, E_min=E_min, E_max=E_max
             )
-            _nexcess = _on - _off / n_off
-            flux_odd, _ = calc_flux_for_N_sigma_array(
-                5, _nexcess, _off, 3, 0.002, 10, 1, 50.0 * u.h, 50.0 * u.h, cond=True
+            # _nexcess = _on - _off #/ n_off
+            # t_eff_temp, _ = self.compute_eff_time(odd_dl2)
+            flux_odd, _, _, _ = calc_flux_for_N_sigma_array(
+                N_sigma = 5, 
+                on_counts = _on, 
+                off_counts = _off, 
+                min_signi = 3, 
+                min_excess = 0.05, 
+                min_off_events = 10, 
+                alpha = 1/n_off, 
+                target_obs_time = 50.0 * u.h, 
+                actual_obs_time = t_eff_temp / 2, 
+                cond=True
             )
+            try:
+                min_idx_odd = np.unravel_index(np.nanargmin(flux_odd), flux_odd.shape)
+            except ValueError as e:
+                if "All-NaN slice encountered" in str(e):
+                    min_idx_even = -1
+                else:
+                    raise
+            # min_idx_odd = np.unravel_index(np.nanargmin(flux_odd), flux_odd.shape)
 
-            # Find minimum
-            min_idx_even = np.unravel_index(np.nanargmin(flux_even), flux_even.shape)
-            min_idx_odd = np.unravel_index(np.nanargmin(flux_odd), flux_odd.shape)
-            # print(f"Min flux even: {flux_even[min_idx_even]:.2e} at gammaness={gammaness_bins[min_idx_even[0]]:.2f}, theta2={theta2bins[min_idx_even[1]]:.2f}")
-            # print(f"Min flux odd: {flux_odd[min_idx_odd]:.2e} at gammaness={gammaness_bins[min_idx_odd[0]]:.2f}, theta2={theta2bins[min_idx_odd[1]]:.2f}")
+        
+            
+            
+            if min_idx_even == -1 or min_idx_odd == -1:
+                print(f"Min flux not found for bin {i}, returning NaN.")
+                return (
+                    i,
+                    np.nan, np.nan,
+                    np.nan, np.nan
+                )
+            print(f"Min flux even: {flux_even[min_idx_even]:.2e} at gammaness={gammaness_bins[min_idx_even[0]]:.2f}, theta2={theta2bins[min_idx_even[1]]:.4f}")
+            print(f"Min flux odd: {flux_odd[min_idx_odd]:.2e} at gammaness={gammaness_bins[min_idx_odd[0]]:.2f}, theta2={theta2bins[min_idx_odd[1]]:.4f}")
             return (
                 i,
                 gammaness_bins[min_idx_even[0]], theta2bins[min_idx_even[1]],
@@ -1305,7 +1569,7 @@ class DL2DataProcessor:
                 print(f"Bin {i} already in {output_file}, skipping.", flush=True)
                 continue
             i, g_even, t_even, g_odd, t_odd = process_bin(bin_arg)
-            print(f"Gcuts {g_even:.2f}\t{g_odd:.2f}\tTheta2 {t_even:.2f}\t{t_odd:.2f}", flush=True)
+            print(f"Gcuts {g_even:.2f}\t{g_odd:.2f}\tTheta2 {t_even:.4f}\t{t_odd:.4f}", flush=True)
             # results.append((i, g_even, t_even, g_odd, t_odd))
             with open(output_file, "a", newline="") as csvfile:
                 writer = csv.writer(csvfile)
@@ -1348,30 +1612,61 @@ class DL2DataProcessor:
         #         ])
         # print(f"Optimized cuts saved to {output_file}")
 
-
     @staticmethod
-    def read_cuts_optimized_on_crab_from_h5(h5_filename):
+    def read_cuts_optimized_on_crab_from_csv(csv_filename):
         """
-        Read optimal gammaness/theta2 cuts for even and odd events from an HDF5 file.
+        Read optimal gammaness/theta2 cuts for even and odd events from a CSV file.
         Returns a dict with keys: 'even' and 'odd', each containing a dict with keys 'gammaness', 'theta2', 'E_bins'.
+        The bins are sorted by bin_index.
         """
-        cuts = {}
-        with h5py.File(h5_filename, "r") as f:
-            cuts["even"] = {
-            "gammaness": f["even/gammaness"][:],
-            "theta2": f["even/theta2"][:],
-            "E_bins": f["even/E_bins"][:],
-            }
-            cuts["odd"] = {
-            "gammaness": f["odd/gammaness"][:],
-            "theta2": f["odd/theta2"][:],
-            "E_bins": f["odd/E_bins"][:],
-            }
+        import csv
+        import numpy as np
+
+        rows = []
+        with open(csv_filename, "r", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                rows.append(row)
+
+        # Sort rows by bin_index
+        rows.sort(key=lambda r: int(r["bin_index"]))
+
+        even_gammaness = []
+        even_theta2 = []
+        odd_gammaness = []
+        odd_theta2 = []
+        E_bins_low = []
+        E_bins_high = []
+
+        for row in rows:
+            E_min = float(row["E_min"].split()[0])
+            E_max = float(row["E_max"].split()[0])
+            E_bins_low.append(E_min)
+            E_bins_high.append(E_max)
+            even_gammaness.append(float(row["even_gammaness"]))
+            even_theta2.append(float(row["even_theta2"]))
+            odd_gammaness.append(float(row["odd_gammaness"]))
+            odd_theta2.append(float(row["odd_theta2"]))
+
+        # Reconstruct E_bins array
+        E_bins = np.array(E_bins_low + [E_bins_high[-1]])
+        cuts = {
+            "even": {
+                "gammaness": np.array(even_gammaness),
+                "theta2": np.array(even_theta2),
+                "E_bins": E_bins,
+            },
+            "odd": {
+                "gammaness": np.array(odd_gammaness),
+                "theta2": np.array(odd_theta2),
+                "E_bins": E_bins,
+            },
+        }
         return cuts
-        
+
     def plot_cuts_optimized_on_crab(self, cuts_h5_file):
         import matplotlib.pyplot as plt
-        cuts = self.read_cuts_optimized_on_crab_from_h5(cuts_h5_file)
+        cuts = self.read_cuts_optimized_on_crab_from_csv(cuts_h5_file)
         gcuts_even, tcuts_even, E_bins = cuts["even"]["gammaness"], cuts["even"]["theta2"], cuts["even"]["E_bins"]
         gcuts_odd, tcuts_odd = cuts["odd"]["gammaness"], cuts["odd"]["theta2"]
         E_center = (E_bins[:-1] + E_bins[1:]) / 2
@@ -1405,7 +1700,7 @@ class DL2DataProcessor:
     def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None,
-        optimized_on_crab: bool = False):
+        optimized_on_crab: bool = False, output_suffix: str=''):
         import matplotlib.pyplot as plt
         import concurrent.futures
 
@@ -1417,162 +1712,25 @@ class DL2DataProcessor:
                     raise ValueError(f"Imported curves are not of type GH-cuts or theta-cuts : {curve_type}")
         if ax is None:
             fig, ax = plt.subplots()
-        if len(self.cuts) == 1:
+        if len(self.cuts) == 1 and not optimized_on_crab:
             self.cuts[0].plot_cuts_info_plt(ax)
 
-        if not optimized_on_crab:
-            for i, cut in enumerate(self.cuts):
-                E_bins = self.E_bins[i]
-                match cut.cut_type:
-                    case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                        # GH_cuts = self.GH_cuts[i]
-                        Theta_cuts = self.cut_file_theta_cuts[i]
-                    case _:
-                        # GH_cuts = [cut.gammaness_cut] * len(E_bins)
-                        if cut.theta_cut is None:
-                            Theta_cuts = [[0.2] * len(E_bins)] * len(self.DL2_files)
-                        else:
-                            Theta_cuts = [[cut.theta_cut] * len(E_bins)] * len(self.DL2_files)
-                on_count = np.zeros(len(E_bins) - 1)
-                off_count = np.zeros(len(E_bins) - 1)
-                t_eff = 0 * u.h
-                t_elapsed = 0 * u.h
-
-                def process_file(args):
-                    reco_direction, pointing_direction, dl2, cuts_mask, theta_cuts = args
-                    cuts_mask = cuts_mask[i]
-                    reco_direction = reco_direction[cuts_mask]
-                    pointing_direction = pointing_direction[cuts_mask]
-                    t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
-                    dl2 = dl2[cuts_mask]
-                    on_count_arr = np.zeros(len(E_bins) - 1)
-                    off_count_arr = np.zeros(len(E_bins) - 1)
-                    for j, E_min, E_max, Theta_cut in zip(
-                        range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], theta_cuts
-                    ):
-                        on_count_temp, off_count_temp, _, _, _ = self.compute_on_off_counts(
-                            dl2,
-                            reco_direction,
-                            pointing_direction,
-                            n_off=n_off,
-                            theta2_cut=(Theta_cut**2) * u.deg**2,
-                            gcut=None,
-                            E_min=E_min,
-                            E_max=E_max,
-                            I_min=None,
-                            I_max=None,
-                        )
-                        on_count_arr[j] = on_count_temp
-                        off_count_arr[j] = off_count_temp / n_off
-                    return on_count_arr, off_count_arr, t_eff_temp, t_elapsed_temp
-
-                file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, Theta_cuts))
-                results = []
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [{cut.get_label()}]"):
-                        results.append(result)
-
-                for r in results:
-                    on_count += r[0]
-                    off_count += r[1]
-                    t_eff += r[2]
-                    t_elapsed += r[3]
-
-                nexcess = on_count - off_count
-
-                min_signi = 3
-                min_exc = 0.002
-                min_off_events = 10
-                backg_syst = 0.01
-                obs_time = 50.0 * u.h
-
-                flux_factor, lima_signi = calc_flux_for_N_sigma(
-                    5,
-                    nexcess,
-                    off_count,
-                    min_signi,
-                    min_exc,
-                    min_off_events,
-                    1,
-                    obs_time,
-                    t_eff,
-                    cond=True,
-                )
-                flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
-                    5,
-                    nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
-                    off_count,
-                    min_signi,
-                    min_exc,
-                    min_off_events,
-                    1,
-                    obs_time,
-                    t_eff,
-                    cond=True,
-                )
-                flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
-                    5,
-                    nexcess - backg_syst * off_count - (nexcess + 2 * off_count) ** 0.5,
-                    off_count,
-                    min_signi,
-                    min_exc,
-                    min_off_events,
-                    1,
-                    obs_time,
-                    t_eff,
-                    cond=True,
-                )
-                # mask = np.ones(len(flux_factor), dtype=bool)
-                # Mask where flux_minus is negative or -inf, and handle upper limits
-                mask = np.isfinite(flux_minus) & np.isfinite(flux_plus) & np.isfinite(flux_factor)
-                E = (E_bins[:-1] + E_bins[1:]) / 2
-
-                if len(self.cuts) > 1:
-                    ax.plot(
-                        E[mask],
-                        flux_factor[mask] * 100,
-                        marker="o",
-                        label=cut.get_label(),
-                        zorder=10,
-                        ls="--",
-                    )
-                else:
-                    ax.plot(
-                        E[mask],
-                        flux_factor[mask] * 100,
-                        marker="o",
-                        label=label,
-                        zorder=10,
-                        ls="--",
-                    )
-                ax.fill_between(
-                    E[mask].value,
-                    flux_minus[mask] * 100,
-                    flux_plus[mask] * 100,
-                    alpha=0.2,
-                    zorder=0,
-                    edgecolor="none"
-                )
-                export_curves.add_curve(
-                    E[mask],
-                    flux_factor[mask] * 100,
-                    CurveType.SENSITIVITY_DATA,
-                    cuts=cut,
-                )
-
         # ...rest of the function unchanged (optimized_on_crab branch, plotting, export, etc.)...
-        else:
-            print('Cuts omptimized on Crab')
-            output_suffix = ""
+        if optimized_on_crab:
+            # print('Cuts omptimized on Crab')
             cuts_h5_file = f"{self.dl2_processed_dir}/crab_optimized_cuts_{len(self.DL2_files)}_files{output_suffix}.csv"
-            cuts = self.read_cuts_optimized_on_crab_from_h5(cuts_h5_file)
+            cuts = self.read_cuts_optimized_on_crab_from_csv(cuts_h5_file)
             gcuts_even, tcuts_even, E_bins = cuts["even"]["gammaness"], np.sqrt(cuts["even"]["theta2"]), cuts["even"]["E_bins"]
             gcuts_odd, tcuts_odd = cuts["odd"]["gammaness"], np.sqrt(cuts["odd"]["theta2"])
             # E_center = (E_bins[:-1] + E_bins[1:]) / 2
             on_count = np.zeros(len(E_bins) - 1)
             off_count = np.zeros(len(E_bins) - 1)
-            t_eff = 0 * u.h
-            t_elapsed = 0 * u.h
+            t_eff = self.effective_time
+            # t_elapsed = 0 * u.h
+            # for dl2 in self.dl2s:
+            #     _t_eff, _t_elapsed = self.compute_eff_time(dl2)
+            #     t_eff += _t_eff
+            #     t_elapsed += _t_elapsed
 
             def mask_events(args):
                 reco_direction, pointing_direction, dl2 = args
@@ -1585,7 +1743,7 @@ class DL2DataProcessor:
                 )
 
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                results = list(tqdm(executor.map(mask_events, zip(self.reco_directions, self.pointings, self.dl2s)), desc="Masking events", total=len(self.reco_directions)))
+                results = list(executor.map(mask_events, zip(self.reco_directions, self.pointings, self.dl2s)))
 
             even_dl2s, odd_dl2s, even_recos, odd_recos, even_pointings, odd_pointings = zip(*results)
             # Prepare per-file gammaness/theta cuts for even and odd events
@@ -1596,7 +1754,7 @@ class DL2DataProcessor:
             def process_file(args):
                 even_reco_direction, even_pointing_direction, even_dl2, odd_reco_direction, odd_pointing_direction, odd_dl2, even_gcuts, odd_gcuts, even_theta_cuts, odd_theta_cuts = args
                 # EVEN
-                even_t_eff_temp, even_t_elapsed_temp = self.compute_eff_time(even_dl2)
+                # even_t_eff_temp, even_t_elapsed_temp = self.compute_eff_time(even_dl2)
                 even_on_count_arr = np.zeros(len(E_bins) - 1)
                 even_off_count_arr = np.zeros(len(E_bins) - 1)
                 for j, E_min, E_max, gcut, Theta_cut in zip(
@@ -1617,7 +1775,7 @@ class DL2DataProcessor:
                     even_on_count_arr[j] = on_count_temp
                     even_off_count_arr[j] = off_count_temp / n_off
                 # ODD
-                odd_t_eff_temp, odd_t_elapsed_temp = self.compute_eff_time(odd_dl2)
+                # odd_t_eff_temp, odd_t_elapsed_temp = self.compute_eff_time(odd_dl2)
                 odd_on_count_arr = np.zeros(len(E_bins) - 1)
                 odd_off_count_arr = np.zeros(len(E_bins) - 1)
                 for j, E_min, E_max, gcut, Theta_cut in zip(
@@ -1639,7 +1797,7 @@ class DL2DataProcessor:
                     odd_off_count_arr[j] = off_count_temp / n_off
 
 
-                return even_on_count_arr + odd_on_count_arr, even_off_count_arr + odd_off_count_arr, even_t_eff_temp + odd_t_eff_temp, even_t_elapsed_temp + odd_t_elapsed_temp 
+                return even_on_count_arr + odd_on_count_arr, even_off_count_arr + odd_off_count_arr#, (even_t_eff_temp + odd_t_eff_temp) / 2, (even_t_elapsed_temp + odd_t_elapsed_temp) / 2
 
             file_args = list(zip(even_recos, even_pointings, even_dl2s, 
                                  odd_recos, odd_pointings, odd_dl2s, 
@@ -1647,14 +1805,15 @@ class DL2DataProcessor:
                                  [tcuts_even] * len(self.DL2_files), [tcuts_odd] * len(self.DL2_files)))
             results = []
             with concurrent.futures.ThreadPoolExecutor() as executor:
-                for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [{cut.get_label()}]"):
+                for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [Optimized on Crab]"):
                     results.append(result)
 
             for r in results:
                 on_count += r[0]
                 off_count += r[1]
-                t_eff += r[2]
-                t_elapsed += r[3]
+                # t_eff += r[2]
+                # t_elapsed += r[3]
+            print(t_eff)
 
             nexcess = on_count - off_count
 
@@ -1674,6 +1833,154 @@ class DL2DataProcessor:
                 1,
                 obs_time,
                 t_eff,
+                cond=False,
+            )
+            flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
+                5,
+                nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
+                off_count,
+                min_signi,
+                min_exc,
+                min_off_events,
+                1,
+                obs_time,
+                t_eff,
+                cond=False,
+            )
+            flux_plus, lima_signi_plus = calc_flux_for_N_sigma(
+                5,
+                nexcess - backg_syst * off_count - (nexcess + 2 * off_count) ** 0.5,
+                off_count,
+                min_signi,
+                min_exc,
+                min_off_events,
+                1,
+                obs_time,
+                t_eff,
+                cond=False,
+            )
+            # mask = np.ones(len(flux_factor), dtype=bool)
+            # Mask where flux_minus is negative or -inf, and handle upper limits
+            mask = np.isfinite(flux_minus) & np.isfinite(flux_plus) & np.isfinite(flux_factor)
+            E = (E_bins[:-1] + E_bins[1:]) / 2
+            ax.plot(
+                E[mask],
+                flux_factor[mask] * 100,
+                marker="o",
+                label="Optimized on Crab",
+                zorder=10,
+                ls="--",
+            )
+            ax.fill_between(
+                E[mask],
+                flux_minus[mask] * 100,
+                flux_plus[mask] * 100,
+                alpha=0.2,
+                zorder=0,
+                edgecolor="none"
+            )
+            # ax.text(
+            #     0.98,
+            #     0.02,
+            #     "Optimized on Crab",
+            #     transform=ax.transAxes,
+            #     fontsize=9,
+            #     color=get_color("on_surface"),
+            #     verticalalignment="bottom",
+            #     horizontalalignment="right",
+            #     bbox=dict(
+            #         boxstyle="round,pad=0.3",
+            #         edgecolor="none",
+            #         facecolor=get_color("surface"),
+            #         alpha=0.2,
+            #     ),
+            # )
+            
+            # export_curves.add_curve(
+            #     E[mask],
+            #     flux_factor[mask] * 100,
+            #     CurveType.SENSITIVITY_DATA,
+            #     cuts=cut,
+            # )
+
+
+
+        # if not optimized_on_crab:
+        for i, cut in enumerate(self.cuts):
+            E_bins = self.E_bins[i]
+            match cut.cut_type:
+                case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
+                    # GH_cuts = self.GH_cuts[i]
+                    Theta_cuts = self.cut_file_theta_cuts[i]
+                case _:
+                    # GH_cuts = [cut.gammaness_cut] * len(E_bins)
+                    if cut.theta_cut is None:
+                        Theta_cuts = [[0.2] * len(E_bins)] * len(self.DL2_files)
+                    else:
+                        Theta_cuts = [[cut.theta_cut] * len(E_bins)] * len(self.DL2_files)
+            on_count = np.zeros(len(E_bins) - 1)
+            off_count = np.zeros(len(E_bins) - 1)
+            t_eff = self.effective_time
+            t_elapsed = 0 * u.h
+
+            def process_file(args):
+                reco_direction, pointing_direction, dl2, cuts_mask, theta_cuts = args
+                cuts_mask = cuts_mask[i]
+                reco_direction = reco_direction[cuts_mask]
+                pointing_direction = pointing_direction[cuts_mask]
+                # t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+                dl2 = dl2[cuts_mask]
+                on_count_arr = np.zeros(len(E_bins) - 1)
+                off_count_arr = np.zeros(len(E_bins) - 1)
+                for j, E_min, E_max, Theta_cut in zip(
+                    range(len(E_bins) - 1), E_bins[:-1], E_bins[1:], theta_cuts
+                ):
+                    on_count_temp, off_count_temp, _, _, _ = self.compute_on_off_counts(
+                        dl2,
+                        reco_direction,
+                        pointing_direction,
+                        n_off=n_off,
+                        theta2_cut=(Theta_cut**2) * u.deg**2,
+                        gcut=None,
+                        E_min=E_min,
+                        E_max=E_max,
+                        I_min=None,
+                        I_max=None,
+                    )
+                    on_count_arr[j] = on_count_temp
+                    off_count_arr[j] = off_count_temp / n_off
+                return on_count_arr, off_count_arr,#t_eff_temp, t_elapsed_temp
+
+            file_args = list(zip(self.reco_directions, self.pointings, self.dl2s, self.cuts_masks_gammaness_only, Theta_cuts))
+            results = []
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                for result in tqdm(executor.map(process_file, file_args), total=len(file_args), desc=f"Computing sensitivity [{cut.get_label()}]"):
+                    results.append(result)
+
+            for r in results:
+                on_count += r[0]
+                off_count += r[1]
+                # t_eff += r[2]
+                # t_elapsed += r[3]
+
+            nexcess = on_count - off_count
+
+            min_signi = 3
+            min_exc = 0.002
+            min_off_events = 10
+            backg_syst = 0.01
+            obs_time = 50.0 * u.h
+
+            flux_factor, lima_signi = calc_flux_for_N_sigma(
+                N_sigma = 5,
+                cumul_excess = nexcess,
+                cumul_off = off_count,
+                min_signi = min_signi,
+                min_exc = min_exc,
+                min_off_events = min_off_events,
+                alpha = 1,
+                target_obs_time = obs_time,
+                actual_obs_time = t_eff,
                 cond=True,
             )
             flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
@@ -1704,7 +2011,8 @@ class DL2DataProcessor:
             # Mask where flux_minus is negative or -inf, and handle upper limits
             mask = np.isfinite(flux_minus) & np.isfinite(flux_plus) & np.isfinite(flux_factor)
             E = (E_bins[:-1] + E_bins[1:]) / 2
-            if len(self.cuts) > 1:
+
+            if len(self.cuts) > 1 or optimized_on_crab:
                 ax.plot(
                     E[mask],
                     flux_factor[mask] * 100,
@@ -1737,7 +2045,64 @@ class DL2DataProcessor:
                 cuts=cut,
             )
 
+        if optimized_on_crab:
+            def plot_perf_peper_sensitivity_src_indep_percentage_errors_sys(ax):
+                import importlib.resources as pkg_resources
+                from .. import resources
+                with pkg_resources.path(resources, "sensitivity_src_indep.txt") as text_path:
+                    data = np.loadtxt(text_path)
 
+                energy_med = data[:,0] 
+                sensitivity = data[:,1]
+                sensitivity_error_down = data[:,4]
+                sensitivity_error_up = data[:,5]
+                energy_init = 0.03
+                energy_cut = 15
+
+                
+                # print(list(zip(energy_med[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)],
+                #             sensitivity[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)])))
+
+                
+                band = ax.fill_between(energy_med[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity_error_up[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity_error_down[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)],  
+                        lw=0, color='C6', alpha=0.3)  
+                line, = ax.loglog(energy_med[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        label = 'LST-1 (src-independent)', color = 'C6', ls='solid')  
+                
+                return band, line
+            def plot_perf_paper_sensitivity_src_indep_percentage_without_5percentbg_errors_sys(ax):
+
+                import importlib.resources as pkg_resources
+                from .. import resources
+                with pkg_resources.path(resources, "sensitivity_src_indep_without_5percentbg.txt") as text_path:
+                    data = np.loadtxt(text_path)
+
+                energy_med = data[:,0] 
+                sensitivity = data[:,1]
+                sensitivity_error_down = data[:,4]
+                sensitivity_error_up = data[:,5]
+                
+
+                energy_init = 0.03
+                energy_cut = 0.15
+                    
+                band = ax.fill_between(energy_med[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity_error_up[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity_error_down[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)],  
+                        label = 'LST-1 (src-independent) - without 5% background',  lw=0, facecolor='C6', alpha=0.3, hatch='o')  
+
+                line, = ax.loglog(energy_med[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        sensitivity[(sensitivity > 0) & (energy_med > energy_init) & (energy_med < energy_cut)], 
+                        color = 'C6', ls='dashed')  
+                
+                return band, line
+            plot_perf_peper_sensitivity_src_indep_percentage_errors_sys(ax)
+            plot_perf_paper_sensitivity_src_indep_percentage_without_5percentbg_errors_sys(ax)
+
+        
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
@@ -1804,7 +2169,7 @@ class DL2DataProcessor:
                 cuts_mask = cuts_mask[i]
                 reco_direction = reco_direction[cuts_mask]
                 pointing_direction = pointing_direction[cuts_mask]
-                t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
+                # t_eff_temp, t_elapsed_temp = self.compute_eff_time(dl2)
                 dl2 = dl2[cuts_mask]
                 h_on_file = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
                 h_off_file = np.zeros((len(E_bins) - 1, len(angle_bins) - 1))
@@ -1987,6 +2352,9 @@ class DL2DataProcessor:
 
 
 
+
+
+
         if axs is None:
             fig, axs = plt.subplots(1, 4, figsize=(20, 5))  # , sharey=True)
         intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
@@ -2100,7 +2468,7 @@ class DL2DataProcessor:
         #                 I_max=I_max
         #             )
         for dl2 in self.dl2s:
-            t_eff, _ = self.compute_eff_time(dl2)
+            t_eff, _ = compute_eff_time(dl2, self.CTLearn, self.time_key)
             # total_excess += ((on_count - off_count / n_off) / t_eff.to(u.s)).value
             # total_off += (off_count / n_off / t_eff.to(u.s)).value
             total_t_eff += t_eff
@@ -2171,7 +2539,7 @@ class DL2DataProcessor:
                     E_min=E_min,
                     E_max=E_max,
                 )
-                t_eff_temp, _ = self.compute_eff_time(dl2)
+                t_eff_temp, _ = compute_eff_time(dl2, self.CTLearn, self.time_key)
                 excess_rates[i] += (
                     (on_count - off_count / n_off) / t_eff_temp.to(u.s)
                 ).value

@@ -516,7 +516,7 @@ def calc_flux_for_N_sigma_array(
     target_obs_time,
     actual_obs_time,
     cond=True,
-    max_iterations=10,
+    max_iterations=1000,
 ):
     """
     Calculates the flux scaling factor needed to reach a target significance.
@@ -563,78 +563,135 @@ def calc_flux_for_N_sigma_array(
 
     # Calculate observed excess counts
     excess_counts = on_counts - alpha * off_counts
+    import matplotlib.pyplot as plt
+    # plt.close()
+    # plt.imshow(excess_counts, aspect='auto', origin='lower')
+    # plt.colorbar(label='Excess Counts')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.title('2D Excess Counts')
+    # # plt.savefig(f'/users/blacave/PhD/New_Manager_Test/plots/excess_counts_2d.png')
+    # plt.show()
 
     # Calculate the time scaling factor
     time_factor = target_obs_time.to_value(u.h) / actual_obs_time.to_value(u.h)
+    print(f"Time factor: {time_factor}")
 
     # Initialize flux factor to 1 (i.e., the observed flux)
-    flux_factor = np.ones_like(excess_counts, dtype=np.float64)
+    flux_factor = np.ones_like(excess_counts, dtype=np.float64).astype("float64")
+    # plt.imshow(flux_factor, aspect='auto', origin='lower')
+    # plt.colorbar(label='flux factor 1')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.title('flux factor init')
+    # # plt.savefig(f'/users/blacave/PhD/New_Manager_Test/plots/excess_counts_2d.png')
+    # plt.show()
+
 
     # --- Initial Quality Cuts ---
     # Create a mask to identify bins that are suitable for sensitivity calculation
     # We need a minimum number of off events and a minimum number of excess events.
-    background_counts = alpha * off_counts
-    good_bin_mask = (
-        (excess_counts > 0)  # Must have some observed excess
-        & (off_counts >= min_off_events)
-        & (excess_counts >= min_excess * background_counts)
-    )
+    # background_counts = alpha * off_counts
+    
+    positive_excess_mask = excess_counts > 0
+    min_off_mask = off_counts >= min_off_events
+    excess_vs_bkg_mask = excess_counts >= min_excess * off_counts * alpha
+    good_bin_mask = positive_excess_mask & min_off_mask# & excess_vs_bkg_mask
+
+    # if cond:
+    flux_factor[~good_bin_mask] = np.nan  # Set flux factor to NaN for bins that do not meet the criteria
     
     # Invalidate bins that don't meet the criteria
     # flux_factor[~good_bin_mask] = np.nan
 
     # Calculate significance of the actual observed data
-    initial_signi = li_ma_significance(on_counts, off_counts, alpha=alpha)
-
+    lima_signi = li_ma_significance(on_counts, off_counts, alpha=alpha)
     # Also invalidate bins where initial significance is too low
-    # flux_factor[initial_signi < min_signi] = np.nan
+    # flux_factor[lima_signi < min_signi] = np.nan
+    
+    
+
+    lima_signi = li_ma_significance(
+        (time_factor * (flux_factor * excess_counts + off_counts * alpha)).astype("float64"),
+        (time_factor * off_counts).astype("float64"),
+        alpha=alpha,
+    )
+    # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Significance')
+    # plt.title('Significance')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.show()
+    # flux_factor[lima_signi < min_signi] = np.nan
+    
+
+    
 
     # --- Iterative Search for Flux Factor ---
     # We now have a starting flux_factor, which is 1 for good bins and NaN for bad ones.
     # We will iteratively adjust it to find the value that yields N_sigma.
 
     # Scaled background counts for the target observation time
-    scaled_off = off_counts * time_factor
+    # scaled_off = off_counts * time_factor
 
     # Loop to converge on the correct flux_factor
-    for _ in range(max_iterations):
-        # Create a mask to select only the valid bins that need recalculation
-        recalc_mask = ~np.isnan(flux_factor)
+    for iteration in range(max_iterations):
 
-        # Estimate the scaled ON counts for the target time with the current flux_factor
-        # n_on_scaled = time * (flux_factor * excess_initial + background_initial)
-        scaled_excess = flux_factor[recalc_mask] * excess_counts[recalc_mask]
-        scaled_on = time_factor * (scaled_excess + background_counts[recalc_mask])
+        tolerance_mask = (
+            np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
+        )
+        if not np.any(tolerance_mask):
+            print(f"Converged after {iteration} iterations.")
+            break
 
-        # Calculate significance for the scaled counts
-        current_signi = li_ma_significance(
-            scaled_on,
-            scaled_off[recalc_mask],
-            alpha=alpha
+        # print(f"Number of NaNs in flux_factor = {len(np.where(np.isnan(flux_factor)==True)[0])}")
+        # print(f'Sig ratio : {np.nanmean(np.float64(N_sigma) / lima_signi[tolerance_mask].astype("float64"))}')
+        sig_factor = (np.float64(N_sigma) / lima_signi.astype("float64")).astype("float64")
+        # print(f"Iteration {iteration}: sig_factor min = {np.nanmin(sig_factor)}, max = {np.nanmax(sig_factor)}")
+        sig_factor = np.clip(sig_factor, 0.01, 100)
+        flux_factor *= sig_factor
+        # print(f"Min in flux_factor = {np.nanmin(flux_factor)}")
+        lima_signi = li_ma_significance(
+            (
+                time_factor
+                * (
+                    flux_factor * excess_counts
+                    + off_counts * alpha
+                )
+            ).astype("float64"),
+            (time_factor * off_counts).astype("float64"),
+            alpha=alpha,
         )
 
-        # Avoid division by zero for bins with no significance
-        current_signi[current_signi <= 0] = 1e-10
 
-        # Update the flux factor to move closer to N_sigma
-        # This is a simple iterative solver: f_new = f_old * (target / current)
-        flux_factor[recalc_mask] *= N_sigma / current_signi
-    
-    # --- Final Significance Calculation ---
-    # Recalculate the final significance with the converged flux_factor
-    final_significance = np.full_like(flux_factor, np.nan, dtype=np.float64)
-    final_recalc_mask = ~np.isnan(flux_factor)
+        # lima_signi[lima_signi == 0] = np.nan  # Avoid division by zero in significance calculation
+        # flux_factor[lima_signi == 0] = np.nan  # Avoid division by zero in significance calculation
 
-    final_scaled_excess = flux_factor[final_recalc_mask] * excess_counts[final_recalc_mask]
-    final_scaled_on = time_factor * (final_scaled_excess + background_counts[final_recalc_mask])
-    
-    final_significance[final_recalc_mask] = li_ma_significance(
-        final_scaled_on,
-        scaled_off[final_recalc_mask],
-        alpha=alpha
-    )
+    lima_signi[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
+    flux_factor[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
+    print(f"Average significance after iteration {iteration}: {np.nanmean(lima_signi)}")
+    print(f"Min, Max : {np.nanmin(lima_signi)}, {np.nanmax(lima_signi)}")
+    # plt.figure(figsize=(12, 5))
+    # plt.subplot(1, 2, 1)
+    # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Significance')
+    # plt.title('Significance')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
 
-    return flux_factor, final_significance
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(flux_factor, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Flux Factor')
+    # plt.title('Flux Factor')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+
+    # plt.tight_layout()
+    # plt.show()
+
+
+
+    return flux_factor, lima_signi, min_off_mask, excess_vs_bkg_mask
 
 def calc_flux_for_N_sigma(
     N_sigma,

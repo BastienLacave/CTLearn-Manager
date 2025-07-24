@@ -34,11 +34,11 @@ class WhoIsBetter:
 
     def plot_PSF(self, output_file=None):
         fig, ax = plt.subplots()
-        if len(self.cuts) == 1:
-            stored_efficiency_theta = self.cuts[0].efficiency_theta
-            self.cuts[0].efficiency_theta = None
-            self.cuts[0].plot_cuts_info_plt(ax)
-            self.cuts[0].efficiency_theta = stored_efficiency_theta
+        # if len(self.cuts) == 1:
+        #     stored_efficiency_theta = self.cuts[0].efficiency_theta
+        #     self.cuts[0].efficiency_theta = None
+        #     self.cuts[0].plot_cuts_info_plt(ax)
+        #     self.cuts[0].efficiency_theta = stored_efficiency_theta
         for dl2_processor, label in zip(self.dl2_processors, self.labels):
             dl2_processor.plot_PSF(ax=ax, label=label)
         if output_file:
