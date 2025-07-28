@@ -6,11 +6,10 @@ from enum import Enum
 # from astropy.coordinates import SkyCoord, AltAz
 import astropy.units as u
 import ctadata
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table
-import matplotlib.pyplot as plt
 from pyirf.statistics import li_ma_significance
-
 
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
@@ -55,6 +54,7 @@ class CTLearnManagerLightTheme(Enum):
     """
     A class to manage predefined colors and plot styles for consistent visualization.
     """
+
     ctlearn_1 = "#016279"
     ctlearn_2 = "#00a693"
     ctlearn_3 = "#58c68b"
@@ -74,6 +74,7 @@ class CTLearnManagerDarkTheme(Enum):
     """
     A class to manage predefined colors and plot styles for consistent visualization.
     """
+
     ctlearn_1 = "#016279"
     ctlearn_2 = "#00a693"
     ctlearn_3 = "#58c68b"
@@ -563,7 +564,6 @@ def calc_flux_for_N_sigma_array(
 
     # Calculate observed excess counts
     excess_counts = on_counts - alpha * off_counts
-    import matplotlib.pyplot as plt
     # plt.close()
     # plt.imshow(excess_counts, aspect='auto', origin='lower')
     # plt.colorbar(label='Excess Counts')
@@ -575,7 +575,7 @@ def calc_flux_for_N_sigma_array(
 
     # Calculate the time scaling factor
     time_factor = target_obs_time.to_value(u.h) / actual_obs_time.to_value(u.h)
-    print(f"Time factor: {time_factor}")
+    # print(f"Time factor: {time_factor}")
 
     # Initialize flux factor to 1 (i.e., the observed flux)
     flux_factor = np.ones_like(excess_counts, dtype=np.float64).astype("float64")
@@ -616,6 +616,7 @@ def calc_flux_for_N_sigma_array(
         (time_factor * off_counts).astype("float64"),
         alpha=alpha,
     )
+    sig_factor = (np.float64(N_sigma) / lima_signi.astype("float64")).astype("float64")
     # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
     # plt.colorbar(label='Significance')
     # plt.title('Significance')
@@ -636,30 +637,37 @@ def calc_flux_for_N_sigma_array(
 
     # Loop to converge on the correct flux_factor
     for iteration in range(max_iterations):
-
-        tolerance_mask = (
-            np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
-        )
+        
+        if iteration !=0:
+            tolerance_mask = (
+                np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
+            )
+            min_mask = (flux_factor < np.nanmedian(flux_factor[tolerance_mask]))
+            tolerance_mask = tolerance_mask & min_mask
+        else:
+            tolerance_mask = (
+                np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
+            )
         if not np.any(tolerance_mask):
-            print(f"Converged after {iteration} iterations.")
+            # print(f"Converged after {iteration} iterations.")
             break
 
         # print(f"Number of NaNs in flux_factor = {len(np.where(np.isnan(flux_factor)==True)[0])}")
         # print(f'Sig ratio : {np.nanmean(np.float64(N_sigma) / lima_signi[tolerance_mask].astype("float64"))}')
-        sig_factor = (np.float64(N_sigma) / lima_signi.astype("float64")).astype("float64")
+        sig_factor[tolerance_mask] = (np.float64(N_sigma) / lima_signi[tolerance_mask].astype("float64")).astype("float64")
         # print(f"Iteration {iteration}: sig_factor min = {np.nanmin(sig_factor)}, max = {np.nanmax(sig_factor)}")
-        sig_factor = np.clip(sig_factor, 0.01, 100)
-        flux_factor *= sig_factor
+        sig_factor[tolerance_mask] = np.clip(sig_factor[tolerance_mask], 0.01, 100)
+        flux_factor[tolerance_mask] *= sig_factor[tolerance_mask]
         # print(f"Min in flux_factor = {np.nanmin(flux_factor)}")
-        lima_signi = li_ma_significance(
+        lima_signi[tolerance_mask] = li_ma_significance(
             (
                 time_factor
                 * (
-                    flux_factor * excess_counts
-                    + off_counts * alpha
+                    flux_factor[tolerance_mask] * excess_counts[tolerance_mask]
+                    + off_counts[tolerance_mask] * alpha
                 )
             ).astype("float64"),
-            (time_factor * off_counts).astype("float64"),
+            (time_factor * off_counts[tolerance_mask]).astype("float64"),
             alpha=alpha,
         )
 
@@ -669,8 +677,8 @@ def calc_flux_for_N_sigma_array(
 
     lima_signi[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
     flux_factor[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
-    print(f"Average significance after iteration {iteration}: {np.nanmean(lima_signi)}")
-    print(f"Min, Max : {np.nanmin(lima_signi)}, {np.nanmax(lima_signi)}")
+    # print(f"Average significance after iteration {iteration}: {np.nanmean(lima_signi)}")
+    # print(f"Min, Max : {np.nanmin(lima_signi)}, {np.nanmax(lima_signi)}")
     # plt.figure(figsize=(12, 5))
     # plt.subplot(1, 2, 1)
     # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
@@ -1218,7 +1226,7 @@ class ExportCurves:
         :type file_path: str
         """
         import os
-        import pickle
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         self.import_label = import_label
@@ -1290,8 +1298,8 @@ class ExportCurves:
 
 
     def export(self):
+
         from astropy.io.misc.hdf5 import write_table_hdf5
-        import pickle
 
         assert self.file_path is not None, "File path must be specified for exporting curves."
         assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
@@ -1322,7 +1330,6 @@ class ExportCurves:
         :type ax: matplotlib.axes.Axes
         :param kwargs: Additional keyword arguments for plotting.
         """
-        import matplotlib.pyplot as plt
         assert len(axs) == len(self.x_values), "Number of axes must match number of curves."
         
         for x, y, cut, ax in zip(self.x_values, self.y_values, self.cuts, axs):
@@ -1336,6 +1343,7 @@ class ExportCurves:
 class CTLMDirectories:
 
     def __init__(self, project_directory: str, tri_model_nickname: str):
+        import os
         from pathlib import Path
 
         if not Path(project_directory).resolve().is_absolute():
@@ -1356,6 +1364,21 @@ class CTLMDirectories:
         self.training_logs_directory = f"{self.logs_directory}/training_logs"
         self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
         self.post_processing_logs_directory = f"{self.logs_directory}/post_processing_logs"
+        self.plots_directory = f"{self.project_directory}/plots/"
+
+        os.makedirs(self.tri_models_directory, exist_ok=True)
+        os.makedirs(self.energy_model_directory, exist_ok=True)
+        os.makedirs(self.direction_model_directory, exist_ok=True)
+        os.makedirs(self.type_model_directory, exist_ok=True)
+        os.makedirs(self.dl2_post_processed_data_directory, exist_ok=True)
+        os.makedirs(self.dl2_post_processed_data_rf_directory, exist_ok=True)
+        os.makedirs(self.dl2_mc_directory, exist_ok=True)
+        os.makedirs(self.irf_directory, exist_ok=True)
+        os.makedirs(self.logs_directory, exist_ok=True)
+        os.makedirs(self.training_logs_directory, exist_ok=True)
+        os.makedirs(self.prediction_logs_directory, exist_ok=True)
+        os.makedirs(self.post_processing_logs_directory, exist_ok=True)
+        os.makedirs(self.plots_directory, exist_ok=True)
 
         # self.exported_curves_directory = self.project_directory / "exported_curves"
 
@@ -1365,7 +1388,6 @@ class CTLMDirectories:
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_irf_files(self, zenith:float, azimuth:float, cuts:Cuts):
-        import glob
         from pathlib import Path
 
         irf_dir = self.get_irf_directory(zenith, azimuth, cuts)
@@ -1407,13 +1429,13 @@ class CTLMDirectories:
             available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/{cuts.get_directory_name()}/")
             if len(available_irf_direction_directories) == 0:
                 raise FileNotFoundError(
-                    f"No IRF files for this model."
+                    "No IRF files for this model."
                 )
         else:
             available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/*/")
             if len(available_irf_direction_directories) == 0:
                 raise FileNotFoundError(
-                    f"No IRF files for this model."
+                    "No IRF files for this model."
                 )
             cut_directorie_names = [Path(path).parts[-2] for path in available_irf_direction_directories]
             cuts = get_cuts_from_directory_name(cut_directorie_names[0])

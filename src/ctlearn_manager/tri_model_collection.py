@@ -114,6 +114,7 @@ class TriModelCollection:
         if not self.allow_muliple_projects:
             project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
             assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
+            project_directories = [tri_model.project_directories for tri_model in self.tri_models]
             self.project_directories: CTLMDirectories = project_directories[0]
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
