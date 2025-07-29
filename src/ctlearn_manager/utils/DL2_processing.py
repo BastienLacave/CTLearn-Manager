@@ -3,8 +3,7 @@ import multiprocessing as mp
 import os
 import pickle
 from concurrent.futures import ProcessPoolExecutor
-import cProfile
-import pstats
+
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import Angle, EarthLocation, SkyCoord
@@ -26,6 +25,7 @@ from ..utils.utils import (
     find_68_percent_range,
     get_avg_pointing,
     get_color,
+    get_closest_rf_irf_files,
 )
 
 
@@ -46,7 +46,7 @@ def extract_cuts(args):
     # cuts_file = model.project_directories.get_irf_files(
     #     zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut
     # )['cuts_file']
-    zenith, azimuth = get_avg_pointing(file, pointing_table, pointing_alt_key, pointing_az_key,)
+    zenith, azimuth = get_avg_pointing(file, pointing_table, pointing_alt_key, pointing_az_key)
     cuts_file = model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cut)['cuts_file'] 
     with fits.open(cuts_file, mode="readonly") as hdul:
         theta_cut = hdul["RAD_MAX"].data["cut"]
@@ -54,7 +54,7 @@ def extract_cuts(args):
     return theta_cut, gammaness_cut
 
 def get_energy_dependent_mask_data(
-    DL2_file,pointing_table,pointing_alt_key, pointing_az_key,
+    DL2_file,pointing_table,pointing_alt_key, pointing_az_key, CTLearn,
     data,
     source_position,
     energy_key,
@@ -68,14 +68,24 @@ def get_energy_dependent_mask_data(
 
     # zenith, azimuth = tri_model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
     # cuts_file = tri_model.project_directories.get_irf_files(zenith[0], azimuth[0], cuts)['cuts_file'] # FIXME
-    zenith, azimuth = get_avg_pointing(DL2_file, pointing_table, pointing_alt_key, pointing_az_key)
-    cuts_file = tri_model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts)['cuts_file'] 
+    if CTLearn:
+        zenith, azimuth = get_avg_pointing(DL2_file, pointing_table, pointing_alt_key, pointing_az_key)
+        cuts_file = tri_model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts)['cuts_file'] 
+    else:
+        zenith, azimuth = get_avg_pointing(DL2_file, pointing_table, pointing_alt_key, pointing_az_key)
+        cuts_file = get_closest_rf_irf_files(zenith.value, cuts)
 
     with fits.open(cuts_file) as hdul:
-        gammaness_cuts = hdul["GH_CUTS"].data["cut"]
-        energy_low = hdul["GH_CUTS"].data["low"]
-        energy_high = hdul["GH_CUTS"].data["high"]
-        theta_cuts = hdul["RAD_MAX"].data["cut"]
+        if CTLearn:
+            gammaness_cuts = hdul["GH_CUTS"].data["cut"]
+            energy_low = hdul["GH_CUTS"].data["low"]
+            energy_high = hdul["GH_CUTS"].data["high"]
+            theta_cuts = hdul["RAD_MAX"].data["cut"]
+        else:
+            gammaness_cuts = hdul["GH_CUTS"].data["GH_CUTS"]
+            energy_low = hdul["GH_CUTS"].data["true_energy_low"]
+            energy_high = hdul["GH_CUTS"].data["true_energy_high"]
+            theta_cuts = hdul["THETA_CUTS"].data["cut"]
 
         # Compute separation only once
         if "angular_separation" not in data.colnames:
@@ -205,13 +215,13 @@ def load_one_worker(args):
                 cut_mask_gammaness_only[j] = mask
             else:
                 mask = get_energy_dependent_mask_data(
-                    DL2_file, pointing_table, pointing_alt_key, pointing_az_key,
+                    DL2_file, pointing_table, pointing_alt_key, pointing_az_key, CTLearn,
                     dl2, source_position,
                     energy_key,
                     gammaness_key, corresponding_model, transformed_reco[garbage_mask], cuts=cut
                 )
                 mask_gam = get_energy_dependent_mask_data(
-                    DL2_file, pointing_table, pointing_alt_key, pointing_az_key,
+                    DL2_file, pointing_table, pointing_alt_key, pointing_az_key, CTLearn,
                     dl2, source_position,
                     energy_key,
                     gammaness_key, corresponding_model, transformed_reco[garbage_mask], False, cuts=cut
@@ -316,7 +326,9 @@ class DL2DataProcessor:
         intensity_cut: int=80,
         global_gammaness_cut: float=0.,
         # max_theta2: float=0.2,
+        workers=None
     ):
+        self.workers = workers
         mp.set_start_method("fork", force=True)
         faulthandler.enable()
         self.DL2_files = np.sort(DL2_files)
@@ -395,7 +407,7 @@ class DL2DataProcessor:
                 ]
                 file_theta_cuts = []
                 file_gammaness_cuts = []
-                with ProcessPoolExecutor() as executor:
+                with ProcessPoolExecutor(self.workers) as executor:
                     results = list(tqdm(executor.map(extract_cuts, file_args), desc=f"Creating masks [{cut.get_label()}]", total=len(file_args)))
                 for theta_cut, gammaness_cut in results:
                     file_theta_cuts.append(theta_cut)
@@ -490,8 +502,8 @@ class DL2DataProcessor:
         self.reco_az_key = (
             f"{self.reco_field_suffix}_az"  # if self.CTLearn else "reco_az"
         )
-        self.pointing_alt_key = "altitude"  # if self.CTLearn else "alt_tel"
-        self.pointing_az_key = "azimuth"  # if self.CTLearn else "az_tel"
+        self.pointing_alt_key = "altitude" if self.CTLearn else "alt_tel"
+        self.pointing_az_key = "azimuth" if self.CTLearn else "az_tel"
         self.time_key = "time"  # if self.CTLearn else "dragon_time"
 
     def process_DL2_data(self):
@@ -677,7 +689,7 @@ class DL2DataProcessor:
             for i, DL2_file in enumerate(self.DL2_files)
         ]
 
-        with ProcessPoolExecutor() as executor:
+        with ProcessPoolExecutor(self.workers) as executor:
             for result in tqdm(executor.map(load_one_worker, args_list), total=n_files, desc="Loading processed data"):
                 results.append(result)
         # Parallel loading
@@ -912,7 +924,7 @@ class DL2DataProcessor:
         on_count = np.zeros((n_g, n_theta), dtype=int)
         off_count = np.zeros((n_g, n_theta), dtype=int)
 
-        with ProcessPoolExecutor() as executor:
+        with ProcessPoolExecutor(self.workers) as executor:
             for i_g, i_theta, on_c, off_c in tqdm(executor.map(process_gt_tuple, bin_indices), desc="Computing on-off counts", total=len(bin_indices)):
                 on_count[i_g, i_theta] = on_c
                 off_count[i_g, i_theta] = off_c
@@ -2070,6 +2082,8 @@ class DL2DataProcessor:
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
         ax.set_ylabel("Differential sensitivity [% Obs. Flux.]")
+        ax.set_yticks([2, 3, 4])
+        ax.set_yticklabels(['2', '3', '4'])
         # ax.set_xlim(0.03, 2)
         # ax.set_ylim(2, 60)
         # ax.set_yticks([1, 10])
@@ -2372,6 +2386,8 @@ class DL2DataProcessor:
             #     I_g_on_counts_tot[i] + np.sqrt(I_g_on_counts_tot[i]),
             #     alpha=0.3,
             # )
+            print(I_g_off_counts_tot[i])
+            print(I_g_on_counts_tot[i])
 
         axs[0].set_ylabel("Excess Counts")
         axs[0].legend()

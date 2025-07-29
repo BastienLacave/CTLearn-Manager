@@ -46,6 +46,7 @@ __all__ = [
     "ColorTheme",
     "get_color",
     "set_global_theme",
+    "get_closest_rf_irf_files"
 ]
 
 
@@ -1457,6 +1458,44 @@ class CTLMDirectories:
         
         return self.get_irf_files(closest_zenith, closest_azimuth, cuts)
 
+    def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
+        """
+        Get the closest IRF files for the given zenith and azimuth.
+        :param zenith: The zenith angle in degrees.
+        :type zenith: float
+        :param azimuth: The azimuth angle in degrees.
+        :type azimuth: float
+        :param cuts: The cuts to apply.
+        :type cuts: Cuts
+        :return: A dictionary with the closest IRF files.
+        :rtype: dict
+        """
+        import glob
+        from pathlib import Path
+        from .. import resources
+        import importlib.resources as pkg_resources
+
+
+        assert cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED, "RF IRFs are only available for EFFICIENCY_OPTIMIZED cuts."
+
+        available_rf_irf_zeniths = [10, 23.63, 32.06, 43.2]
+        efficiency = cuts.efficiency_gammaness
+
+        with pkg_resources.path(resources, "LST_source_catalog.ecsv") as catalog_file:
+            catalog_table = Table.read(catalog_file, format="ascii.ecsv")
+
+        zeniths = available_rf_irf_zeniths
+
+
+        match = np.argmin(
+            np.abs(zeniths - zenith)
+        )
+
+        closest_zenith = zeniths[match] * u.deg
+        # /home/bastien.lacave/PhD/Software/CTLM/CTLearn-Manager/src/ctlearn_manager/resources/irfs_zen_10.00_gh-eff_0.4.fits.gz
+        
+        return pkg_resources.path(resources, f"irfs_zen_{closest_zenith}_gh-eff_{efficiency}.fits.gz")
+
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
@@ -1546,5 +1585,43 @@ class CTLMDirectories:
             cluster_configuration=cluser_config,
         )
         return model
+    
+def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
+    """
+    Get the closest IRF files for the given zenith and azimuth.
+    :param zenith: The zenith angle in degrees.
+    :type zenith: float
+    :param azimuth: The azimuth angle in degrees.
+    :type azimuth: float
+    :param cuts: The cuts to apply.
+    :type cuts: Cuts
+    :return: A dictionary with the closest IRF files.
+    :rtype: dict
+    """
+    import glob
+    from pathlib import Path
+    from .. import resources
+    import importlib.resources as pkg_resources
+
+
+    assert cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED, "RF IRFs are only available for EFFICIENCY_OPTIMIZED cuts."
+
+    available_rf_irf_zeniths = np.array([10, 23.63, 32.06, 43.2])
+    efficiency = cuts.efficiency_gammaness
+
+    with pkg_resources.path(resources, "LST_source_catalog.ecsv") as catalog_file:
+        catalog_table = Table.read(catalog_file, format="ascii.ecsv")
+
+    zeniths = available_rf_irf_zeniths
+
+
+    match = np.argmin(
+        np.abs(zeniths - zenith)
+    )
+
+    closest_zenith = zeniths[match] * u.deg
+    # /home/bastien.lacave/PhD/Software/CTLM/CTLearn-Manager/src/ctlearn_manager/resources/irfs_zen_10.00_gh-eff_0.4.fits.gz
+    
+    return pkg_resources.path(resources, f"irfs_zen_{closest_zenith.value:.2f}_gh-eff_{efficiency}.fits.gz")
 
         
