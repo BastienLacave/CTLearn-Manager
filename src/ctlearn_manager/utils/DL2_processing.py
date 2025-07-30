@@ -2082,8 +2082,14 @@ class DL2DataProcessor:
         ax.set_yscale("log")
         ax.set_xlabel("Reco Energy [TeV]")
         ax.set_ylabel("Differential sensitivity [% Obs. Flux.]")
-        ax.set_yticks([2, 3, 4])
-        ax.set_yticklabels(['2', '3', '4'])
+        # Add ticks 2, 3, 4 to the existing y-ticks
+        # yticks = list(ax.get_yticks())
+        # for tick in [2, 3, 4]:
+        #     if tick not in yticks:
+        #         yticks.append(tick)
+        # yticks = sorted(yticks)
+        # ax.set_yticks(yticks)
+        # ax.set_yticklabels([str(int(tick)) if tick in [2, 3, 4] else str(tick) for tick in yticks])
         # ax.set_xlim(0.03, 2)
         # ax.set_ylim(2, 60)
         # ax.set_yticks([1, 10])

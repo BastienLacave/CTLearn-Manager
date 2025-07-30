@@ -492,6 +492,7 @@ class TriModelCollection:
         figsize=None,
         plot_RF=False,
         compare_with: str = None,
+        output_file=None,
     ):
         """
         Plot the energy resolution for DL2 data.
@@ -569,7 +570,7 @@ class TriModelCollection:
                 l = f"RF {closest_zenith:.1f}°"
                 if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
-                ax.plot(RF_e, RF_e_res, label=l, color="k", zorder=0)
+                ax.plot(RF_e, RF_e_res, label=l, color=get_color('on_background'), zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
@@ -614,7 +615,7 @@ class TriModelCollection:
                         ref_e,
                         [0] * len(ref_e),
                         label=f"{compare_with} vs {compare_with}",
-                        color="k",
+                        color=get_color("on_background"),
                         zorder=0,
                     )
                 for tri_model, label in tqdm(
@@ -680,7 +681,11 @@ class TriModelCollection:
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file, dpi=300)
+            # print(f"Saved plot to {output_file}")
+        else:
+            plt.show()
 
     def plot_angular_resolution_DL2(
         self,
@@ -692,6 +697,7 @@ class TriModelCollection:
         figsize=None,
         plot_RF=False,
         compare_with: str = None,
+        output_file=None,
     ):
         
         compare_with_index = [
@@ -738,7 +744,7 @@ class TriModelCollection:
                 l = f"RF {closest_zenith:.1f}°"
                 if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
-                ax.plot(RF_e, RF_ang_res, label=l, color="k", zorder=0)
+                ax.plot(RF_e, RF_ang_res, label=l, color=get_color('on_background'), zorder=0)
             # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
@@ -784,7 +790,7 @@ class TriModelCollection:
                         ref_e,
                         [0] * len(ref_e),
                         label=f"{compare_with} vs {compare_with}",
-                        color="k",
+                        color=get_color("on_background"),
                         zorder=0,
                     )
                 for tri_model, label in tqdm(
@@ -844,7 +850,10 @@ class TriModelCollection:
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
     def plot_cuts(self, cuts: Cuts = DefaultCuts.EFF_70.value):
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
