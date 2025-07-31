@@ -864,6 +864,7 @@ class DL2DataProcessor:
         plt.xlabel(r"Separation [deg$^2$]")
         plt.ylabel("Counts")
         plt.title(f"{self.telscope_names[0]} Crab Nebula with {self.reconstruction_method}")
+        plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
             plt.close()

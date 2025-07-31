@@ -1261,15 +1261,17 @@ class CTLearnTriModelManager:
                 dl2_data[self.pointing_az_key][0] / np.pi * 180,
                 color=get_color("ctlearn_accent_1"),
                 label="Array pointing",
-                marker="x",
+                marker="o",
                 s=80,
+                edgecolor=get_color("ctlearn_accent_1"),
+                facecolor="none",
             )
             ax.hist2d(
                 dl2_data[self.reco_alt_key],
                 dl2_data[self.reco_az_key],
                 bins=100,
                 zorder=0,
-                cmap="viridis",
+                # cmap="viridis",
                 norm=plt.cm.colors.LogNorm(),
             )
             ax.set_xlabel("Altitude [deg]")
@@ -1377,7 +1379,7 @@ class CTLearnTriModelManager:
                 dl2_data[self.reco_energy_key],
                 dl2_data[self.true_energy_key],
                 bins=log_bins,
-                cmap="viridis",
+                # cmap="viridis",
                 norm=plt.cm.colors.LogNorm(),
             )
             ax.set_xlabel("CTLean Energy [TeV]")
@@ -1539,9 +1541,9 @@ class CTLearnTriModelManager:
         output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
         os.makedirs(output_directory, exist_ok=True)
 
-        output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.h5"
-        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.h5"
-        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.h5"
+        output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.fits"
+        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.fits.gz"
+        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.fits.gz"
 
         cmd = f"scp {config} {output_directory}"
         result = os.system(cmd)
