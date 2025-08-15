@@ -502,8 +502,8 @@ class DL2DataProcessor:
         self.reco_az_key = (
             f"{self.reco_field_suffix}_az"  # if self.CTLearn else "reco_az"
         )
-        self.pointing_alt_key = "altitude" if self.CTLearn else "alt_tel"
-        self.pointing_az_key = "azimuth" if self.CTLearn else "az_tel"
+        self.pointing_alt_key = "altitude" #if self.CTLearn else "alt_tel"
+        self.pointing_az_key = "azimuth" #if self.CTLearn else "az_tel"
         self.time_key = "time"  # if self.CTLearn else "dragon_time"
 
     def process_DL2_data(self):
@@ -546,7 +546,7 @@ class DL2DataProcessor:
                 return DL2_file, False
 
         # Parallel processing of all files
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(self.workers) as executor:
             results = list(executor.map(process_one, self.DL2_files))
 
         # Optionally, you can check which files failed

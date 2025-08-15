@@ -71,7 +71,7 @@ class RFCounterpart(DL2DataProcessor):
             self.DL2_files = []
             for run in tqdm(runs, desc="Fetching DL2 files from runs"):
                 DL2_file_run = glob.glob(
-                    f"/fefs/aswg/data/real/DL2/*/v0.*/tailcut*/nsb_tuning_*/dl2_LST-1.Run{run:05d}.h5"
+                    f"/fefs/aswg/data/real/DL2/*/v0.10/tailcut*/nsb_tuning_*/dl2_LST-1.Run{run:05d}.h5"
                 )[0]
                 self.DL2_files.append(DL2_file_run)
                 # self.DL2_files.append(f"/fefs/aswg/data/real/DL2/20220331/v0.10/tailcut84/nsb_tuning_0.14/dl2_LST-1.Run{run}.h5")
@@ -84,7 +84,14 @@ class RFCounterpart(DL2DataProcessor):
         self.DL2_files = np.sort(self.DL2_files)
 
         # self.CTLearnTriModelManager = CTLearnTriModelManager
+        self.stereo = self.CTLearnTriModelCollection.tri_models[0].stereo
         self.pointing_table = pointing_table
+        self.reconstruction_method = "RF"
+        self.reco_field_suffix = (
+            self.reconstruction_method
+            if self.stereo
+            else f"{self.reconstruction_method}_tel"
+        )
         self.source_position = source_position
         if self.CTLearn:
             self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_directory
