@@ -2636,3 +2636,48 @@ class DL2DataProcessor:
             output_file=f"{output_directory}/excess_and_background_rates_vs_energy_{suffix}.png"
         )
         self.plot_PSF(output_file=f"{output_directory}/psf_{suffix}.png")
+
+    @u.quantity_input(source_ra=u.deg, source_dec=u.deg)
+    def produce_dl3(
+        self,
+        output_dl3_directory: str,
+        source_name: str = "Crab",
+        source_ra: float = 83.633 * u.deg,
+        source_dec: float = 22.01 * u.deg,
+        cuts_index: int = 0,
+        overwrite: bool = False,
+        dl3_file_pattern: str = "LST-1.Run*.dl3.fits",
+        ):
+
+        os.makedirs(output_dl3_directory, exist_ok=True)
+
+        for dl2_file in self.DL2_files:
+            zenith, azimuth = get_avg_pointing(dl2_file, self.pointing_table, alt_key=self.pointing_alt_key, az_key=self.pointing_az_key)
+            irf_file = self.CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=self.cuts[cuts_index])['gammapy_irf_file']
+            irf_dir = os.path.dirname(irf_file)
+            irf_filename = os.path.basename(irf_file)
+            cmd = f"manager_create_dl3_file \
+-d {dl2_file} \
+-o {output_dl3_directory} \
+-i {irf_dir} \
+-p {irf_filename} \
+--source-name {source_name} \
+--source-ra {source_ra.to(u.deg).value}deg \
+--source-dec {source_dec.to(u.deg).value}deg \
+{'--overwrite ' if overwrite else ''} \
+--log-level DEBUG"
+            print(cmd)
+            success = os.system(cmd)
+            if success != 0:
+                print(f"Error creating DL3 file for {dl2_file}.")
+
+        cmd = f"manager_create_dl3_index_files \
+-d {output_dl3_directory}/ \
+-o {output_dl3_directory} \
+-p '{dl3_file_pattern}'  \
+--overwrite \
+--log-level DEBUG"
+        print(cmd)
+        success = os.system(cmd)
+        if success != 0:
+            print(f"Error creating DL3 index files in {output_dl3_directory}.")

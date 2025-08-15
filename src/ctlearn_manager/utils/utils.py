@@ -46,7 +46,8 @@ __all__ = [
     "ColorTheme",
     "get_color",
     "set_global_theme",
-    "get_closest_rf_irf_files"
+    "get_closest_rf_irf_files",
+    "convert_irf_format"
 ]
 
 
@@ -1343,7 +1344,7 @@ class ExportCurves:
 
 class CTLMDirectories:
 
-    def __init__(self, project_directory: str, tri_model_nickname: str):
+    def __init__(self, project_directory: str, tri_model_nickname: str, overwrite: bool = False):
         import os
         from pathlib import Path
 
@@ -1366,6 +1367,16 @@ class CTLMDirectories:
         self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
         self.post_processing_logs_directory = f"{self.logs_directory}/post_processing_logs"
         self.plots_directory = f"{self.project_directory}/plots/"
+
+
+        if Path(self.tri_models_directory).exists():
+            if not overwrite:
+                raise FileExistsError(
+                    f"TriModel {tri_model_nickname} already exists in {self.project_directory}. Use 'overwrite=True' to overwrite."
+                )
+            else:
+                get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
+                os.system(f"rm -rf {self.tri_models_directory}")
 
         os.makedirs(self.tri_models_directory, exist_ok=True)
         os.makedirs(self.energy_model_directory, exist_ok=True)
@@ -1392,12 +1403,14 @@ class CTLMDirectories:
         from pathlib import Path
 
         irf_dir = self.get_irf_directory(zenith, azimuth, cuts)
-        irf_file = f"{irf_dir}/irf_{zenith.value}_{azimuth.value}.h5"
-        cuts_file = f"{irf_dir}/cuts_{zenith.value}_{azimuth.value}.h5"
-        benchmark_file = f"{irf_dir}/benchmark_{zenith.value}_{azimuth.value}.h5"
+        irf_file = f"{irf_dir}/irf_{zenith.value}_{azimuth.value}.fits"
+        cuts_file = f"{irf_dir}/cuts_{zenith.value}_{azimuth.value}.fits"
+        benchmark_file = f"{irf_dir}/benchmark_{zenith.value}_{azimuth.value}.fits"
+        gammapy_irf_file = f"{irf_dir}/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
         config_file = f"{irf_dir}/config_{zenith.value}_{azimuth.value}.yaml"
 
-        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file()]
+        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file(), Path(gammapy_irf_file).is_file()]
+        # print(exist)
 
         if not all(exist):
             raise FileNotFoundError(
@@ -1409,6 +1422,7 @@ class CTLMDirectories:
             "cuts_file": cuts_file,
             "benchmark_file": benchmark_file,
             "config_file": config_file,
+            "gammapy_irf_file": gammapy_irf_file,
         }
     
     def get_closest_irf_files(self, zenith:float, azimuth:float, cuts:Cuts=None):
@@ -1625,3 +1639,174 @@ def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
     return pkg_resources.path(resources, f"irfs_zen_{closest_zenith.value:.2f}_gh-eff_{efficiency}.fits.gz")
 
         
+def convert_irf_format(irf_file, cuts_file, output_file):
+    """
+    Convert IRF file format by reading HDUs from irf and cuts files,
+    renaming them and their columns, and writing to a new FITS file.
+    
+    Parameters:
+    -----------
+    irf_file : str
+        Path to the input IRF file
+    cuts_file : str
+        Path to the input cuts file
+    output_file : str
+        Path to the output FITS file
+    """
+    from astropy.io import fits
+    import os
+    # HDU name mappings
+    irf_hdu_mapping = {
+        # 'old_name': 'new_name'
+        # Add your specific IRF HDU mappings here
+        # 'EFFECTIVE_AREA': 'AEFF_2D',
+        # 'ENERGY_DISPERSION': 'EDISP_2D',
+        # 'PSF': 'PSF_2D',
+        # 'BACKGROUND': 'BKG_2D'
+    }
+    
+    cuts_hdu_mapping = {
+        # 'old_name': 'new_name'
+        # Add your specific cuts HDU mappings here
+        # 'CUTS': 'CUTS_2D',
+        # 'THETA_CUTS': 'THETA_2D'
+    }
+    
+    # Column name mappings for each HDU
+    irf_column_mappings = {
+        # 'AEFF_2D': {
+        #     # 'old_column': 'new_column'
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'EFFAREA': 'EFFAREA'
+        # },
+        # 'EDISP_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'MIGRA_LO': 'MIGRA_LO',
+        #     'MIGRA_HI': 'MIGRA_HI'
+        # },
+        # 'PSF_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI'
+        # },
+        # 'BKG_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI'
+        # }
+    }
+    
+    cuts_column_mappings = {
+        # 'CUTS_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'CUT_VALUE': 'CUT'
+        # },
+        # 'THETA_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'THETA_CUT': 'THETA'
+        # }
+    }
+    
+    def rename_columns(hdu, column_mapping):
+        """Rename columns in a table HDU"""
+        
+        if not isinstance(hdu, fits.BinTableHDU) or not column_mapping:
+            return hdu
+        
+        # Get current column names
+        old_names = [col.name for col in hdu.columns]
+        
+        # Create new column definitions with renamed columns
+        new_columns = []
+        for col in hdu.columns:
+            old_name = col.name
+            new_name = column_mapping.get(old_name, old_name)
+            
+            # Create new column with updated name
+            new_col = fits.Column(
+                name=new_name,
+                format=col.format,
+                array=hdu.data[old_name],
+                unit=col.unit if hasattr(col, 'unit') else None
+            )
+            new_columns.append(new_col)
+        
+        # Create new table HDU with renamed columns
+        new_table = fits.BinTableHDU.from_columns(new_columns)
+        new_table.header.update(hdu.header)
+        return new_table
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    # Read the IRF file
+    with fits.open(irf_file) as irf_hdul:
+        # Read the cuts file
+        with fits.open(cuts_file) as cuts_hdul:
+            
+            # Create new HDU list for output
+            output_hdul = fits.HDUList()
+            
+            # Add primary HDU
+            primary_hdu = fits.PrimaryHDU()
+            output_hdul.append(primary_hdu)
+            
+            # Process IRF file HDUs
+            for i, hdu in enumerate(irf_hdul):
+                if i == 0:  # Skip primary HDU
+                    continue
+                
+                # Get HDU name
+                old_name = hdu.name if hasattr(hdu, 'name') and hdu.name else f"HDU_{i}"
+                new_name = irf_hdu_mapping.get(old_name, old_name)
+                
+                # Rename columns if mapping exists
+                column_mapping = irf_column_mappings.get(new_name, {})
+                processed_hdu = rename_columns(hdu, column_mapping)
+                
+                # Set the new HDU name
+                processed_hdu.name = new_name
+                
+                output_hdul.append(processed_hdu)
+            
+            # Process cuts file HDUs
+            for i, hdu in enumerate(cuts_hdul):
+                if i == 0:  # Skip primary HDU
+                    continue
+                
+                # Get HDU name
+                old_name = hdu.name if hasattr(hdu, 'name') and hdu.name else f"HDU_{i}"
+                new_name = cuts_hdu_mapping.get(old_name, old_name)
+                
+                # Rename columns if mapping exists
+                column_mapping = cuts_column_mappings.get(new_name, {})
+                processed_hdu = rename_columns(hdu, column_mapping)
+                
+                # Set the new HDU name
+                processed_hdu.name = new_name
+                # Add meta information to the HDU header
+                processed_hdu.header['GH_EFF'] = 0.7
+                
+                output_hdul.append(processed_hdu)
+            
+            # Write the output file
+            output_hdul.writeto(output_file, overwrite=True)
+            
+    print(f"Successfully converted IRF files to: {output_file}")
+    print(f"Output file contains {len(output_hdul)} HDUs")
+    
+    # Print summary of processed HDUs
+    with fits.open(output_file) as check_hdul:
+        print("\nProcessed HDUs:")
+        for i, hdu in enumerate(check_hdul):
+            if i == 0:
+                print(f"  {i}: PRIMARY")
+            else:
+                hdu_type = type(hdu).__name__
+                if isinstance(hdu, fits.BinTableHDU):
+                    col_names = [col.name for col in hdu.columns]
+                    print(f"  {i}: {hdu.name} ({hdu_type}) - Columns: {col_names}")
+                else:
+                    print(f"  {i}: {hdu.name} ({hdu_type})")

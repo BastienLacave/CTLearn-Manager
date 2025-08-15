@@ -14,7 +14,8 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "ctapipe==0.25.0",
+    "ctapipe>=0.25.0",
+    "ctapipe<0.26.0",
     "gammapy",
     "pyirf>=0.13.0",
     "ctaplot==0.6.3",
@@ -36,6 +37,8 @@ repository = "https://github.com/BastienLacave/CTLearn-Manager"
 [project.scripts]
 process_dl2_file = "ctlearn_manager.cli.dl2_processing_slurm:process_dl2_file"
 plot_dl2 = "ctlearn_manager.cli.dl2_plots_slurm:plot_dl2"
+manager_create_dl3_file = "ctlearn_manager.cli.manager_create_dl3_file:main"
+manager_create_dl3_index_files = "ctlearn_manager.cli.manager_create_dl3_index_files:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

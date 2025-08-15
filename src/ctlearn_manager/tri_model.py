@@ -25,6 +25,7 @@ from .utils.utils import (
     CutType,
     get_irf_type_from_config,
     get_color,
+    convert_irf_format,
 )
 
 __all__ = [
@@ -1542,8 +1543,9 @@ class CTLearnTriModelManager:
         os.makedirs(output_directory, exist_ok=True)
 
         output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.fits"
-        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.fits.gz"
-        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.fits.gz"
+        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.fits"
+        compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
+        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.fits"
 
         cmd = f"scp {config} {output_directory}"
         result = os.system(cmd)
@@ -1587,6 +1589,8 @@ class CTLearnTriModelManager:
             raise RuntimeError(
                 f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
+        
+        convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
         # for model in [
         #     self.direction_model,
         #     self.energy_model,
