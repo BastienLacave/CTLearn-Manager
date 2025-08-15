@@ -42,6 +42,15 @@ class CTLearnManagerProject:
             CTLearnModelManager: Instance of the CTLearnModelManager.
         """
         tri_model_nickname = tri_model_parameters.get("tri_model_nickname")
+        tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
+        if Path(tri_models_directory).exists():
+            if not overwrite:
+                raise FileExistsError(
+                    f"TriModel {tri_model_nickname} already exists in {self.project_directory}. Use 'overwrite=True' to overwrite."
+                )
+            else:
+                get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
+                os.system(f"rm -rf {tri_models_directory}")
         project_directories = CTLMDirectories(self.project_directory, tri_model_nickname, overwrite=overwrite)
         
 

@@ -1344,7 +1344,7 @@ class ExportCurves:
 
 class CTLMDirectories:
 
-    def __init__(self, project_directory: str, tri_model_nickname: str, overwrite: bool = False):
+    def __init__(self, project_directory: str, tri_model_nickname: str):
         import os
         from pathlib import Path
 
@@ -1369,14 +1369,7 @@ class CTLMDirectories:
         self.plots_directory = f"{self.project_directory}/plots/"
 
 
-        if Path(self.tri_models_directory).exists():
-            if not overwrite:
-                raise FileExistsError(
-                    f"TriModel {tri_model_nickname} already exists in {self.project_directory}. Use 'overwrite=True' to overwrite."
-                )
-            else:
-                get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
-                os.system(f"rm -rf {self.tri_models_directory}")
+        
 
         os.makedirs(self.tri_models_directory, exist_ok=True)
         os.makedirs(self.energy_model_directory, exist_ok=True)
