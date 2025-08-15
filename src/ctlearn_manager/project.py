@@ -51,7 +51,7 @@ class CTLearnManagerProject:
             else:
                 get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
                 os.system(f"rm -rf {tri_models_directory}")
-        project_directories = CTLMDirectories(self.project_directory, tri_model_nickname, overwrite=overwrite)
+        project_directories = CTLMDirectories(self.project_directory, tri_model_nickname)
         
 
         direction_reco = tri_model_parameters.get("direction_reco", "cameradirection")
