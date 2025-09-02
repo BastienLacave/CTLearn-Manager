@@ -326,7 +326,8 @@ class DL2DataProcessor:
         intensity_cut: int=80,
         global_gammaness_cut: float=0.,
         # max_theta2: float=0.2,
-        workers=None
+        workers=None,
+        reco_field_suffix = None,
     ):
         self.workers = workers
         mp.set_start_method("fork", force=True)
@@ -353,11 +354,14 @@ class DL2DataProcessor:
         # self.gammaness_cut = gammaness_cut
         self.pointing_table = pointing_table
         self.reconstruction_method = "CTLearn"
-        self.reco_field_suffix = (
-            self.reconstruction_method
-            if self.stereo
-            else f"{self.reconstruction_method}_tel"
-        )
+        if reco_field_suffix is None:
+            self.reco_field_suffix = (
+                self.reconstruction_method
+                if self.stereo
+                else f"{self.reconstruction_method}_tel"
+            )
+        else:
+            self.reco_field_suffix = self.reconstruction_method
         self.telescope_id = (
             self.CTLearnTriModelCollection.tri_models[0].telescope_ids
             if self.stereo

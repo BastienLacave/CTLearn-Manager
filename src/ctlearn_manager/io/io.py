@@ -120,12 +120,15 @@ def compute_diff(arr):
 def load_DL2_data(input_file, DL2DataProcessor):
     tel_id = DL2DataProcessor.telescope_id
     reco_method = DL2DataProcessor.reconstruction_method
-    path = "subarray" if DL2DataProcessor.stereo else "telescope"
+    path_dl2 = "subarray" # if DL2DataProcessor.stereo else "telescope"
+    path_dl1 = "telescope"
     tel = f"tel_{tel_id:03d}" if DL2DataProcessor.stereo else f"tel_{tel_id:03d}"
+    # tel = "" if path == "subarray" else f"tel_{tel_id:03d}"
     from astropy.table import hstack, join
     from ctapipe.io import read_table
 
-    pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
+    # pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
+    pointing = read_table(input_file, f"dl1/monitoring/{path_dl1}/pointing/tel_{tel_id:03d}")
     # pointing = read_table_hdf5(input_file, path=f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort("time")
 
@@ -133,15 +136,15 @@ def load_DL2_data(input_file, DL2DataProcessor):
 
     try:
         dl2_classification = read_table(
-            input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}"
+            input_file, f"dl2/event/{path_dl2}/classification/{reco_method}/"
         )
         dl2 = dl2_classification
     except:
-        print(f"Classification table not found for {reco_method}/{tel}")
+        print(f"Classification table not found for {reco_method}/")
 
     try:
         dl2_energy = read_table(
-            input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}"
+            input_file, f"dl2/event/{path_dl2}/energy/{reco_method}/"
         )
         dl2 = (
             join(dl2, dl2_energy, keys=["obs_id", "event_id"])
@@ -149,11 +152,11 @@ def load_DL2_data(input_file, DL2DataProcessor):
             else dl2_energy
         )
     except:
-        print(f"Energy table not found for {reco_method}/{tel}")
+        print(f"Energy table not found for {reco_method}/")
 
     try:
         dl2_geometry = read_table(
-            input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}"
+            input_file, f"dl2/event/{path_dl2}/geometry/{reco_method}/"
         )
         dl2 = (
             join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
@@ -161,9 +164,9 @@ def load_DL2_data(input_file, DL2DataProcessor):
             else dl2_geometry
         )
     except:
-        print(f"Geometry table not found for {reco_method}/{tel}")
+        print(f"Geometry table not found for {reco_method}/")
 
-    dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[
+    dl1 = read_table(input_file, f"dl1/event/{path_dl1}/parameters/{tel}")[
         ["obs_id", "event_id", "hillas_intensity"]
     ]
     dl2 = join(dl2, dl1, keys=["obs_id", "event_id"]) if dl2 is not None else dl1

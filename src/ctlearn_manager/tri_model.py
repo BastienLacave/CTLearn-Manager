@@ -756,21 +756,25 @@ class CTLearnTriModelManager:
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels {channel} "
-        type_model_dir = np.sort(
-            glob.glob(
-                f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"
-            )
-        )[-1]
-        energy_model_dir = np.sort(
-            glob.glob(
-                f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"
-            )
-        )[-1]
-        direction_model_dir = np.sort(
-            glob.glob(
-                f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"
-            )
-        )[-1]
+        # print(f"{self.project_directories.type_model_directory}/{self.project_directories.tri_model_nickname}_type/{self.project_directories.tri_model_nickname}_type_v*")
+        # type_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.type_model_directory}/{self.type_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        # energy_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.energy_model_directory}/{self.energy_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        # direction_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.direction_model_directory}/{self.direction_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        type_model_dir = self.project_directories.latest_type_model_directory
+        energy_model_dir = self.project_directories.latest_energy_model_directory
+        direction_model_dir = self.project_directories.latest_direction_model_directory
         allowed_tels = ast.literal_eval(
             self.direction_model.model_parameters_table["telescope_ids"][0]
         )
@@ -792,6 +796,9 @@ class CTLearnTriModelManager:
         config["LST1PredictionTool"]["output_path"] = output_file
         config["LST1PredictionTool"]["log_file"] = output_file.replace(".h5", ".log")
         config["LST1PredictionTool"]["overwrite"] = overwrite
+
+        if config_dir is None:
+            config_dir = self.project_directories.prediction_logs_directory
 
         config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, "w") as file:
