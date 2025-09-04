@@ -39,6 +39,7 @@ process_dl2_file = "ctlearn_manager.cli.dl2_processing_slurm:process_dl2_file"
 plot_dl2 = "ctlearn_manager.cli.dl2_plots_slurm:plot_dl2"
 manager_create_dl3_file = "ctlearn_manager.cli.manager_create_dl3_file:main"
 manager_create_dl3_index_files = "ctlearn_manager.cli.manager_create_dl3_index_files:main"
+manager_create_irf_files = "ctlearn_manager.cli.manager_create_irf_files:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

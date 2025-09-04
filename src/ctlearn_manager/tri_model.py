@@ -1598,6 +1598,22 @@ class CTLearnTriModelManager:
             )
         
         convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+
+        cmd = f"manager_create_irf_files \
+-g {gamma_file} \
+{proton_string} \
+-o {compatible_output_irf_file} \
+--energy-dependent-gh \
+--energy-dependent-theta \
+--gh-efficiency 0.7 \
+--theta-containment 0.7 \
+--overwrite "
+        print(cmd)
+        result_irfs = os.system(cmd)
+        if result_irfs != 0:
+            raise RuntimeError(
+                f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
+            )
         # for model in [
         #     self.direction_model,
         #     self.energy_model,
