@@ -87,6 +87,30 @@ def process_dl2_file():
         dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
     print(f"Loaded {len(dl2)} events", flush=True)
     print(dl2.colnames, flush=True)
+    required_keys = [
+        processor.reco_az_key,
+        processor.reco_alt_key,
+        processor.pointing_az_key,
+        processor.pointing_alt_key,
+        processor.time_key,
+    ]
+
+    missing_keys = [key for key in required_keys if key not in dl2.colnames]
+    if missing_keys:
+        # raise KeyError(f"Missing required keys in dl2 data: {missing_keys}")
+        print(f"Loading {DL2_file}", flush=True)
+        if processor.CTLearn:
+            dl2 = load_DL2_data(DL2_file, processor)
+        else:
+            dl2 = load_DL2_data_RF(DL2_file, processor)
+        if processor.gammaness_key in dl2.colnames:
+            dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
+        with open(dl2_output_file, "wb") as f:
+            pickle.dump(dl2, f)
+        print(f"Saved processed DL2 data to {dl2_output_file}", flush=True)
+    
+    print(f"Loaded {len(dl2)} events", flush=True)
+    print(dl2.colnames, flush=True)
     # cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
     # dl2_cuts = dl2[cut_mask]
     # print(f"{len(dl2_cuts)} events after cuts", flush=True)
