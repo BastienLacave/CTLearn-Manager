@@ -69,6 +69,9 @@ from lstchain.paths import (
 from lstchain.reco.utils import get_geomagnetic_delta
 import numpy as np
 from numba import njit
+import operator
+
+from pyirf.cuts import calculate_percentile_cut, evaluate_binned_cut
 
 
 __all__ = ["DataReductionFITSWriter"]
@@ -200,15 +203,19 @@ def compute_diff(arr):
         diff[i] = arr[i] - arr[i - 1]
     return diff
 
-def load_DL2_data(input_file):
+def load_DL2_data(input_file, path = 'subarray'):
     tel_id =  1
     reco_method = "CTLearn"
-    path = "telescope"
-    tel = f"tel_{tel_id:03d}"
+    path_dl1 = "telescope"
+    # path = "telescope"
+    if path == 'telescope':
+        tel = f"tel_{tel_id:03d}"
+    else:
+        tel = ""
     from astropy.table import hstack, join
     from ctapipe.io import read_table
 
-    pointing = read_table(input_file, f"dl1/monitoring/{path}/pointing/{tel}")
+    pointing = read_table(input_file, f"dl1/monitoring/{path_dl1}/pointing/tel_{tel_id:03d}")
     # pointing = read_table_hdf5(input_file, path=f"dl1/monitoring/{path}/pointing/{tel}")
     pointing.sort("time")
 
@@ -277,11 +284,15 @@ def read_data_dl2_to_QTable(filename, srcdep_pos=None):
     # Mapping
     name_mapping = {
         "CTLearn_tel_prediction": "gh_score",
+        "CTLearn_prediction": "gh_score",
         "altitude": "pointing_alt",
         "azimuth": "pointing_az",
         "CTLearn_tel_energy": "reco_energy",
+        "CTLearn_energy": "reco_energy",
         "CTLearn_tel_alt": "reco_alt",
+        "CTLearn_alt": "reco_alt",
         "CTLearn_tel_az": "reco_az",
+        "CTLearn_az": "reco_az",
         "time": "dragon_time",
     }
     unit_mapping = {
@@ -330,8 +341,13 @@ def read_data_dl2_to_QTable(filename, srcdep_pos=None):
     data_params["ZEN_PNT"] = round(zen.to_value(u.deg), 5) * u.deg
     data_params["AZ_PNT"] = round(az.to_value(u.deg), 5) * u.deg
     data_params["B_DELTA"] = round(b_delta.to_value(u.deg), 5) * u.deg
+
+    # Add 'tel_id' column if not present, filled with ones
+    if 'tel_id' not in data.colnames:
+        data['tel_id'] = np.ones(len(data), dtype=int)
     # print(data_params)
     return data, data_params
+
 
 
 class DataReductionFITSWriter(Tool):
@@ -622,17 +638,23 @@ class DataReductionFITSWriter(Tool):
                 "AL_CUT" not in self.irf_final_hdu["EFFECTIVE AREA"].header
             )
 
+    
+
     def apply_srcindep_gh_cut(self):
         """
         Apply gammaness cut.
         """
+        print(self.data.colnames)
+        for col in ['CTLearn_telescopes_1', 'CTLearn_telescopes_2', 'CTLearn_telescopes']:
+            if col in self.data.colnames:
+                self.data.remove_column(col)
         self.data = self.event_sel.filter_cut(self.data)
 
         if self.use_energy_dependent_gh_cuts:
             self.energy_dependent_gh_cuts = QTable.read(
                 self.irf_final_hdu["GH_CUTS"]
             )
-
+            print(self.cuts)
             self.data = self.cuts.apply_energy_dependent_gh_cuts(
                 self.data, self.energy_dependent_gh_cuts
             )

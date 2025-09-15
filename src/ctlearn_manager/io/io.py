@@ -257,7 +257,7 @@ def load_DL2_data_chunked(input_file, DL2DataProcessor, chunk_size=10000):
     return dl2
 
 
-def load_DL2_data(input_file, DL2DataProcessor, use_chunking=True, chunk_size=10000):
+def load_DL2_data(input_file, DL2DataProcessor, use_chunking=False, chunk_size=10000):
     """Load DL2 data with optional chunking for memory efficiency."""
     if use_chunking:
         return load_DL2_data_chunked(input_file, DL2DataProcessor, chunk_size)

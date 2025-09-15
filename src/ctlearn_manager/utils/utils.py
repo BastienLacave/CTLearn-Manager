@@ -47,7 +47,8 @@ __all__ = [
     "get_color",
     "set_global_theme",
     "get_closest_rf_irf_files",
-    "convert_irf_format"
+    "convert_irf_format",
+    "produce_dl3",
 ]
 
 
@@ -1806,3 +1807,66 @@ def convert_irf_format(irf_file, cuts_file, output_file):
                     print(f"  {i}: {hdu.name} ({hdu_type}) - Columns: {col_names}")
                 else:
                     print(f"  {i}: {hdu.name} ({hdu_type})")
+
+@u.quantity_input(source_ra=u.deg, source_dec=u.deg)
+def produce_dl3(
+    dl2_files: list[str],
+    CTLearnTriModelCollection,
+    output_dl3_directory: str,
+    pointing_table = "dl1/monitoring/telescope/pointing/tel_001",
+    source_name: str = "Crab",
+    source_ra: float = 83.633 * u.deg,
+    source_dec: float = 22.01 * u.deg,
+    cuts: Cuts = DefaultCuts.EFF_70.value,
+    overwrite: bool = False,
+    dl3_file_pattern: str = "LST-1.Run*.dl3.fits",
+    pointing_alt_key = "altitude",
+    pointing_az_key = "azimuth",
+    cluster_configuration = ClusterConfiguration(),
+    ):
+    import os
+    from pathlib import Path
+
+    os.makedirs(output_dl3_directory, exist_ok=True)
+
+    for dl2_file in dl2_files:
+        zenith, azimuth = get_avg_pointing(dl2_file, pointing_table, alt_key=pointing_alt_key, az_key=pointing_az_key)
+        irf_file = CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=cuts)['gammapy_irf_file']
+        irf_dir = os.path.dirname(irf_file)
+        irf_filename = os.path.basename(irf_file)
+        cmd = f"manager_create_dl3_file \
+-d {dl2_file} \
+-o {output_dl3_directory} \
+-i {irf_dir} \
+-p {irf_filename} \
+--source-name {source_name} \
+--source-ra {source_ra.to(u.deg).value}deg \
+--source-dec {source_dec.to(u.deg).value}deg \
+{'--overwrite ' if overwrite else ''} \
+--log-level DEBUG"
+        print(cmd)
+        output_file = os.path.join(output_dl3_directory, os.path.basename(dl2_file).replace(".h5", ".fits").replace("dl2", "dl3"))
+        print(output_file)
+        if not os.path.exists(output_file) or overwrite:
+            if cluster_configuration.use_cluster:
+                sbatch_file = cluster_configuration.write_sbatch_script(
+                    Path(dl2_file).stem, cmd, output_dl3_directory
+                )
+                os.system(f"sbatch {sbatch_file}")
+            else:
+            
+                success = os.system(cmd)
+                if success != 0:
+                    print(f"Error creating DL3 file for {dl2_file}.")
+
+
+    cmd = f"manager_create_dl3_index_files \
+-d {output_dl3_directory}/ \
+-o {output_dl3_directory} \
+-p '{dl3_file_pattern}'  \
+--overwrite \
+--log-level DEBUG"
+    print(cmd)
+    success = os.system(cmd)
+    if success != 0:
+        print(f"Error creating DL3 index files in {output_dl3_directory}.")
