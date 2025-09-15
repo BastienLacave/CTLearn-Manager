@@ -1538,13 +1538,17 @@ class CTLearnTriModelManager:
         match irf_type:
             case IRFType.EFFICIENCY_OPTIMIZED:
                 cuts_type = CutType.EFFICIENCY_OPTIMIZED
+                cuts = Cuts(
+                    cuts_type,
+                    efficiency_gammaness=gammaness_efficiency,
+                    efficiency_theta=theta_efficiency,
+                )
             case IRFType.SENSITIVITY_OPTIMIZED:
                 cuts_type = CutType.SENSITIVITY_OPTIMIZED
-        cuts = Cuts(
-            cuts_type,
-            efficiency_gammaness=gammaness_efficiency,
-            efficiency_theta=theta_efficiency,
-        )
+                cuts = Cuts(
+                    cuts_type,
+                )
+        
 
         output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
         os.makedirs(output_directory, exist_ok=True)
