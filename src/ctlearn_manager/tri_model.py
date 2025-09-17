@@ -1547,6 +1547,10 @@ class CTLearnTriModelManager:
                 cuts_type = CutType.SENSITIVITY_OPTIMIZED
                 cuts = Cuts(
                     cuts_type,
+                    gammaness_cut=None,
+                    theta_cut=None,
+                    efficiency_gammaness=None,
+                    efficiency_theta=None,
                 )
         
 
@@ -1602,8 +1606,9 @@ class CTLearnTriModelManager:
             )
         
         convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+        if not self.stereo:
 
-        cmd = f"manager_create_irf_files \
+            cmd = f"manager_create_irf_files \
 -g {gamma_file} \
 {proton_string} \
 -o {compatible_output_irf_file} \
@@ -1612,11 +1617,11 @@ class CTLearnTriModelManager:
 --gh-efficiency 0.7 \
 --theta-containment 0.7 \
 --overwrite "
-        print(cmd)
-        result_irfs = os.system(cmd)
-        if result_irfs != 0:
-            raise RuntimeError(
-                f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
+            print(cmd)
+            result_irfs = os.system(cmd)
+            if result_irfs != 0:
+                raise RuntimeError(
+                    f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
         # for model in [
         #     self.direction_model,
