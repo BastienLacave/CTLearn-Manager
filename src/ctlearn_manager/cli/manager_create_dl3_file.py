@@ -45,7 +45,7 @@ from ctapipe.core import (
     ToolConfigurationError,
     traits,
 )
-import pandas as pd
+# import pandas as pd
 
 from lstchain.io import (
     EventSelector,
@@ -71,6 +71,12 @@ import numpy as np
 from numba import njit
 import operator
 
+from ctapipe.io import TableLoader
+from astropy.table import vstack
+from tqdm import tqdm
+from ctapipe.monitoring import PointingInterpolator
+import gc
+
 from pyirf.cuts import calculate_percentile_cut, evaluate_binned_cut
 
 
@@ -78,6 +84,65 @@ __all__ = ["DataReductionFITSWriter"]
 
 dl2_params_src_dep_lstcam_key = "/dl2/event/telescope/parameters_src_dependent/LST_LSTCam"
 dl2_params_lstcam_key = "/dl2/event/telescope/parameters/LST_LSTCam"
+
+# Array of all column names used in this script
+REQUIRED_COLUMNS = [
+    # Time and event identification
+    "time",
+    "dragon_time", 
+    "delta_t",
+    "obs_id",
+    "event_id",
+    
+    # Pointing information
+    "altitude",
+    "azimuth", 
+    "pointing_alt",
+    "pointing_az",
+    
+    # Reconstruction results
+    "CTLearn_tel_prediction",
+    "CTLearn_prediction", 
+    "gh_score",
+    "CTLearn_tel_energy",
+    "CTLearn_energy",
+    "reco_energy",
+    "CTLearn_tel_alt",
+    "CTLearn_alt", 
+    "reco_alt",
+    "CTLearn_tel_az",
+    "CTLearn_az",
+    "reco_az",
+    "CTLearn_is_valid",
+    
+    # Telescope information
+    "tel_id",
+]
+
+
+
+def filter_columns(data, required_columns=REQUIRED_COLUMNS):
+    """
+    Ensure that the data table contains only the required columns.
+    If any required column is missing, raise an error.
+
+    Parameters
+    ----------
+    data: `astropy.table.QTable`
+        The input data table to be filtered.
+    required_columns: list of str
+        List of required column names.
+
+    Returns
+    -------
+    filtered_data: `astropy.table.QTable`
+        The filtered data table containing only the required columns.
+    """
+    present_columns = [col for col in required_columns if col in data.colnames]
+    filtered_data = data[present_columns]
+    return filtered_data
+
+__all__ = ["DataReductionFITSWriter", "REQUIRED_COLUMNS"]
 
 def get_effective_time(events, CTLearn=True, time_key='dragon_time'):
     # Extract timestamps and delta_t as numpy arrays
@@ -215,38 +280,96 @@ def load_DL2_data(input_file, path = 'subarray'):
     from astropy.table import hstack, join
     from ctapipe.io import read_table
 
-    pointing = read_table(input_file, f"dl1/monitoring/{path_dl1}/pointing/tel_{tel_id:03d}")
-    # pointing = read_table_hdf5(input_file, path=f"dl1/monitoring/{path}/pointing/{tel}")
-    pointing.sort("time")
-
-    dl2 = None
+    loader = TableLoader(input_url=input_file)
+    n_tot = len(loader)
 
 
-    dl2_classification = read_table(
-        input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}"
+    subarray_events_chunk = loader.read_subarray_events(
+        start=0,
+        stop=2,
+        dl2=True,
+        simulated=False,
+        observation_info=True,
     )
-    dl2 = dl2_classification
+    present_columns = [col for col in REQUIRED_COLUMNS if col in subarray_events_chunk.colnames]
+
+    chunk_size = 10000
+    start = 0
+    n = 0
+
+    for i in tqdm(range((n_tot + chunk_size - 1) // chunk_size), desc="Loading events"):
+        stop = min(start + chunk_size, n_tot)
+        
+        subarray_events_chunk = loader.read_subarray_events(
+            start=start,
+            stop=stop,
+            dl2=True,
+            simulated=False,
+            observation_info=True,
+        )
+        
+        if len(subarray_events_chunk) == 0:
+            break
+        
+        assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_1']).all()
+        assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_2']).all()
+
+        is_valid_mask = subarray_events_chunk['CTLearn_is_valid']
+        subarray_events_chunk = subarray_events_chunk[is_valid_mask]
+
+        subarray_events_chunk = subarray_events_chunk[present_columns]
+        n += len(subarray_events_chunk)
+        # print(f"Loaded {n} events", end="\r")
+        
+        if start == 0:
+            dl2 = subarray_events_chunk
+        else:
+            dl2 = vstack([dl2, subarray_events_chunk])
+        
+        start = stop
+        
+        if stop >= n_tot:
+            break
+
+    del subarray_events_chunk
+    gc.collect()
+
+    
 
 
-    dl2_energy = read_table(
-        input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}"
-    )
-    dl2 = (
-        join(dl2, dl2_energy, keys=["obs_id", "event_id"])
-        if dl2 is not None
-        else dl2_energy
-    )
+    # dl2 = None
+
+
+    # dl2_classification = read_table(
+    #     input_file, f"dl2/event/{path}/classification/{reco_method}/{tel}",
+    # )
+    # dl2_classification = filter_columns(dl2_classification)
+    # dl2 = dl2_classification
+    # print("Loaded classification")
+
+    # dl2_energy = read_table(
+    #     input_file, f"dl2/event/{path}/energy/{reco_method}/{tel}"
+    # )
+    # dl2_energy = filter_columns(dl2_energy)
+    # dl2 = (
+    #     join(dl2, dl2_energy, keys=["obs_id", "event_id"])
+    #     if dl2 is not None
+    #     else dl2_energy
+    # )
+    # print("Loaded energy")
 
 
 
-    dl2_geometry = read_table(
-        input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}"
-    )
-    dl2 = (
-        join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
-        if dl2 is not None
-        else dl2_geometry
-    )
+    # dl2_geometry = read_table(
+    #     input_file, f"dl2/event/{path}/geometry/{reco_method}/{tel}"
+    # )
+    # dl2_geometry = filter_columns(dl2_geometry)
+    # dl2 = (
+    #     join(dl2, dl2_geometry, keys=["obs_id", "event_id"])
+    #     if dl2 is not None
+    #     else dl2_geometry
+    # )
+    # print("Loaded geometry")
 
 
     # dl1 = read_table(input_file, f"dl1/event/{path}/parameters/{tel}")[
@@ -254,8 +377,9 @@ def load_DL2_data(input_file, path = 'subarray'):
     # ]
     # dl2 = join(dl2, dl1, keys=["obs_id", "event_id"]) if dl2 is not None else dl1
 
-    dl2.sort("event_id")
-    dl2 = hstack([dl2, pointing])
+    pointing = read_table(input_file, f"dl1/monitoring/{path_dl1}/pointing/tel_{tel_id:03d}")
+    dl2 = join(dl2, pointing, keys=["time"])
+    print("Loaded pointings")
     dl2.sort("time")
 
     # print("Computing time differences...")
@@ -645,9 +769,9 @@ class DataReductionFITSWriter(Tool):
         Apply gammaness cut.
         """
         print(self.data.colnames)
-        for col in ['CTLearn_telescopes_1', 'CTLearn_telescopes_2', 'CTLearn_telescopes']:
-            if col in self.data.colnames:
-                self.data.remove_column(col)
+        # for col in ['CTLearn_telescopes_1', 'CTLearn_telescopes_2', 'CTLearn_telescopes']:
+        #     if col in self.data.colnames:
+        #         self.data.remove_column(col)
         self.data = self.event_sel.filter_cut(self.data)
 
         if self.use_energy_dependent_gh_cuts:
@@ -742,6 +866,7 @@ class DataReductionFITSWriter(Tool):
 
     def start(self):
         self.source_dep = False
+        self.log.info(f"Loading data from {self.input_dl2}")
 
         if not self.source_dep:
             self.data, self.data_params = read_data_dl2_to_QTable(self.input_dl2)
