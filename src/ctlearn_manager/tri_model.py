@@ -1592,6 +1592,8 @@ class CTLearnTriModelManager:
         pointlike=True,
         electrons=False,
         unblinded=True,
+        resume_file_index=None,
+        resume_cut_index=None,
         overwrite=False,
     ):
         """
@@ -1699,32 +1701,39 @@ class CTLearnTriModelManager:
         config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
 
         electron_string = f"--electron-file {electron_file}" if electrons else ""
-        for g, gamma_file in enumerate(gamma_files):
-            output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{g}.fits"
-            cmd = f"ctapipe-optimize-event-selection \
+        if resume_file_index is None and resume_cut_index is None:
+            for g, gamma_file in enumerate(gamma_files):
+                output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{g}.fits"
+                cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
 --proton-file {proton_file} \
 {electron_string} \
 --output {output_cuts_file} \
 --overwrite True"
-            print(cmd)
-            result_cuts = os.system(cmd)
-            if result_cuts != 0:
-                raise RuntimeError(
-                    f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
-            )
+                print(cmd)
+                result_cuts = os.system(cmd)
+                if result_cuts != 0:
+                    raise RuntimeError(
+                        f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
+                )
         for g, gamma_file in enumerate(gamma_files):
+            # Skip the previous files if resuming
+            if resume_file_index is not None and g < resume_file_index:
+                continue
             for i in range(len(gamma_files)):
+                # Skip the previous cuts if resuming
+                if resume_cut_index is not None and i < resume_cut_index:
+                    continue
                 # Skip the current gamma file if unblinded
                 if i == g and unblinded:
                     continue
-                output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{i}.fits"
-                output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
-                compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
-                output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
+                cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{i}.fits"
+                output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
+                compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
+                output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
                 cmd = f"ctapipe-compute-irf \
--c {config} --IrfTool.cuts_file {output_cuts_file} \
+-c {config} --IrfTool.cuts_file {cuts_file} \
 --gamma-file {gamma_file} \
 --proton-file {proton_file} \
 {electron_string} \
@@ -1738,7 +1747,7 @@ class CTLearnTriModelManager:
                     raise RuntimeError(
                         f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
                     )
-                convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+                convert_irf_format(output_irf_file, cuts_file, compatible_output_irf_file)
 
 
 
