@@ -1082,7 +1082,7 @@ class DL2DataProcessor:
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
 
-    def plot_skymap(self, output_file=None, cuts_index=0):
+    def plot_skymap(self, output_file=None, cuts_index=0, n_off=5):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
@@ -1154,7 +1154,7 @@ class DL2DataProcessor:
             if len(pointing) == 0:
                 print("No pointings available for this cuts index, skipping plotting.")
                 continue
-            off_regions = self.compute_off_regions(pointing[0], n_off=5)
+            off_regions = self.compute_off_regions(pointing[0], n_off=n_off)
             ax.scatter(
                 pointing.ra.deg,
                 pointing.dec.deg,
