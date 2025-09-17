@@ -1410,9 +1410,6 @@ class CTLearnTriModelManager:
         zenith: float,
         azimuth: float,
         config: str,
-        # output_cuts_file: str,
-        # output_irf_file: str,
-        # output_benchmark_file: str,
         pointlike=True,
         electrons=False,
         protons=True,
@@ -1433,12 +1430,6 @@ class CTLearnTriModelManager:
             Azimuth angle of the observation in degrees.
         config : str
             Path to the configuration file for IRF generation.
-        output_cuts_file : str
-            Path to save the generated cuts file.
-        output_irf_file : str
-            Path to save the generated IRF file.
-        output_benchmark_file : str
-            Path to save the generated benchmark file.
         pointlike : bool, optional
             If True, use point-like gamma files. If False, use diffuse gamma files.
             Default is True.
@@ -1466,38 +1457,6 @@ class CTLearnTriModelManager:
         """
         import os
         from pathlib import Path
-
-        # irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
-        # match irf_type:
-        #     case IRFType.EFFICIENCY_OPTIMIZED:
-        #         cuts_type = CutsType.EFFICIENCY_OPTIMIZED
-        #     case IRFType.SENSITIVITY_OPTIMIZED:
-        #         cuts_type = CutsType.SENSITIVITY_OPTIMIZED
-        # cuts = Cuts(cuts_type, gammaness_efficiency = gammaness_efficiency, theta_efficiency = theta_efficiency)
-        # if config is None:
-        #     try:
-        #         config = self.direction_model.get_IRF_data(zenith, azimuth)[0]
-        #     except:
-        #         raise ValueError("A configuration file must be provided, at least the first time.")
-        # if output_cuts_file is None:
-        #     try:
-        #         output_cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
-        #     except:
-        #         raise ValueError("An output cuts file must be provided, at least the first time.")
-        # if output_irf_file is None:
-        #     try:
-        #         output_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        #     except:
-        #         raise ValueError("An output IRF file must be provided, at least the first time.")
-        # if output_benchmark_file is None:
-        #     try:
-        #         output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
-        #     except:
-        #         raise ValueError("An output benchmark file must be provided, at least the first time.")
-
-        # print(
-        #     "⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting."
-        # )
 
         if pointlike:
             gamma_files = self.project_directories.get_dl2_mc_files(
@@ -1583,7 +1542,6 @@ class CTLearnTriModelManager:
 --output {output_cuts_file} \
 --overwrite True"
         print(cmd)
-        # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
         result_cuts = os.system(cmd)
         if result_cuts != 0:
             raise RuntimeError(
@@ -1623,43 +1581,166 @@ class CTLearnTriModelManager:
                 raise RuntimeError(
                     f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
-        # for model in [
-        #     self.direction_model,
-        #     self.energy_model,
-        #     self.type_model,
-        # ]:
-        #     model.update_model_manager_IRF_data(
-        #         config,
-        #         output_cuts_file,
-        #         output_irf_file,
-        #         output_benchmark_file,
-        #         zenith,
-        #         azimuth,
-        #     )
-        # self.direction_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
-        # self.energy_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
-        # self.type_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
+
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def produce_irfs_with_uncertainties(
+        self,
+        zenith: float,
+        azimuth: float,
+        config: str,
+        pointlike=True,
+        electrons=False,
+        unblinded=True,
+        overwrite=False,
+    ):
+        """
+        Produce Instrument Response Functions (IRFs) for given observational parameters.
+
+        This method generates IRFs, cuts files, and benchmark files for a specified
+        zenith and azimuth angle using the provided configuration. It supports
+        processing gamma, electron, and proton particle types.
+
+        Parameters
+        ----------
+        zenith : float
+            Zenith angle of the observation in degrees.
+        azimuth : float
+            Azimuth angle of the observation in degrees.
+        config : str
+            Path to the configuration file for IRF generation.
+        pointlike : bool, optional
+            If True, use point-like gamma files. If False, use diffuse gamma files.
+            Default is True.
+        electrons : bool, optional
+            If True, include electron files in the IRF generation. Default is False.
+        overwrite : bool, optional
+            If True, overwrite existing output files. Default is False.
+
+        Raises
+        ------
+        ValueError
+            If multiple files are found for a particle type or if required parameters
+            are missing.
+        RuntimeError
+            If the system commands for generating cuts or IRFs fail.
+
+        Notes
+        -----
+        - Ensure that the configuration file and input files are not moved or deleted
+          as they are extensively used in the code for plotting and analysis.
+        - Use `CTLearnTriModelManager.merge_DL2_files()` to merge multiple files
+          before calling this method if necessary.
+        """
+        import os
+        from pathlib import Path
+
+        if pointlike:
+            gamma_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=False
+            )[ParticleType.GAMMA_POINT.value]
+        else:
+            gamma_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=False
+            )[ParticleType.GAMMA_DIFFUSE.value]
+        if len(gamma_files) == 1:
+            raise ValueError(
+                f"Only one file found for gamma, zenith {zenith} and azimuth {azimuth}, please use produce_irfs() instead."
+            )
+        if electrons:
+            electrons_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
+            )[ParticleType.ELECTRON.value]
+            if len(electrons_files) > 1:
+                raise ValueError(
+                    f"Multiple files found for electrons, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()"
+                )
+            electron_file = electrons_files[0]
+
+        proton_files = self.project_directories.get_dl2_mc_files(
+            zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
+        )[ParticleType.PROTON.value]
+        if len(proton_files) > 1:
+            raise ValueError(
+                f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()"
+            )
+        proton_file = proton_files[0]
+        
+        irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
+
+        # Check that irf_type is sensitivity optimized otherwise raise error
+        if irf_type.value != "sensitivity_optimized":
+            raise ValueError(
+                "For unblinded IRFs with uncertainties, only sensitivity optimized IRFs are supported. "
+                f"Current IRF type in config is {irf_type.value}. Please update the config file."
+            )
+        # Init a Cuts object for optimization the sensitivity
+        cuts = Cuts(
+            CutType.SENSITIVITY_OPTIMIZED,
+            gammaness_cut=None,
+            theta_cut=None,
+            efficiency_gammaness=None,
+            efficiency_theta=None,
+        )
+
+        irf_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
+        os.makedirs(irf_directory, exist_ok=True)
+        output_directory = f"{irf_directory}/IRFs_with_uncertainties/"
+        os.makedirs(output_directory, exist_ok=True)
+
+        cmd = f"scp {config} {output_directory}"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to copy config file to output directory : {result}"
+
+        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml : {result}"
+
+        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+
+        electron_string = f"--electron-file {electron_file}" if electrons else ""
+        for g, gamma_file in enumerate(gamma_files):
+            output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{g}.fits"
+            cmd = f"ctapipe-optimize-event-selection \
+-c {config} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file} \
+{electron_string} \
+--output {output_cuts_file} \
+--overwrite True"
+            print(cmd)
+            result_cuts = os.system(cmd)
+            if result_cuts != 0:
+                raise RuntimeError(
+                    f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
+            )
+        for g, gamma_file in enumerate(gamma_files):
+            for i in range(len(gamma_files)):
+                # Skip the current gamma file if unblinded
+                if i == g and unblinded:
+                    continue
+                output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{i}.fits"
+                output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
+                compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
+                output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}_{i}_with_cuts_{g}.fits"
+                cmd = f"ctapipe-compute-irf \
+-c {config} --IrfTool.cuts_file {output_cuts_file} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file} \
+{electron_string} \
+--do-background \
+--output {output_irf_file} \
+--benchmark-output {output_benchmark_file} \
+--no-spatial-selection-applied --overwrite"
+                print(cmd)
+                result_irfs = os.system(cmd)
+                if result_irfs != 0:
+                    raise RuntimeError(
+                        f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
+                    )
+                convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+
+
 
     def plot_sensitivity_benchmark(
         self,

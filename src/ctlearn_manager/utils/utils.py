@@ -1532,7 +1532,7 @@ class CTLMDirectories:
             else:
                 dl2_directory = self.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
 
-            _dl2_files = glob.glob(f"{dl2_directory}/*.h5")
+            _dl2_files = sorted(glob.glob(f"{dl2_directory}/*.h5"))
             # if len(_dl2_files) == 0:
             #     if merged:
             #         raise FileNotFoundError(
