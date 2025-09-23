@@ -24,7 +24,6 @@ dependencies = [
     "ctlearn",
     "astropy",
     "matplotlib==3.10.0",
-    "lstchain==0.11.3",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
