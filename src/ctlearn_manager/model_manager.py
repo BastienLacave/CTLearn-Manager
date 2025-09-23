@@ -462,7 +462,7 @@ class CTLearnModelManager:
                 _save_best_validation_only = True
                 model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
-                os.system(f"mkdir -p {model_dir}")
+                # os.system(f"mkdir -p {model_dir}")
             else:
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
@@ -474,13 +474,13 @@ class CTLearnModelManager:
                     _save_best_validation_only = True
                 else:
                     print(f"🆕 Model does not exist: will create {model_dir}")
-                    _save_best_validation_only = False
+                    _save_best_validation_only = True
         else:
             model_version = 0
             model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
             print(f"🆕 Model does not exist: will create {model_dir}")
-            os.system(f"mkdir -p {model_dir}")
-            _save_best_validation_only = False
+            os.system(f"mkdir -p {base_model_dir}")
+            _save_best_validation_only = True
 
         if save_best_validation_only is not None:
             _save_best_validation_only = save_best_validation_only
@@ -638,7 +638,7 @@ class CTLearnModelManager:
         epochs = np.arange(1, len(losses_train) + 1)
         if len(epochs) == 0:
             print(
-                f"❌ No training logs found for {self.model_nickname}, stert the training to see the loss."
+                f"❌ No training logs found for {self.model_nickname}, start the training to see the loss."
             )
             return
         if len(epochs) > 1:
