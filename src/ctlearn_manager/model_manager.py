@@ -933,7 +933,7 @@ class CTLearnModelManager:
                     color=get_color("ctlearn_2"),
                     zorder=0,
                 )
-                ax.set_ylim(0, 60)
+                # ax.set_ylim(0, 60)
                 training_gamma_table = read_table_hdf5(
                     self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
@@ -1001,7 +1001,8 @@ class CTLearnModelManager:
         ax.set_theta_zero_location("E")
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
-        ax.set_ylim(0, 60)
+        # print(zenith_max.value)
+        # ax.set_ylim((0, np.max(60, int(zenith_max.value))))
         ax.set_yticks(np.arange(10, 61, 10))
         ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel("Azimuth [deg]", fontsize=10)
