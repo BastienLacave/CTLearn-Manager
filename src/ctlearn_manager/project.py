@@ -65,10 +65,10 @@ class CTLearnManagerProject:
                 tri_model_parameters.get("training_samples")['energy'],
                 tri_model_parameters.get("training_samples")[direction_reco],
             ]
-        elif isinstance(tri_model_parameters.get("training_samples"), list[DataSample]):
+        else: # isinstance(tri_model_parameters.get("training_samples"), list[DataSample]):
             training_samples = [tri_model_parameters.get("training_samples")]*3
-        else:
-            raise ValueError("training_samples must be a dict or a list of DataSample instances.")
+        # else:
+        #     raise ValueError("training_samples must be a dict or a list of DataSample instances.")
 
         for reco, training_sample in zip(recos, training_samples):
             match reco:
