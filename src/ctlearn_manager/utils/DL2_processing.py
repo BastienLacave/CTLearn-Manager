@@ -849,11 +849,23 @@ class DL2DataProcessor:
             angle2_center,
             h_on,
             label="On source",
-            zorder=2,
+            zorder=3,
             color=get_color("ctlearn_accent_1"),
             marker="o",
             s=20,
         )
+        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=get_color("ctlearn_accent_1"), alpha=0.3, zorder=1, edgecolor="none")
+        plt.errorbar(
+            angle2_center,
+            h_on,
+            yerr=np.sqrt(h_on),
+            label=None,
+            zorder=3,
+            color=get_color("ctlearn_accent_1"),
+            marker="o",
+            ls="none",
+        )
+        
         plt.scatter(
             angle2_center,
             h_off,
@@ -864,7 +876,18 @@ class DL2DataProcessor:
             s=20,
         )
         plt.fill_between(angle2_center, h_off - np.sqrt(h_off), h_off + np.sqrt(h_off), color=get_color("ctlearn_1"), alpha=0.3, zorder=1, edgecolor="none")
-        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=get_color("ctlearn_accent_1"), alpha=0.3, zorder=1, edgecolor="none")
+        plt.errorbar(
+            angle2_center,
+            h_off,
+            yerr=np.sqrt(h_off),
+            label=None,
+            zorder=0,
+            color=get_color("ctlearn_1"),
+            marker="o",
+            ls="none",
+        )
+        
+        
         # plt.plot(angle2_center, h_on, label="on source", color=get_color("ctlearn_accent_1"))
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color=get_color('on_background'), linestyle="--")
