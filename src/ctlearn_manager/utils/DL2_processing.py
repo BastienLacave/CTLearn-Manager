@@ -318,6 +318,7 @@ class DL2DataProcessor:
         CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection,
         cuts: list[Cuts] = [DefaultCuts.GH_0_9.value],
         source_position=SkyCoord.from_name("Crab"),
+        source_name: str = "Crab Nebula",
         pointing_table="dl1/monitoring/telescope/pointing/tel_001",
         default_E_bins=np.logspace(
             np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)
@@ -346,6 +347,7 @@ class DL2DataProcessor:
             assert CTLearn_TriModel_Manager.allow_muliple_projects == False, "CTLearnTriModelManager must be a single project."
             self.CTLearnTriModelCollection = CTLearn_TriModel_Manager
         self.source_position = source_position
+        self.source_name = source_name
         self.telscope_names = self.CTLearnTriModelCollection.tri_models[
             0
         ].telescope_names
@@ -841,6 +843,8 @@ class DL2DataProcessor:
         #     zorder=0,
         #     color=get_color("ctlearn_1")
         #     , marker="o", ls="none")
+        if h_on.sum() == 0:
+            raise ValueError("No on events found. Check source position : ", self.source_name,  self.source_position)
         plt.scatter(
             angle2_center,
             h_on,
@@ -867,7 +871,7 @@ class DL2DataProcessor:
         plt.legend()
         plt.xlabel(r"Separation [deg$^2$]")
         plt.ylabel("Counts")
-        plt.title(f"{self.telscope_names[0]} Crab Nebula with {self.reconstruction_method}")
+        plt.title(f"{self.telscope_names[0]} {self.source_name} with {self.reconstruction_method}")
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
