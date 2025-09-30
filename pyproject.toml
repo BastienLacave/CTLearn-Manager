@@ -17,13 +17,13 @@ dependencies = [
     "ctapipe>=0.25.0",
     "ctapipe<0.26.0",
     "gammapy",
-    "pyirf>=0.13.0",
-    "ctaplot==0.6.3",
+    "pyirf>=0.12.0",
+    "ctaplot==0.6.4",
     "h5py",
     "ctadata",
     "ctlearn",
     "astropy",
-    "matplotlib==3.9",
+    "matplotlib==3.10.0",
 ]
 
 # needed for setuptools_scm, we don"t define a static version

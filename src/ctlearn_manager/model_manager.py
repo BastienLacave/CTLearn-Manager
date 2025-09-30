@@ -462,7 +462,7 @@ class CTLearnModelManager:
                 _save_best_validation_only = True
                 model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
-                os.system(f"mkdir -p {model_dir}")
+                # os.system(f"mkdir -p {model_dir}")
             else:
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
@@ -474,13 +474,13 @@ class CTLearnModelManager:
                     _save_best_validation_only = True
                 else:
                     print(f"🆕 Model does not exist: will create {model_dir}")
-                    _save_best_validation_only = False
+                    _save_best_validation_only = True
         else:
             model_version = 0
             model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
             print(f"🆕 Model does not exist: will create {model_dir}")
-            os.system(f"mkdir -p {model_dir}")
-            _save_best_validation_only = False
+            os.system(f"mkdir -p {base_model_dir}")
+            _save_best_validation_only = True
 
         if save_best_validation_only is not None:
             _save_best_validation_only = save_best_validation_only
@@ -638,7 +638,7 @@ class CTLearnModelManager:
         epochs = np.arange(1, len(losses_train) + 1)
         if len(epochs) == 0:
             print(
-                f"❌ No training logs found for {self.model_nickname}, stert the training to see the loss."
+                f"❌ No training logs found for {self.model_nickname}, start the training to see the loss."
             )
             return
         if len(epochs) > 1:
@@ -933,7 +933,7 @@ class CTLearnModelManager:
                     color=get_color("ctlearn_2"),
                     zorder=0,
                 )
-                ax.set_ylim(0, 60)
+                # ax.set_ylim(0, 60)
                 training_gamma_table = read_table_hdf5(
                     self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
@@ -1001,7 +1001,8 @@ class CTLearnModelManager:
         ax.set_theta_zero_location("E")
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
-        ax.set_ylim(0, 60)
+        # print(zenith_max.value)
+        # ax.set_ylim((0, np.max(60, int(zenith_max.value))))
         ax.set_yticks(np.arange(10, 61, 10))
         ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel("Azimuth [deg]", fontsize=10)

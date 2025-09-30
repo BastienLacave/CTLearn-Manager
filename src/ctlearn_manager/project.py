@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from . import CTLearnModelManager, CTLearnTriModelManager
+from . import CTLearnModelManager, CTLearnTriModelManager, DataSample
 from .utils import CTLMDirectories, get_user_confirmation, ClusterConfiguration, set_mpl_style
 from ctlearn_manager.utils.utils import set_global_theme, ColorTheme
 # from.io import load_model_from_index
@@ -59,8 +59,18 @@ class CTLearnManagerProject:
             f"direction_reco must be one of ['cameradirection', 'skydirection']: {direction_reco}"
         )
         recos = ['type', 'energy', direction_reco]
+        if isinstance(tri_model_parameters.get("training_samples"), dict):
+            training_samples = [
+                tri_model_parameters.get("training_samples")['type'],
+                tri_model_parameters.get("training_samples")['energy'],
+                tri_model_parameters.get("training_samples")[direction_reco],
+            ]
+        else: # isinstance(tri_model_parameters.get("training_samples"), list[DataSample]):
+            training_samples = [tri_model_parameters.get("training_samples")]*3
+        # else:
+        #     raise ValueError("training_samples must be a dict or a list of DataSample instances.")
 
-        for reco in recos:
+        for reco, training_sample in zip(recos, training_samples):
             match reco:
                 case "type":
                     os.makedirs(project_directories.type_model_directory, exist_ok=True)
@@ -85,7 +95,7 @@ class CTLearnManagerProject:
                 "telescope_names": tri_model_parameters.get("telescope_names"),  # List of telescope names
                 "telescope_ids": tri_model_parameters.get("telescope_ids"),  # List of telescope ids
                 "max_training_epochs": tri_model_parameters.get("max_training_epochs"),  # Maximum number of training epochs
-                "training_samples": tri_model_parameters.get("training_samples"),  # Training data
+                "training_samples": training_sample, #tri_model_parameters.get("training_samples"),  # Training data
                 "stereo": tri_model_parameters.get("stereo"),  # If True, model will be trained on stereo events
                 #### OPTIONAL PARAMETERS
                 'channels' : tri_model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time']), # Order matters. # Default is ['cleaned_image', 'cleaned_relative_peak_time']

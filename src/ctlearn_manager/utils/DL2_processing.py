@@ -320,7 +320,11 @@ class DL2DataProcessor:
         CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection,
         cuts: list[Cuts] = [DefaultCuts.GH_0_9.value],
         source_position=SkyCoord.from_name("Crab"),
+<<<<<<< HEAD
         source_name="Crab Nebula",
+=======
+        source_name: str = "Crab Nebula",
+>>>>>>> 86cf193c6794a7e89eb117e7c94af6e4a2ce0f4b
         pointing_table="dl1/monitoring/telescope/pointing/tel_001",
         default_E_bins=np.logspace(
             np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)
@@ -855,15 +859,29 @@ class DL2DataProcessor:
         #     zorder=0,
         #     color=get_color("ctlearn_1")
         #     , marker="o", ls="none")
+        if h_on.sum() == 0:
+            raise ValueError("No on events found. Check source position : ", self.source_name,  self.source_position)
         plt.scatter(
             angle2_center,
             h_on,
             label="On source",
-            zorder=2,
+            zorder=3,
             color=get_color("ctlearn_accent_1"),
             marker="o",
             s=20,
         )
+        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=get_color("ctlearn_accent_1"), alpha=0.3, zorder=1, edgecolor="none")
+        plt.errorbar(
+            angle2_center,
+            h_on,
+            yerr=np.sqrt(h_on),
+            label=None,
+            zorder=3,
+            color=get_color("ctlearn_accent_1"),
+            marker="o",
+            ls="none",
+        )
+        
         plt.scatter(
             angle2_center,
             h_off,
@@ -874,7 +892,18 @@ class DL2DataProcessor:
             s=20,
         )
         plt.fill_between(angle2_center, h_off - np.sqrt(h_off), h_off + np.sqrt(h_off), color=get_color("ctlearn_1"), alpha=0.3, zorder=1, edgecolor="none")
-        plt.fill_between(angle2_center, h_on - np.sqrt(h_on), h_on + np.sqrt(h_on), color=get_color("ctlearn_accent_1"), alpha=0.3, zorder=1, edgecolor="none")
+        plt.errorbar(
+            angle2_center,
+            h_off,
+            yerr=np.sqrt(h_off),
+            label=None,
+            zorder=0,
+            color=get_color("ctlearn_1"),
+            marker="o",
+            ls="none",
+        )
+        
+        
         # plt.plot(angle2_center, h_on, label="on source", color=get_color("ctlearn_accent_1"))
         plt.xlim(0, 0.4)
         plt.axvline(0.04, color=get_color('on_background'), linestyle="--")

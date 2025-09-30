@@ -1368,9 +1368,12 @@ class CTLMDirectories:
         self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
         self.post_processing_logs_directory = f"{self.logs_directory}/post_processing_logs"
         self.plots_directory = f"{self.project_directory}/plots/"
-        self.latest_type_model_directory = np.sort(glob.glob(f"{self.type_model_directory}/{self.tri_model_nickname}_type/{self.tri_model_nickname}_type_v*"))[-1]
-        self.latest_direction_model_directory = np.sort(glob.glob(f"{self.direction_model_directory}/{self.tri_model_nickname}_direction/{self.tri_model_nickname}_direction_v*"))[-1]
-        self.latest_energy_model_directory = np.sort(glob.glob(f"{self.energy_model_directory}/{self.tri_model_nickname}_energy/{self.tri_model_nickname}_energy_v*"))[-1]
+        if len(glob.glob(f"{self.type_model_directory}/{self.tri_model_nickname}_type/{self.tri_model_nickname}_type_v*")) > 0:
+            self.latest_type_model_directory = np.sort(glob.glob(f"{self.type_model_directory}/{self.tri_model_nickname}_type/{self.tri_model_nickname}_type_v*"))[-1]
+        if len(glob.glob(f"{self.direction_model_directory}/{self.tri_model_nickname}_direction/{self.tri_model_nickname}_direction_v*")) > 0:
+            self.latest_direction_model_directory = np.sort(glob.glob(f"{self.direction_model_directory}/{self.tri_model_nickname}_direction/{self.tri_model_nickname}_direction_v*"))[-1]
+        if len(glob.glob(f"{self.energy_model_directory}/{self.tri_model_nickname}_energy/{self.tri_model_nickname}_energy_v*")) > 0:
+            self.latest_energy_model_directory = np.sort(glob.glob(f"{self.energy_model_directory}/{self.tri_model_nickname}_energy/{self.tri_model_nickname}_energy_v*"))[-1]
 
 
         
@@ -1532,7 +1535,7 @@ class CTLMDirectories:
             else:
                 dl2_directory = self.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
 
-            _dl2_files = glob.glob(f"{dl2_directory}/*.h5")
+            _dl2_files = sorted(glob.glob(f"{dl2_directory}/*.h5"))
             # if len(_dl2_files) == 0:
             #     if merged:
             #         raise FileNotFoundError(
