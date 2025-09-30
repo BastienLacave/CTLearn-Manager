@@ -152,7 +152,7 @@ def load_one_worker(args):
         i, CTLearn, pointing_table, pointing_alt_key, pointing_az_key,
         DL2_file, CTLearnTriModelCollection, source_position,
         gammaness_key, energy_key, intensity_key, intensity_cut,
-        cuts, dl2_processed_dir, global_gammaness_cut, time_key
+        cuts, dl2_processed_dir, global_gammaness_cut, time_key, e_edges
     ) = args
     # try:
     # Find corresponding model
@@ -200,9 +200,10 @@ def load_one_worker(args):
         dl2 = pickle.load(f)
     # print(dl2.colnames)
     eff_time, _ = compute_eff_time(dl2, CTLearn, time_key)
+    energy_mask = (dl2[energy_key] > e_edges[0]) & (dl2[energy_key] < e_edges[-1])
     if gammaness_key in dl2.colnames:
         n_before = len(dl2)
-        garbage_mask = (dl2[gammaness_key] > global_gammaness_cut) & (dl2[energy_key] > 0) & (dl2[intensity_key] > intensity_cut)
+        garbage_mask = (dl2[gammaness_key] > global_gammaness_cut) & (dl2[energy_key] > 0) & (dl2[intensity_key] > intensity_cut) & energy_mask
         dl2 = dl2[garbage_mask]
         n_after = len(dl2)
         # print(f"Cut {n_before - n_after} events based on intensity cuts.")
@@ -210,7 +211,7 @@ def load_one_worker(args):
         cut_mask_gammaness_only = np.empty(len(cuts), dtype=object)
         for j, cut in enumerate(cuts):
             if cut.cut_type in [CutType.GLOBAL]:
-                mask = dl2[gammaness_key] > cut.gammaness_cut
+                mask = (dl2[gammaness_key] > cut.gammaness_cut) 
                 cut_mask[j] = mask
                 cut_mask_gammaness_only[j] = mask
             else:
@@ -219,18 +220,19 @@ def load_one_worker(args):
                     dl2, source_position,
                     energy_key,
                     gammaness_key, corresponding_model, transformed_reco[garbage_mask], cuts=cut
-                )
+                ) 
                 mask_gam = get_energy_dependent_mask_data(
                     DL2_file, pointing_table, pointing_alt_key, pointing_az_key, CTLearn,
                     dl2, source_position,
                     energy_key,
                     gammaness_key, corresponding_model, transformed_reco[garbage_mask], False, cuts=cut
-                )
+                ) 
                 cut_mask[j] = mask
                 cut_mask_gammaness_only[j] = mask_gam
     else:
         cut_mask = [np.ones(len(dl2), dtype=bool)]
         cut_mask_gammaness_only = [np.ones(len(dl2), dtype=bool)]
+    
     reco_direction = transformed_reco[garbage_mask]
     pointing = transformed_pointing[garbage_mask]
 
@@ -318,11 +320,13 @@ class DL2DataProcessor:
         CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection,
         cuts: list[Cuts] = [DefaultCuts.GH_0_9.value],
         source_position=SkyCoord.from_name("Crab"),
+        source_name="Crab Nebula",
         pointing_table="dl1/monitoring/telescope/pointing/tel_001",
         default_E_bins=np.logspace(
             np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)
         )
         * u.TeV,
+        e_edges = (-np.inf, np.inf),
         intensity_cut: int=80,
         global_gammaness_cut: float=0.,
         # max_theta2: float=0.2,
@@ -335,6 +339,8 @@ class DL2DataProcessor:
         self.DL2_files = np.sort(DL2_files)
         self.intensity_cut = intensity_cut
         self.global_gammaness_cut = global_gammaness_cut
+        self.e_edges = e_edges
+        
         # self.max_theta2 = max_theta2
         if isinstance(CTLearn_TriModel_Manager, CTLearnTriModelManager):
             self.CTLearnTriModelCollection = TriModelCollection(
@@ -346,6 +352,7 @@ class DL2DataProcessor:
             assert CTLearn_TriModel_Manager.allow_muliple_projects == False, "CTLearnTriModelManager must be a single project."
             self.CTLearnTriModelCollection = CTLearn_TriModel_Manager
         self.source_position = source_position
+        self.source_name = source_name
         self.telscope_names = self.CTLearnTriModelCollection.tri_models[
             0
         ].telescope_names
@@ -466,9 +473,15 @@ class DL2DataProcessor:
                 # for modelindex, file in zip(self.corresponding_model_indexs, self.DL2_files):
                 # print(self.edep_cuts)
                 # get E bins from IRFs cuts file
+                # print(self.CTLearnTriModelCollection.tri_models)
                 zenith, azimuth = self.CTLearnTriModelCollection.tri_models[
                     0 # FIXME
                 ].project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
+                if len(zenith) == 0:
+                    raise FileNotFoundError(
+                        f"No DL2 MC files found for particle type {ParticleType.GAMMA_POINT.value}.\n Check that the directory {self.CTLearnTriModelCollection.tri_models[0].dl2_mc_directory}/{ParticleType.GAMMA_POINT.value}/ exists and contains subdirectories."
+                    )
+                # print(zenith, azimuth)
 
                 cuts_file = self.CTLearnTriModelCollection.tri_models[
                     0 # FIXME
@@ -689,6 +702,7 @@ class DL2DataProcessor:
                 self.dl2_processed_dir,
                 self.global_gammaness_cut,
                 self.time_key,
+                self.e_edges
             )
             for i, DL2_file in enumerate(self.DL2_files)
         ]
@@ -867,7 +881,7 @@ class DL2DataProcessor:
         plt.legend()
         plt.xlabel(r"Separation [deg$^2$]")
         plt.ylabel("Counts")
-        plt.title(f"{self.telscope_names[0]} Crab Nebula with {self.reconstruction_method}")
+        plt.title(f"{self.telscope_names[0]} {self.source_name} with {self.reconstruction_method}")
         plt.tight_layout()
         if output_file is not None:
             plt.savefig(output_file)
