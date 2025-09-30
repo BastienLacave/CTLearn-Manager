@@ -1988,6 +1988,7 @@ class DL2DataProcessor:
                 actual_obs_time = t_eff,
                 cond=True,
             )
+            print(flux_factor)
             flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
                 5,
                 nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
