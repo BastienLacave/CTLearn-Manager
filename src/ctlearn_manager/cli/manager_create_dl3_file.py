@@ -284,54 +284,54 @@ def load_DL2_data(input_file, path = 'subarray'):
     n_tot = len(loader)
 
 
-    subarray_events_chunk = loader.read_subarray_events(
-        start=0,
-        stop=2,
+    dl2 = loader.read_subarray_events(
+        start=None,
+        stop=None,
         dl2=True,
         simulated=False,
         observation_info=True,
     )
-    present_columns = [col for col in REQUIRED_COLUMNS if col in subarray_events_chunk.colnames]
+    present_columns = [col for col in REQUIRED_COLUMNS if col in dl2.colnames]
 
-    chunk_size = 10000
-    start = 0
-    n = 0
+    # chunk_size = 100000
+    # start = 0
+    # n = 0
 
-    for i in tqdm(range((n_tot + chunk_size - 1) // chunk_size), desc="Loading events"):
-        stop = min(start + chunk_size, n_tot)
+    # for i in tqdm(range((n_tot + chunk_size - 1) // chunk_size), desc="Loading events"):
+    #     stop = min(start + chunk_size, n_tot)
         
-        subarray_events_chunk = loader.read_subarray_events(
-            start=start,
-            stop=stop,
-            dl2=True,
-            simulated=False,
-            observation_info=True,
-        )
+    #     subarray_events_chunk = loader.read_subarray_events(
+    #         start=start,
+    #         stop=stop,
+    #         dl2=True,
+    #         simulated=False,
+    #         observation_info=True,
+    #     )
         
-        if len(subarray_events_chunk) == 0:
-            break
+    #     if len(subarray_events_chunk) == 0:
+    #         break
         
-        assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_1']).all()
-        assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_2']).all()
+    #     assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_1']).all()
+    #     assert (subarray_events_chunk['CTLearn_is_valid'] == subarray_events_chunk['CTLearn_is_valid_2']).all()
 
-        is_valid_mask = subarray_events_chunk['CTLearn_is_valid']
-        subarray_events_chunk = subarray_events_chunk[is_valid_mask]
+    #     is_valid_mask = subarray_events_chunk['CTLearn_is_valid']
+    #     subarray_events_chunk = subarray_events_chunk[is_valid_mask]
 
-        subarray_events_chunk = subarray_events_chunk[present_columns]
-        n += len(subarray_events_chunk)
-        # print(f"Loaded {n} events", end="\r")
+    dl2 = dl2[present_columns]
+    #     n += len(subarray_events_chunk)
+    #     # print(f"Loaded {n} events", end="\r")
         
-        if start == 0:
-            dl2 = subarray_events_chunk
-        else:
-            dl2 = vstack([dl2, subarray_events_chunk])
+    #     if start == 0:
+    #         dl2 = subarray_events_chunk
+    #     else:
+    #         dl2 = vstack([dl2, subarray_events_chunk])
         
-        start = stop
+    #     start = stop
         
-        if stop >= n_tot:
-            break
+    #     if stop >= n_tot:
+    #         break
 
-    del subarray_events_chunk
+    # del subarray_events_chunk
     gc.collect()
 
     
