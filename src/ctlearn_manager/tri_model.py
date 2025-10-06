@@ -1556,8 +1556,7 @@ class CTLearnTriModelManager:
 {do_background_string} \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied --overwrite\
---Tool.log_level DEBUG"
+--no-spatial-selection-applied --overwrite"
         print(cmd)
         result_irfs = os.system(cmd)
         if result_irfs != 0:

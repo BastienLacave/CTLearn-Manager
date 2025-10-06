@@ -320,11 +320,7 @@ class DL2DataProcessor:
         CTLearn_TriModel_Manager: CTLearnTriModelManager or TriModelCollection,
         cuts: list[Cuts] = [DefaultCuts.GH_0_9.value],
         source_position=SkyCoord.from_name("Crab"),
-<<<<<<< HEAD
-        source_name="Crab Nebula",
-=======
         source_name: str = "Crab Nebula",
->>>>>>> 86cf193c6794a7e89eb117e7c94af6e4a2ce0f4b
         pointing_table="dl1/monitoring/telescope/pointing/tel_001",
         default_E_bins=np.logspace(
             np.log10(0.02), np.log10(20), int((np.log10(20) - np.log10(0.02)) * 5 + 1)
