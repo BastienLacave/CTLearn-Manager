@@ -25,47 +25,47 @@ def process_dl2_file():
 
     DL2_file = args.dl2_file
 
-    if processor.CTLearn:
+    # if processor.CTLearn:
 
-        dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
-        # if processor.dl2_processed_dir is None:
-        #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
-        #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
-        #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
-        #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
-        #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
-        # else:
-        #     dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-        #     reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-        #     pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-        #     I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-        #     I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
-        dl2_output_file = os.path.join(
-            dl2_processed_dir,
-            os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
-        )
-        reco_output_file = os.path.join(
-            dl2_processed_dir,
-            os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
-        )
-        pointing_output_file = os.path.join(
-            dl2_processed_dir, os.path.basename(DL2_file).replace(".h5", "_pointings.pkl")
-        )
-        I_g_on_counts_output_file = os.path.join(
-            dl2_processed_dir,
-            os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
-        )
-        I_g_off_counts_output_file = os.path.join(
-            dl2_processed_dir,
-            os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
-        )
-    else:
-        dl2_processed_dir = processor.dl2_processed_dir
-        dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
-        reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
-        pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
-        I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
-        I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+    #     dl2_processed_dir = f"{os.path.dirname(DL2_file)}/CTLM_dl2_preprocessed/"
+    #     # if processor.dl2_processed_dir is None:
+    #     #     dl2_output_file = DL2_file.replace('.h5', '_dl2_processed.pkl')
+    #     #     reco_output_file = DL2_file.replace('.h5', '_reco_directions.pkl')
+    #     #     pointing_output_file = DL2_file.replace('.h5', '_pointings.pkl')
+    #     #     I_g_on_counts_output_file = DL2_file.replace('.h5', '_I_g_on_counts.pkl')
+    #     #     I_g_off_counts_output_file = DL2_file.replace('.h5', '_I_g_off_counts.pkl')
+    #     # else:
+    #     #     dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+    #     #     reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+    #     #     pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+    #     #     I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+    #     #     I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
+    #     dl2_output_file = os.path.join(
+    #         dl2_processed_dir,
+    #         os.path.basename(DL2_file).replace(".h5", "_dl2_processed.pkl"),
+    #     )
+    #     reco_output_file = os.path.join(
+    #         dl2_processed_dir,
+    #         os.path.basename(DL2_file).replace(".h5", "_reco_directions.pkl"),
+    #     )
+    #     pointing_output_file = os.path.join(
+    #         dl2_processed_dir, os.path.basename(DL2_file).replace(".h5", "_pointings.pkl")
+    #     )
+    #     I_g_on_counts_output_file = os.path.join(
+    #         dl2_processed_dir,
+    #         os.path.basename(DL2_file).replace(".h5", "_I_g_on_counts.pkl"),
+    #     )
+    #     I_g_off_counts_output_file = os.path.join(
+    #         dl2_processed_dir,
+    #         os.path.basename(DL2_file).replace(".h5", "_I_g_off_counts.pkl"),
+    #     )
+    # else:
+    dl2_processed_dir = processor.dl2_processed_dir
+    dl2_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_dl2_processed.pkl'))
+    reco_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_reco_directions.pkl'))
+    pointing_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_pointings.pkl'))
+    I_g_on_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_on_counts.pkl'))
+    I_g_off_counts_output_file = os.path.join(processor.dl2_processed_dir, os.path.basename(DL2_file).replace('.h5', '_I_g_off_counts.pkl'))
 
 
     if not os.path.exists(dl2_output_file):
@@ -85,6 +85,30 @@ def process_dl2_file():
             dl2 = pickle.load(f)
     if processor.gammaness_key in dl2.colnames:
         dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
+    print(f"Loaded {len(dl2)} events", flush=True)
+    print(dl2.colnames, flush=True)
+    required_keys = [
+        processor.reco_az_key,
+        processor.reco_alt_key,
+        processor.pointing_az_key,
+        processor.pointing_alt_key,
+        processor.time_key,
+    ]
+
+    missing_keys = [key for key in required_keys if key not in dl2.colnames]
+    if missing_keys:
+        # raise KeyError(f"Missing required keys in dl2 data: {missing_keys}")
+        print(f"Loading {DL2_file}", flush=True)
+        if processor.CTLearn:
+            dl2 = load_DL2_data(DL2_file, processor)
+        else:
+            dl2 = load_DL2_data_RF(DL2_file, processor)
+        if processor.gammaness_key in dl2.colnames:
+            dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
+        with open(dl2_output_file, "wb") as f:
+            pickle.dump(dl2, f)
+        print(f"Saved processed DL2 data to {dl2_output_file}", flush=True)
+    
     print(f"Loaded {len(dl2)} events", flush=True)
     print(dl2.colnames, flush=True)
     # cut_mask = dl2[processor.gammaness_key] > processor.gammaness_cut
@@ -163,9 +187,12 @@ def process_dl2_file():
             n_off = 3
 
             intensity_ranges = [(50, 200), (200, 800), (800, 3200), (3200, np.inf)]
+            I_low = [50, 200, 800, 3200]
+            I_high = [200, 800, 3200, np.inf]
             I_g_on_counts = np.empty(len(intensity_ranges), dtype=object)
             I_g_off_counts = np.empty(len(intensity_ranges), dtype=object)
-            for i, I_min, I_max in enumerate(zip(range(len(intensity_ranges)), *zip(*intensity_ranges))):
+            for i, I_min, I_max in zip(
+                range(len(intensity_ranges)), I_low, I_high):
                 excess_counts = np.empty(len(gammaness_cuts), dtype=object)
                 off_counts = np.empty(len(gammaness_cuts), dtype=object)
                 # print(f"Computing excesses for [{I_min} - {I_max}] p.e.", flush=True)

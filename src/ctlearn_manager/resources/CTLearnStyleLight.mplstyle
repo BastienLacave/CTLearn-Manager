@@ -13,9 +13,14 @@ axes.spines.bottom : True
 axes.spines.left : True
 #axes.xmargin : 0.1
 axes.ymargin : 0.1
+axes.facecolor : white
+axes.edgecolor : black
+axes.labelcolor : black
+axes.titlecolor : black
 #axes.facecolor : (0.0, 0.0, 0.0, 0.0)
 legend.fontsize : 9
 legend.markerscale : 1.
+legend.labelcolor : black
 patch.linewidth : 2
 
 # GRID
@@ -31,6 +36,7 @@ lines.linewidth : 2
 lines.markeredgewidth : 0.0
 lines.solid_capstyle : round
 lines.dash_capstyle : round
+image.cmap : viridis
 
 
 # SCATTER PLOT
@@ -41,8 +47,14 @@ xtick.labelsize : 13
 #xtick.direction : in
 ytick.labelsize : 13
 #ytick.direction : in
+ytick.color : black
+xtick.color : black
 
 # FIGURE OUTPUT 
 # figure.figsize  : 7, 5
-figure.dpi : 330
+# figure.dpi : 330
 savefig.dpi : 330
+figure.facecolor : white
+savefig.facecolor : white
+savefig.edgecolor : white
+savefig.transparent : False

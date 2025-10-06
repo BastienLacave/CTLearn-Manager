@@ -34,7 +34,7 @@ def plot_dl2():
     dl2_processor = DL2DataProcessor(
         stereo_tri_model.dl2_data_files,
         stereo_tri_model,
-        gammaness_cut=args.gammaness_cut,
+        # gammaness_cut=args.gammaness_cut,
     )  # , edep_cuts=args.edep_cuts)
     dl2_processor.plot_everything(
         args.output_directory, suffix=stereo_tri_model.direction_model.model_nickname

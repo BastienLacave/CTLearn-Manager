@@ -6,9 +6,10 @@ from enum import Enum
 # from astropy.coordinates import SkyCoord, AltAz
 import astropy.units as u
 import ctadata
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.table import Table
-import matplotlib.pyplot as plt
+from pyirf.statistics import li_ma_significance
 
 # from astropy.time import Time
 # from astropy.coordinates import EarthLocation
@@ -22,7 +23,6 @@ __all__ = [
     "CutType",
     "get_irf_type_from_config",
     "IRFType",
-    "CTLearnManagerStyle",
     "set_mpl_style",
     "angular_distance",
     "get_dates_from_runs",
@@ -40,42 +40,93 @@ __all__ = [
     "DataSample",
     "ExportCurves",
     "CurveType",
+    "CTLMDirectories",
+    "get_user_confirmation",
+    "calc_flux_for_N_sigma_array",
+    "ColorTheme",
+    "get_color",
+    "set_global_theme",
+    "get_closest_rf_irf_files",
+    "convert_irf_format",
+    "produce_dl3",
 ]
 
 
-class CTLearnManagerStyle(Enum):
+
+class CTLearnManagerLightTheme(Enum):
     """
     A class to manage predefined colors and plot styles for consistent visualization.
     """
 
-    # def __init__(self):
-    #     # Predefined colors
-    #     self.colors = {
-    #         "ctlearn_1": "#016279" ,
-    #         "ctlearn_2": "#00a693" ,
-    #         "ctlearn_3": "#58c68b" ,
-    #         "ctlearn_highlight": "#00c6ff" ,
-    #         "ctlearn_accent_1": "#cf004b",
-    #         "ctlearn_accent_2": "#923e51",
-    #         "random_forest": "#000000" ,
-    #     }
-    # self.ctlearn_1 = "#016279"
-    # self.ctlearn_2 = "#00a693"
-    # self.ctlearn_3 = "#58c68b"
-    # self.ctlearn_highlight = "#00c6ff"
-    # self.ctlearn_accent_1 = "#cf004b"
-    # self.ctlearn_accent_2 = "#923e51"
-    # self.random_forest = "#000000"
     ctlearn_1 = "#016279"
     ctlearn_2 = "#00a693"
     ctlearn_3 = "#58c68b"
     ctlearn_highlight = "#00c6ff"
     ctlearn_accent_1 = "#cf004b"
     ctlearn_accent_2 = "#923e51"
+    background = "#ffffff"
+    on_background = "#000000"
     random_forest = "#000000"
+    surface = "#00c6ff"
+    on_surface = "#016279"
+    error_surface = "#923e51"
+    on_error_surface = "#cf004b"
+    
 
+class CTLearnManagerDarkTheme(Enum):
+    """
+    A class to manage predefined colors and plot styles for consistent visualization.
+    """
 
-def set_mpl_style():
+    ctlearn_1 = "#016279"
+    ctlearn_2 = "#00a693"
+    ctlearn_3 = "#58c68b"
+    ctlearn_highlight = "#00c6ff"
+    ctlearn_accent_1 = "#cf004b"
+    ctlearn_accent_2 = "#923e51"
+    background = "#000000"
+    on_background = "#ffffff"
+    random_forest = "#ffffff"
+    surface = "#016279"
+    on_surface = "#00c6ff"
+    error_surface = "#923e51"
+    on_error_surface = "#cf004b"
+    
+
+class ColorTheme(Enum):
+
+    light_theme = CTLearnManagerLightTheme
+    dark_theme = CTLearnManagerDarkTheme
+
+CURRENT_THEME = ColorTheme.light_theme
+
+def set_global_theme(theme: ColorTheme):
+    global CURRENT_THEME
+    CURRENT_THEME = theme
+    set_theme(theme)
+    print(f"Global theme set to {CURRENT_THEME.name}")
+
+def get_color(name: str):
+    theme_enum = CURRENT_THEME.value
+    return getattr(theme_enum, name).value
+
+def set_theme(theme: ColorTheme = ColorTheme.light_theme):
+    """
+    Set the color theme for the plots.
+    
+    Parameters
+    ----------
+    theme : ColorTheme, optional
+        The color theme to use. Default is ColorTheme.light_theme.
+    """
+    if theme == ColorTheme.light_theme:
+        set_mpl_style("CTLearnStyleLight.mplstyle")
+    elif theme == ColorTheme.dark_theme:
+        set_mpl_style("CTLearnStyleDark.mplstyle")
+    else:
+        raise ValueError(f"Unsupported theme: {theme}. Use ColorTheme.light_theme or ColorTheme.dark_theme.")
+
+def set_mpl_style(mplstyle_file: str = "CTLearnStyleLight.mplstyle"):
     # font_path = "./resources/Outfit-Medium.ttf"
     import importlib.resources as pkg_resources
 
@@ -91,7 +142,7 @@ def set_mpl_style():
     prop = font_manager.FontProperties(fname=font_path)
     rcParams["font.sans-serif"] = prop.get_name()
     rcParams["font.family"] = prop.get_name()
-    with pkg_resources.path(resources, "CTLearnStyle.mplstyle") as style_path:
+    with pkg_resources.path(resources, mplstyle_file) as style_path:
         plt.style.use(style_path)
     # plt.style.use('./resources/ctlearnStyle.mplstyle')
 
@@ -250,7 +301,7 @@ srun {command}
 
 def get_user_confirmation(prompt: str):
     user_confirmation = input(
-        prompt
+        prompt+"yes/no (default: no): "
     )
     if user_confirmation.lower() != "yes":
         raise ValueError("Operation cancelled by the user.")
@@ -458,6 +509,200 @@ class ClusterConfiguration:
         print(f"SBATCH script saved in {sbatch_file}")
         return sbatch_file
 
+def calc_flux_for_N_sigma_array(
+    N_sigma,
+    on_counts,
+    off_counts,
+    min_signi,
+    min_excess,
+    min_off_events,
+    alpha,
+    target_obs_time,
+    actual_obs_time,
+    cond=True,
+    max_iterations=1000,
+):
+    """
+    Calculates the flux scaling factor needed to reach a target significance.
+
+    This function takes arrays of ON and OFF counts and iteratively finds
+    the factor by which the excess counts (and thus the flux) would need to be
+    scaled to reach a significance of N_sigma after a target observation time.
+
+    Parameters
+    ----------
+    N_sigma : float
+        The target significance (e.g., 5 for 5 sigma).
+    on_counts : numpy.ndarray
+        Array of observed ON counts.
+    off_counts : numpy.ndarray
+        Array of observed OFF counts.
+    alpha : float
+        The ratio of ON to OFF region exposure (1 / n_off).
+    target_obs_time : astropy.units.Quantity
+        The target observation time for the sensitivity calculation.
+    actual_obs_time : astropy.units.Quantity
+        The actual observation time of the provided event data.
+    min_signi : float, optional
+        Minimum significance required in the original data to perform the calculation.
+    min_excess : float, optional
+        Minimum excess counts relative to the ON background (alpha * off_counts)
+    min_off_events : int, optional
+        Minimum number of OFF events required.
+    max_iterations : int, optional
+        Number of iterations to find the flux scaling factor.
+
+    Returns
+    -------
+    flux_factor : numpy.ndarray
+        The factor by which the flux needs to be multiplied to reach N_sigma.
+        Returns np.nan for bins that do not meet the minimum criteria.
+    final_significance : numpy.ndarray
+        The significance calculated with the final flux_factor, which should
+        be close to N_sigma for valid bins.
+    """
+    # Ensure inputs are numpy arrays with float64 for precision, as required by li_ma
+    on_counts = np.asanyarray(on_counts, dtype=np.float64)
+    off_counts = np.asanyarray(off_counts, dtype=np.float64)
+
+    # Calculate observed excess counts
+    excess_counts = on_counts - alpha * off_counts
+    # plt.close()
+    # plt.imshow(excess_counts, aspect='auto', origin='lower')
+    # plt.colorbar(label='Excess Counts')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.title('2D Excess Counts')
+    # # plt.savefig(f'/users/blacave/PhD/New_Manager_Test/plots/excess_counts_2d.png')
+    # plt.show()
+
+    # Calculate the time scaling factor
+    time_factor = target_obs_time.to_value(u.h) / actual_obs_time.to_value(u.h)
+    # print(f"Time factor: {time_factor}")
+
+    # Initialize flux factor to 1 (i.e., the observed flux)
+    flux_factor = np.ones_like(excess_counts, dtype=np.float64).astype("float64")
+    # plt.imshow(flux_factor, aspect='auto', origin='lower')
+    # plt.colorbar(label='flux factor 1')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.title('flux factor init')
+    # # plt.savefig(f'/users/blacave/PhD/New_Manager_Test/plots/excess_counts_2d.png')
+    # plt.show()
+
+
+    # --- Initial Quality Cuts ---
+    # Create a mask to identify bins that are suitable for sensitivity calculation
+    # We need a minimum number of off events and a minimum number of excess events.
+    # background_counts = alpha * off_counts
+    
+    positive_excess_mask = excess_counts > 0
+    min_off_mask = off_counts >= min_off_events
+    excess_vs_bkg_mask = excess_counts >= min_excess * off_counts * alpha
+    good_bin_mask = positive_excess_mask & min_off_mask# & excess_vs_bkg_mask
+
+    # if cond:
+    flux_factor[~good_bin_mask] = np.nan  # Set flux factor to NaN for bins that do not meet the criteria
+    
+    # Invalidate bins that don't meet the criteria
+    # flux_factor[~good_bin_mask] = np.nan
+
+    # Calculate significance of the actual observed data
+    lima_signi = li_ma_significance(on_counts, off_counts, alpha=alpha)
+    # Also invalidate bins where initial significance is too low
+    # flux_factor[lima_signi < min_signi] = np.nan
+    
+    
+
+    lima_signi = li_ma_significance(
+        (time_factor * (flux_factor * excess_counts + off_counts * alpha)).astype("float64"),
+        (time_factor * off_counts).astype("float64"),
+        alpha=alpha,
+    )
+    sig_factor = (np.float64(N_sigma) / lima_signi.astype("float64")).astype("float64")
+    # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Significance')
+    # plt.title('Significance')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+    # plt.show()
+    # flux_factor[lima_signi < min_signi] = np.nan
+    
+
+    
+
+    # --- Iterative Search for Flux Factor ---
+    # We now have a starting flux_factor, which is 1 for good bins and NaN for bad ones.
+    # We will iteratively adjust it to find the value that yields N_sigma.
+
+    # Scaled background counts for the target observation time
+    # scaled_off = off_counts * time_factor
+
+    # Loop to converge on the correct flux_factor
+    for iteration in range(max_iterations):
+        
+        if iteration !=0:
+            tolerance_mask = (
+                np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
+            )
+            min_mask = (flux_factor < np.nanmedian(flux_factor[tolerance_mask]))
+            tolerance_mask = tolerance_mask & min_mask
+        else:
+            tolerance_mask = (
+                np.abs(lima_signi.astype("float64") - N_sigma) > 0.001
+            )
+        if not np.any(tolerance_mask):
+            # print(f"Converged after {iteration} iterations.")
+            break
+
+        # print(f"Number of NaNs in flux_factor = {len(np.where(np.isnan(flux_factor)==True)[0])}")
+        # print(f'Sig ratio : {np.nanmean(np.float64(N_sigma) / lima_signi[tolerance_mask].astype("float64"))}')
+        sig_factor[tolerance_mask] = (np.float64(N_sigma) / lima_signi[tolerance_mask].astype("float64")).astype("float64")
+        # print(f"Iteration {iteration}: sig_factor min = {np.nanmin(sig_factor)}, max = {np.nanmax(sig_factor)}")
+        sig_factor[tolerance_mask] = np.clip(sig_factor[tolerance_mask], 0.01, 100)
+        flux_factor[tolerance_mask] *= sig_factor[tolerance_mask]
+        # print(f"Min in flux_factor = {np.nanmin(flux_factor)}")
+        lima_signi[tolerance_mask] = li_ma_significance(
+            (
+                time_factor
+                * (
+                    flux_factor[tolerance_mask] * excess_counts[tolerance_mask]
+                    + off_counts[tolerance_mask] * alpha
+                )
+            ).astype("float64"),
+            (time_factor * off_counts[tolerance_mask]).astype("float64"),
+            alpha=alpha,
+        )
+
+
+        # lima_signi[lima_signi == 0] = np.nan  # Avoid division by zero in significance calculation
+        # flux_factor[lima_signi == 0] = np.nan  # Avoid division by zero in significance calculation
+
+    lima_signi[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
+    flux_factor[np.abs(lima_signi - N_sigma) > 0.001] = np.nan  # Final check to ensure we only keep bins that meet the significance criteria
+    # print(f"Average significance after iteration {iteration}: {np.nanmean(lima_signi)}")
+    # print(f"Min, Max : {np.nanmin(lima_signi)}, {np.nanmax(lima_signi)}")
+    # plt.figure(figsize=(12, 5))
+    # plt.subplot(1, 2, 1)
+    # plt.imshow(lima_signi, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Significance')
+    # plt.title('Significance')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(flux_factor, aspect='auto', origin='lower', cmap='viridis')
+    # plt.colorbar(label='Flux Factor')
+    # plt.title('Flux Factor')
+    # plt.xlabel('Column Index')
+    # plt.ylabel('Row Index')
+
+    # plt.tight_layout()
+    # plt.show()
+
+
+
+    return flux_factor, lima_signi, min_off_mask, excess_vs_bkg_mask
 
 def calc_flux_for_N_sigma(
     N_sigma,
@@ -472,7 +717,6 @@ def calc_flux_for_N_sigma(
     cond=True,
 ):
     import astropy.units as u
-    from pyirf.statistics import li_ma_significance
 
     time_factor = target_obs_time.to(u.h) / actual_obs_time.to(u.h)
 
@@ -789,11 +1033,16 @@ class Cuts:
     def plot_cuts_info_plt(
         self,
         ax,
-        text_color=CTLearnManagerStyle.ctlearn_1.value,
-        background_color=CTLearnManagerStyle.ctlearn_highlight.value,
+        text_color=None,
+        background_color=None,
         alpha=0.2,
     ):
         final_string = self.get_label()
+        if text_color is None:
+            text_color=get_color("on_surface")
+        if background_color is None:
+            background_color=get_color("surface")
+        # print(background_color, text_color)
 
         if final_string:
             ax.text(
@@ -843,6 +1092,41 @@ class Cuts:
         final_string = f"{gammaness_cut_type} | {theta_cut_type}".strip(" | ")
         return final_string
 
+    def get_directory_name(self):
+        """
+        Get the directory name for the cuts based on their type and parameters.
+        :return: Directory name as a string.
+        """
+        if self.cut_type == CutType.GLOBAL:
+            return f"global_gammaness_{self.gammaness_cut}_theta_{self.theta_cut}"
+        elif self.cut_type == CutType.EFFICIENCY_OPTIMIZED:
+            return f"efficiency_gammaness_{self.efficiency_gammaness}_theta_{self.efficiency_theta}"
+        elif self.cut_type == CutType.SENSITIVITY_OPTIMIZED:
+            return "sensitivity_optimized"
+        else:
+            raise ValueError(f"Invalid cut type: {self.cut_type}")
+        
+def get_cuts_from_directory_name(directory_name: str):
+    """
+    Get the Cuts object from a directory name.
+    :param directory_name: The directory name to parse.
+    :type directory_name: str
+    :return: Cuts object.
+    :rtype: Cuts
+    """
+    if "global" in directory_name:
+        gammaness_cut = float(directory_name.split("global_gammaness_")[1].split("_theta_")[0])
+        theta_cut = float(directory_name.split("theta_")[1])
+        return Cuts(cut_type=CutType.GLOBAL, gammaness_cut=gammaness_cut, theta_cut=theta_cut)
+    elif "efficiency_gammaness_" in directory_name:
+        efficiency_gammaness = float(directory_name.split("efficiency_gammaness_")[1].split("_theta_")[0])
+        efficiency_theta = float(directory_name.split("theta_")[1])
+        return Cuts(cut_type=CutType.EFFICIENCY_OPTIMIZED, efficiency_gammaness=efficiency_gammaness, efficiency_theta=efficiency_theta)
+    elif "sensitivity_optimized" in directory_name:
+        return Cuts(cut_type=CutType.SENSITIVITY_OPTIMIZED)
+    else:
+        raise ValueError(f"Invalid directory name: {directory_name}")
+
 
 class DefaultCuts(Enum):
     NO_CUTS = Cuts(cut_type=CutType.GLOBAL, gammaness_cut=0.0)
@@ -866,8 +1150,8 @@ class DefaultCuts(Enum):
 
 @u.quantity_input(zenith=u.deg, azimuth=u.deg)
 def plot_pointing_on_ax(ax, zenith, azimuth):
-    text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-    background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+    text_color = get_color("error_surface")
+    background_color = get_color("on_error_surface")
     ax.text(
         0.02,
         0.02,
@@ -945,7 +1229,7 @@ class ExportCurves:
         :type file_path: str
         """
         import os
-        import pickle
+
         from astropy.io.misc.hdf5 import read_table_hdf5
         
         self.import_label = import_label
@@ -1017,8 +1301,8 @@ class ExportCurves:
 
 
     def export(self):
+
         from astropy.io.misc.hdf5 import write_table_hdf5
-        import pickle
 
         assert self.file_path is not None, "File path must be specified for exporting curves."
         assert self.export_mode, "Export is disabled. Set export=True to enable exporting."
@@ -1049,7 +1333,6 @@ class ExportCurves:
         :type ax: matplotlib.axes.Axes
         :param kwargs: Additional keyword arguments for plotting.
         """
-        import matplotlib.pyplot as plt
         assert len(axs) == len(self.x_values), "Number of axes must match number of curves."
         
         for x, y, cut, ax in zip(self.x_values, self.y_values, self.cuts, axs):
@@ -1060,20 +1343,533 @@ class ExportCurves:
             ax.plot(x, y, label=l, lw=2, ls='-.')
 
 
-class CTLMProject:
+class CTLMDirectories:
 
-    def __init__(self, project_directory: str):
+    def __init__(self, project_directory: str, tri_model_nickname: str):
+        import os
         from pathlib import Path
 
         if not Path(project_directory).resolve().is_absolute():
             raise ValueError("The project directory must be an absolute path.")
 
-        self.project_directory = Path(project_directory).resolve()
-        self.model_index_file = self.project_directory / "model_index.h5"
-        self.models_directory = self.project_directory / "models"
-        self.dl2_mc_directory = self.project_directory / "DL2/MC"
-        self.dl2_post_processed_data_directory = self.project_directory / "DL2/PostProcessedData"
-        self.dl2_post_processed_data_rf_directory = self.project_directory / "DL2/PostProcessedData_RF"
-        self.irf_directory = self.project_directory / "IRFs"
+        self.tri_model_nickname = tri_model_nickname
+        self.project_directory = project_directory
+        self.model_index_file = f"{self.project_directory}/model_index.h5"
+        self.tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
+        self.energy_model_directory = f"{self.tri_models_directory}/energy"
+        self.direction_model_directory = f"{self.tri_models_directory}/direction"
+        self.type_model_directory = f"{self.tri_models_directory}/type"
+        self.dl2_post_processed_data_directory = f"{self.project_directory}/DL2/PostProcessedData/"
+        self.dl2_post_processed_data_rf_directory = f"{self.project_directory}/DL2/PostProcessedData_RF/"
+        self.dl2_mc_directory = f"{self.project_directory}//DL2/MC/{tri_model_nickname}/"
+        self.irf_directory = f"{self.project_directory}/IRFs/{tri_model_nickname}/"
+        self.logs_directory = f"{self.tri_models_directory}/logs"
+        self.training_logs_directory = f"{self.logs_directory}/training_logs"
+        self.prediction_logs_directory = f"{self.logs_directory}/prediction_logs"
+        self.post_processing_logs_directory = f"{self.logs_directory}/post_processing_logs"
+        self.plots_directory = f"{self.project_directory}/plots/"
+        if len(glob.glob(f"{self.type_model_directory}/{self.tri_model_nickname}_type/{self.tri_model_nickname}_type_v*")) > 0:
+            self.latest_type_model_directory = np.sort(glob.glob(f"{self.type_model_directory}/{self.tri_model_nickname}_type/{self.tri_model_nickname}_type_v*"))[-1]
+        if len(glob.glob(f"{self.direction_model_directory}/{self.tri_model_nickname}_direction/{self.tri_model_nickname}_direction_v*")) > 0:
+            self.latest_direction_model_directory = np.sort(glob.glob(f"{self.direction_model_directory}/{self.tri_model_nickname}_direction/{self.tri_model_nickname}_direction_v*"))[-1]
+        if len(glob.glob(f"{self.energy_model_directory}/{self.tri_model_nickname}_energy/{self.tri_model_nickname}_energy_v*")) > 0:
+            self.latest_energy_model_directory = np.sort(glob.glob(f"{self.energy_model_directory}/{self.tri_model_nickname}_energy/{self.tri_model_nickname}_energy_v*"))[-1]
+
 
         
+
+        os.makedirs(self.tri_models_directory, exist_ok=True)
+        os.makedirs(self.energy_model_directory, exist_ok=True)
+        os.makedirs(self.direction_model_directory, exist_ok=True)
+        os.makedirs(self.type_model_directory, exist_ok=True)
+        os.makedirs(self.dl2_post_processed_data_directory, exist_ok=True)
+        os.makedirs(self.dl2_post_processed_data_rf_directory, exist_ok=True)
+        os.makedirs(self.dl2_mc_directory, exist_ok=True)
+        os.makedirs(self.irf_directory, exist_ok=True)
+        os.makedirs(self.logs_directory, exist_ok=True)
+        os.makedirs(self.training_logs_directory, exist_ok=True)
+        os.makedirs(self.prediction_logs_directory, exist_ok=True)
+        os.makedirs(self.post_processing_logs_directory, exist_ok=True)
+        os.makedirs(self.plots_directory, exist_ok=True)
+
+        # self.exported_curves_directory = self.project_directory / "exported_curves"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_irf_directory(self, zenith:float, azimuth:float, cuts:Cuts):
+        return f"{self.irf_directory}/{zenith.value:.3f}_{azimuth.value:.3f}/{cuts.get_directory_name()}"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_irf_files(self, zenith:float, azimuth:float, cuts:Cuts):
+        from pathlib import Path
+
+        irf_dir = self.get_irf_directory(zenith, azimuth, cuts)
+        irf_file = f"{irf_dir}/irf_{zenith.value}_{azimuth.value}.fits"
+        cuts_file = f"{irf_dir}/cuts_{zenith.value}_{azimuth.value}.fits"
+        benchmark_file = f"{irf_dir}/benchmark_{zenith.value}_{azimuth.value}.fits"
+        gammapy_irf_file = f"{irf_dir}/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
+        config_file = f"{irf_dir}/config_{zenith.value}_{azimuth.value}.yaml"
+
+        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file(), Path(gammapy_irf_file).is_file()]
+        # print(exist)
+
+        if not all(exist):
+            raise FileNotFoundError(
+                f"[{self.tri_model_nickname}] No IRF files found for zenith {zenith.value}° and azimuth {azimuth.value}° with cuts {cuts.get_directory_name()}. "
+            )
+
+        return {
+            "irf_file": irf_file,
+            "cuts_file": cuts_file,
+            "benchmark_file": benchmark_file,
+            "config_file": config_file,
+            "gammapy_irf_file": gammapy_irf_file,
+        }
+    
+    def get_closest_irf_files(self, zenith:float, azimuth:float, cuts:Cuts=None):
+        """
+        Get the closest IRF files for the given zenith and azimuth.
+        :param zenith: The zenith angle in degrees.
+        :type zenith: float
+        :param azimuth: The azimuth angle in degrees.
+        :type azimuth: float
+        :param cuts: The cuts to apply.
+        :type cuts: Cuts
+        :return: A dictionary with the closest IRF files.
+        :rtype: dict
+        """
+        import glob
+        from pathlib import Path
+
+        if cuts is not None:
+            available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/{cuts.get_directory_name()}/")
+            if len(available_irf_direction_directories) == 0:
+                raise FileNotFoundError(
+                    "No IRF files for this model."
+                )
+        else:
+            available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/*/")
+            if len(available_irf_direction_directories) == 0:
+                raise FileNotFoundError(
+                    "No IRF files for this model."
+                )
+            cut_directorie_names = [Path(path).parts[-2] for path in available_irf_direction_directories]
+            cuts = get_cuts_from_directory_name(cut_directorie_names[0])
+
+        zeniths = []
+        azimuths = []
+        for path in available_irf_direction_directories:
+            parts = path.split("/")[-3].split("_")
+            zeniths.append(float(parts[0]))
+            azimuths.append(float(parts[1]))
+
+        match = np.argmin(
+            np.abs(zeniths - zenith)
+            + np.abs(azimuths - azimuth)
+        )
+
+        closest_zenith = zeniths[match] * u.deg
+        closest_azimuth = azimuths[match] * u.deg
+        
+        return self.get_irf_files(closest_zenith, closest_azimuth, cuts)
+
+    def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
+        """
+        Get the closest IRF files for the given zenith and azimuth.
+        :param zenith: The zenith angle in degrees.
+        :type zenith: float
+        :param azimuth: The azimuth angle in degrees.
+        :type azimuth: float
+        :param cuts: The cuts to apply.
+        :type cuts: Cuts
+        :return: A dictionary with the closest IRF files.
+        :rtype: dict
+        """
+        import glob
+        from pathlib import Path
+        from .. import resources
+        import importlib.resources as pkg_resources
+
+
+        assert cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED, "RF IRFs are only available for EFFICIENCY_OPTIMIZED cuts."
+
+        available_rf_irf_zeniths = [10, 23.63, 32.06, 43.2]
+        efficiency = cuts.efficiency_gammaness
+
+        with pkg_resources.path(resources, "LST_source_catalog.ecsv") as catalog_file:
+            catalog_table = Table.read(catalog_file, format="ascii.ecsv")
+
+        zeniths = available_rf_irf_zeniths
+
+
+        match = np.argmin(
+            np.abs(zeniths - zenith)
+        )
+
+        closest_zenith = zeniths[match] * u.deg
+        # /home/bastien.lacave/PhD/Software/CTLM/CTLearn-Manager/src/ctlearn_manager/resources/irfs_zen_10.00_gh-eff_0.4.fits.gz
+        
+        return pkg_resources.path(resources, f"irfs_zen_{closest_zenith}_gh-eff_{efficiency}.fits.gz")
+
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        # print(f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}")
+        return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}"
+
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_merged_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
+        # print(f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged")
+        return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}/merged"
+    
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_dl2_mc_files(self, zenith:float, azimuth:float, particle_types: list[ParticleType] = [
+            ParticleType.GAMMA_POINT,
+            ParticleType.PROTON,
+        ],  merged: bool = None):
+
+        dl2_files = {}
+
+        for particle_type in particle_types:
+            if not merged:
+                dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            else:
+                dl2_directory = self.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
+
+            _dl2_files = sorted(glob.glob(f"{dl2_directory}/*.h5"))
+            # if len(_dl2_files) == 0:
+            #     if merged:
+            #         raise FileNotFoundError(
+            #             f"No DL2 files found for {particle_type.value} at zenith {zenith.value}° and azimuth {azimuth.value}°."
+            #         )
+            #     else:
+            #         dl2_directory = self.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            #         _dl2_files = glob.glob(f"{dl2_directory}/*.h5")
+            if len(_dl2_files) > 0:
+                dl2_files[particle_type.value] = _dl2_files
+        
+        return dl2_files
+    
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def get_closest_dl2_mc_files(self, zenith:float, azimuth:float, particle_types: list[ParticleType] = [
+    #         ParticleType.GAMMA_POINT,
+    #         ParticleType.PROTON,
+    #     ], merged: bool = None):
+
+    #     import glob
+    #     from pathlib import Path
+
+    #     for particle_type in particle_types:
+
+
+    
+
+    def get_available_MC_directions(self, particle_type: ParticleType):
+        import glob
+
+        paths = glob.glob(f"{self.dl2_mc_directory}/{particle_type.value}/*/")
+        zeniths = []
+        azimuths = []
+        for path in paths:
+            parts = path.split("/")[-2].split("_")
+            zeniths.append(float(parts[0]))
+            azimuths.append(float(parts[1]))
+        return zeniths * u.deg, azimuths * u.deg
+
+    def get_dl2_post_processed_data_directory(self, run:int):
+        return f"{self.dl2_post_processed_data_directory}/{run:05d}"
+    
+    def get_dl2_post_processed_data_rf_directory(self, run:int):
+        return f"{self.dl2_post_processed_data_rf_directory}/{run:05d}"
+
+    def load_model_from_index(self, model_nickname:str, MODEL_INDEX_FILE:str, cluser_config=ClusterConfiguration()):
+        from .. import CTLearnModelManager
+        # models_table = QTable.read(MODEL_INDEX_FILE)
+        # model_index = np.where(models_table['model_nickname'] == model_nickname)[0][0]
+        model_parameters = {"model_nickname": model_nickname}
+        from astropy.io.misc.hdf5 import read_table_hdf5
+
+        try:
+            read_table_hdf5(f"{MODEL_INDEX_FILE}", path=f"{model_nickname}/parameters")
+        except:
+            raise ValueError(f"Model {model_nickname} not found in {MODEL_INDEX_FILE}")
+        model = CTLearnModelManager(
+            model_parameters,
+            self,
+            load=True,
+            cluster_configuration=cluser_config,
+        )
+        return model
+    
+def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
+    """
+    Get the closest IRF files for the given zenith and azimuth.
+    :param zenith: The zenith angle in degrees.
+    :type zenith: float
+    :param azimuth: The azimuth angle in degrees.
+    :type azimuth: float
+    :param cuts: The cuts to apply.
+    :type cuts: Cuts
+    :return: A dictionary with the closest IRF files.
+    :rtype: dict
+    """
+    import glob
+    from pathlib import Path
+    from .. import resources
+    import importlib.resources as pkg_resources
+
+
+    assert cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED, "RF IRFs are only available for EFFICIENCY_OPTIMIZED cuts."
+
+    available_rf_irf_zeniths = np.array([10, 23.63, 32.06, 43.2])
+    efficiency = cuts.efficiency_gammaness
+
+    with pkg_resources.path(resources, "LST_source_catalog.ecsv") as catalog_file:
+        catalog_table = Table.read(catalog_file, format="ascii.ecsv")
+
+    zeniths = available_rf_irf_zeniths
+
+
+    match = np.argmin(
+        np.abs(zeniths - zenith)
+    )
+
+    closest_zenith = zeniths[match] * u.deg
+    # /home/bastien.lacave/PhD/Software/CTLM/CTLearn-Manager/src/ctlearn_manager/resources/irfs_zen_10.00_gh-eff_0.4.fits.gz
+    
+    return pkg_resources.path(resources, f"irfs_zen_{closest_zenith.value:.2f}_gh-eff_{efficiency}.fits.gz")
+
+        
+def convert_irf_format(irf_file, cuts_file, output_file):
+    """
+    Convert IRF file format by reading HDUs from irf and cuts files,
+    renaming them and their columns, and writing to a new FITS file.
+    
+    Parameters:
+    -----------
+    irf_file : str
+        Path to the input IRF file
+    cuts_file : str
+        Path to the input cuts file
+    output_file : str
+        Path to the output FITS file
+    """
+    from astropy.io import fits
+    import os
+    # HDU name mappings
+    irf_hdu_mapping = {
+        # 'old_name': 'new_name'
+        # Add your specific IRF HDU mappings here
+        # 'EFFECTIVE_AREA': 'AEFF_2D',
+        # 'ENERGY_DISPERSION': 'EDISP_2D',
+        # 'PSF': 'PSF_2D',
+        # 'BACKGROUND': 'BKG_2D'
+    }
+    
+    cuts_hdu_mapping = {
+        # 'old_name': 'new_name'
+        # Add your specific cuts HDU mappings here
+        # 'CUTS': 'CUTS_2D',
+        # 'THETA_CUTS': 'THETA_2D'
+    }
+    
+    # Column name mappings for each HDU
+    irf_column_mappings = {
+        # 'AEFF_2D': {
+        #     # 'old_column': 'new_column'
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'EFFAREA': 'EFFAREA'
+        # },
+        # 'EDISP_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'MIGRA_LO': 'MIGRA_LO',
+        #     'MIGRA_HI': 'MIGRA_HI'
+        # },
+        # 'PSF_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI'
+        # },
+        # 'BKG_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI'
+        # }
+    }
+    
+    cuts_column_mappings = {
+        # 'CUTS_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'CUT_VALUE': 'CUT'
+        # },
+        # 'THETA_2D': {
+        #     'ENERGY_LO': 'ENERG_LO',
+        #     'ENERGY_HI': 'ENERG_HI',
+        #     'THETA_CUT': 'THETA'
+        # }
+    }
+    
+    def rename_columns(hdu, column_mapping):
+        """Rename columns in a table HDU"""
+        
+        if not isinstance(hdu, fits.BinTableHDU) or not column_mapping:
+            return hdu
+        
+        # Get current column names
+        old_names = [col.name for col in hdu.columns]
+        
+        # Create new column definitions with renamed columns
+        new_columns = []
+        for col in hdu.columns:
+            old_name = col.name
+            new_name = column_mapping.get(old_name, old_name)
+            
+            # Create new column with updated name
+            new_col = fits.Column(
+                name=new_name,
+                format=col.format,
+                array=hdu.data[old_name],
+                unit=col.unit if hasattr(col, 'unit') else None
+            )
+            new_columns.append(new_col)
+        
+        # Create new table HDU with renamed columns
+        new_table = fits.BinTableHDU.from_columns(new_columns)
+        new_table.header.update(hdu.header)
+        return new_table
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    # Read the IRF file
+    with fits.open(irf_file) as irf_hdul:
+        # Read the cuts file
+        with fits.open(cuts_file) as cuts_hdul:
+            
+            # Create new HDU list for output
+            output_hdul = fits.HDUList()
+            
+            # Add primary HDU
+            primary_hdu = fits.PrimaryHDU()
+            output_hdul.append(primary_hdu)
+            
+            # Process IRF file HDUs
+            for i, hdu in enumerate(irf_hdul):
+                if i == 0:  # Skip primary HDU
+                    continue
+                
+                # Get HDU name
+                old_name = hdu.name if hasattr(hdu, 'name') and hdu.name else f"HDU_{i}"
+                new_name = irf_hdu_mapping.get(old_name, old_name)
+                
+                # Rename columns if mapping exists
+                column_mapping = irf_column_mappings.get(new_name, {})
+                processed_hdu = rename_columns(hdu, column_mapping)
+                
+                # Set the new HDU name
+                processed_hdu.name = new_name
+                
+                output_hdul.append(processed_hdu)
+            
+            # Process cuts file HDUs
+            for i, hdu in enumerate(cuts_hdul):
+                if i == 0:  # Skip primary HDU
+                    continue
+                
+                # Get HDU name
+                old_name = hdu.name if hasattr(hdu, 'name') and hdu.name else f"HDU_{i}"
+                new_name = cuts_hdu_mapping.get(old_name, old_name)
+                
+                # Rename columns if mapping exists
+                column_mapping = cuts_column_mappings.get(new_name, {})
+                processed_hdu = rename_columns(hdu, column_mapping)
+                
+                # Set the new HDU name
+                processed_hdu.name = new_name
+                # Add meta information to the HDU header
+                processed_hdu.header['GH_EFF'] = 0.7
+                
+                output_hdul.append(processed_hdu)
+            
+            # Write the output file
+            output_hdul.writeto(output_file, overwrite=True)
+            
+    print(f"Successfully converted IRF files to: {output_file}")
+    print(f"Output file contains {len(output_hdul)} HDUs")
+    
+    # Print summary of processed HDUs
+    with fits.open(output_file) as check_hdul:
+        print("\nProcessed HDUs:")
+        for i, hdu in enumerate(check_hdul):
+            if i == 0:
+                print(f"  {i}: PRIMARY")
+            else:
+                hdu_type = type(hdu).__name__
+                if isinstance(hdu, fits.BinTableHDU):
+                    col_names = [col.name for col in hdu.columns]
+                    print(f"  {i}: {hdu.name} ({hdu_type}) - Columns: {col_names}")
+                else:
+                    print(f"  {i}: {hdu.name} ({hdu_type})")
+
+@u.quantity_input(source_ra=u.deg, source_dec=u.deg)
+def produce_dl3(
+    dl2_files: list[str],
+    CTLearnTriModelCollection,
+    output_dl3_directory: str,
+    pointing_table = "dl1/monitoring/telescope/pointing/tel_001",
+    source_name: str = "Crab",
+    source_ra: float = 83.633 * u.deg,
+    source_dec: float = 22.01 * u.deg,
+    cuts: Cuts = DefaultCuts.EFF_70.value,
+    overwrite: bool = False,
+    dl3_file_pattern: str = "LST-1.Run*.dl3.fits",
+    pointing_alt_key = "altitude",
+    pointing_az_key = "azimuth",
+    cluster_configuration = ClusterConfiguration(),
+    ):
+    import os
+    from pathlib import Path
+
+    os.makedirs(output_dl3_directory, exist_ok=True)
+
+    for dl2_file in dl2_files:
+        zenith, azimuth = get_avg_pointing(dl2_file, pointing_table, alt_key=pointing_alt_key, az_key=pointing_az_key)
+        irf_file = CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=cuts)['gammapy_irf_file']
+        irf_dir = os.path.dirname(irf_file)
+        irf_filename = os.path.basename(irf_file)
+        cmd = f"manager_create_dl3_file \
+-d {dl2_file} \
+-o {output_dl3_directory} \
+-i {irf_dir} \
+-p {irf_filename} \
+--source-name {source_name} \
+--source-ra {source_ra.to(u.deg).value}deg \
+--source-dec {source_dec.to(u.deg).value}deg \
+{'--overwrite ' if overwrite else ''} \
+--log-level DEBUG"
+        print(cmd)
+        output_file = os.path.join(output_dl3_directory, os.path.basename(dl2_file).replace(".h5", ".fits").replace("dl2", "dl3"))
+        print(output_file)
+        if not os.path.exists(output_file) or overwrite:
+            if cluster_configuration.use_cluster:
+                sbatch_file = cluster_configuration.write_sbatch_script(
+                    Path(dl2_file).stem, cmd, output_dl3_directory
+                )
+                os.system(f"sbatch {sbatch_file}")
+            else:
+            
+                success = os.system(cmd)
+                if success != 0:
+                    print(f"Error creating DL3 file for {dl2_file}.")
+
+
+    cmd = f"manager_create_dl3_index_files \
+-d {output_dl3_directory}/ \
+-o {output_dl3_directory} \
+-p '{dl3_file_pattern}'  \
+--overwrite \
+--log-level DEBUG"
+    print(cmd)
+    success = os.system(cmd)
+    if success != 0:
+        print(f"Error creating DL3 index files in {output_dl3_directory}.")

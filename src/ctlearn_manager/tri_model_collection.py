@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from . import CTLearnTriModelManager
+
 from .utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     CutType,
     DefaultCuts,
@@ -19,6 +20,8 @@ from .utils.utils import (
     get_files_cscs,
     get_files_LST_cluster,
     set_mpl_style,
+    CTLMDirectories,
+    get_color
 )
 
 __all__ = ["TriModelCollection"]
@@ -68,9 +71,10 @@ class TriModelCollection:
     def __init__(
 
         self,
-        tri_models: list,
+        tri_models: list[CTLearnTriModelManager],
         cluster_configuration: ClusterConfiguration = ClusterConfiguration(),
         model_labels: list[str] = None,
+        allow_muliple_projects=False,
     ):
         """
         Initialize the TriModelCollection object.
@@ -102,8 +106,16 @@ class TriModelCollection:
             of tri-models.
             If the stereos of all tri-models are not the same.
         """
-        self.tri_models = tri_models
+        self.tri_models: list[CTLearnTriModelManager] = tri_models
         self.cluster_configuration = cluster_configuration
+
+        # Assert that all tri_models have the same project_directory
+        self.allow_muliple_projects = allow_muliple_projects
+        if not self.allow_muliple_projects:
+            project_directories = [tri_model.project_directories.project_directory for tri_model in self.tri_models]
+            assert len(set(project_directories)) == 1, "All tri_models must be part of the same project_directory."
+            project_directories = [tri_model.project_directories for tri_model in self.tri_models]
+            self.project_directories: CTLMDirectories = project_directories[0]
         for tri_model in self.tri_models:
             tri_model.cluster_configuration = cluster_configuration
         telescope_ids = [tri_model.telescope_ids for tri_model in self.tri_models]
@@ -117,7 +129,8 @@ class TriModelCollection:
         else:
             self.model_labels = [f"Model_{j}" for j in range(len(self.tri_models))]
         assert len(set(stereos)) == 1, "All stereos in the collection must be the same."
-        set_mpl_style()
+        # set_mpl_style()
+        self.tri_model_nicknames = [tri_model.project_directories.tri_model_nickname for tri_model in self.tri_models]
         # assert len(set(telescope_ids)) == 1, "All telescope_ids in the collection must be the same."
         # assert len(set(telescope_names)) == 1, "All telescope_names in the collection must be the same."
 
@@ -437,7 +450,7 @@ class TriModelCollection:
                 avg_data_az.to(u.rad),
                 avg_data_ze,
                 label="Average pointing",
-                color=plt.rcParams["axes.prop_cycle"].by_key()["color"][3],
+                color=get_color("ctlearn_highlight"),
             )
             ax.legend()
             plt.show()
@@ -479,6 +492,7 @@ class TriModelCollection:
         figsize=None,
         plot_RF=False,
         compare_with: str = None,
+        output_file=None,
     ):
         """
         Plot the energy resolution for DL2 data.
@@ -556,12 +570,12 @@ class TriModelCollection:
                 l = f"RF {closest_zenith:.1f}°"
                 if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
-                ax.plot(RF_e, RF_e_res, label=l, color="k", zorder=0)
+                ax.plot(RF_e, RF_e_res, label=l, color=get_color('on_background'), zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
-            text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-            background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+            text_color = get_color("ctlearn_accent_2")
+            background_color = get_color("ctlearn_accent_1")
             ax.text(
                 0.02,
                 0.02,
@@ -601,7 +615,7 @@ class TriModelCollection:
                         ref_e,
                         [0] * len(ref_e),
                         label=f"{compare_with} vs {compare_with}",
-                        color="k",
+                        color=get_color("on_background"),
                         zorder=0,
                     )
                 for tri_model, label in tqdm(
@@ -621,8 +635,9 @@ class TriModelCollection:
                         continue
                     e = (e_bins[:-1] + e_bins[1:]) / 2
                     e_res = [e_r[0] for e_r in e_res_err]
+                    # print(e, ref_e, ref_e_res)
                     if not np.array_equal(e, ref_e):
-                        ref_e_res_interp = np.interp(e, ref_e, ref_e_res)
+                        ref_e_res_interp = np.interp(e.value, ref_e, ref_e_res)
                     else:
                         ref_e_res_interp = ref_e_res
                     relative_improvement = (
@@ -666,7 +681,11 @@ class TriModelCollection:
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file, dpi=300)
+            # print(f"Saved plot to {output_file}")
+        else:
+            plt.show()
 
     def plot_angular_resolution_DL2(
         self,
@@ -678,6 +697,7 @@ class TriModelCollection:
         figsize=None,
         plot_RF=False,
         compare_with: str = None,
+        output_file=None,
     ):
         
         compare_with_index = [
@@ -724,13 +744,13 @@ class TriModelCollection:
                 l = f"RF {closest_zenith:.1f}°"
                 if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
-                ax.plot(RF_e, RF_ang_res, label=l, color="k", zorder=0)
+                ax.plot(RF_e, RF_ang_res, label=l, color=get_color('on_background'), zorder=0)
             # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
         if zenith is not None and azimuth is not None:
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
-            text_color = CTLearnManagerStyle.ctlearn_accent_2.value
-            background_color = CTLearnManagerStyle.ctlearn_accent_1.value
+            text_color = get_color("ctlearn_accent_2")
+            background_color = get_color("ctlearn_accent_1")
             ax.text(
                 0.02,
                 0.02,
@@ -770,7 +790,7 @@ class TriModelCollection:
                         ref_e,
                         [0] * len(ref_e),
                         label=f"{compare_with} vs {compare_with}",
-                        color="k",
+                        color=get_color("on_background"),
                         zorder=0,
                     )
                 for tri_model, label in tqdm(
@@ -830,7 +850,10 @@ class TriModelCollection:
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)
-        plt.show()
+        if output_file is not None:
+            plt.savefig(output_file)
+        else:
+            plt.show()
 
     def plot_cuts(self, cuts: Cuts = DefaultCuts.EFF_70.value):
         fig, axs = plt.subplots(1, 2, figsize=(10, 4))
@@ -859,7 +882,7 @@ class TriModelCollection:
 
     def plot_everything_dl2(
         self,
-        output_directory: str,
+        # output_directory: str,
         dl2_files: list[str],
         gammaness_cut: float = 0.9,
         edep_cuts: bool = False,
@@ -888,12 +911,11 @@ class TriModelCollection:
         """
         import os
         import pickle
+        import concurrent.futures
 
         grouped_files = {tri_model: [] for tri_model in self.tri_models}
 
-        for dl2_file in tqdm(
-            dl2_files, desc="Grouping DL2 files per model", unit="file"
-        ):
+        def assign_model(dl2_file):
             closest_tri_model = self.find_closest_model_to(
                 dl2_file,
                 pointing_table=pointing_table,
@@ -902,15 +924,44 @@ class TriModelCollection:
                 az_key="azimuth",
                 verbose=False,
             )
+            return (closest_tri_model, dl2_file)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            results = list(tqdm(
+                executor.map(assign_model, dl2_files),
+                total=len(dl2_files),
+                desc="Grouping DL2 files per model",
+                unit="file"
+            ))
+
+        for closest_tri_model, dl2_file in results:
             if closest_tri_model is not None:
                 grouped_files[closest_tri_model].append(dl2_file)
+
+        # for dl2_file in tqdm(
+        #     dl2_files, desc="Grouping DL2 files per model", unit="file"
+        # ):
+        #     closest_tri_model = self.find_closest_model_to(
+        #         dl2_file,
+        #         pointing_table=pointing_table,
+        #         plot=False,
+        #         alt_key="altitude",
+        #         az_key="azimuth",
+        #         verbose=False,
+        #     )
+        #     if closest_tri_model is not None:
+        #         grouped_files[closest_tri_model].append(dl2_file)
 
         # Filter out empty groups
         grouped_files = {
             model: files for model, files in grouped_files.items() if files
         }
-
+        n = []
+        models = []
         for tri_model, files in grouped_files.items():
+            output_directory = tri_model.project_directories.dl2_post_processed_data_directory
+            n.append(len(files))
+            models.append(tri_model.project_directories.tri_model_nickname)
             print(
                 f"Processing {len(files)} files 🧠🧠🧠 CTLearnTriModelManager ▮ {tri_model.direction_model.model_nickname} ▮ {tri_model.energy_model.model_nickname} ▮ {tri_model.type_model.model_nickname} ▮"
             )
@@ -919,10 +970,11 @@ class TriModelCollection:
 
             use_cluster = tri_model.cluster_configuration.use_cluster
             tri_model.cluster_configuration.use_cluster = False  # if some DL2 files were not processed, they will be processed in the same job as the plotting job, and not submit multiple new jobs
+            os.makedirs(output_directory, exist_ok=True)
             with open(tri_model_file, "wb") as f:
                 pickle.dump(tri_model, f)
             tri_model.cluster_configuration.use_cluster = use_cluster
-            print(edep_cuts)
+            # print(edep_cuts)
             cmd = f"plot_dl2 --stereo_tri_model {tri_model_file} --output_directory {output_directory} --gammaness_cut {gammaness_cut} --edep_cuts={edep_cuts}"
             print(cmd)
             sbatch_file = tri_model.cluster_configuration.write_sbatch_script(
@@ -935,3 +987,30 @@ class TriModelCollection:
                 os.system(f"sbatch {sbatch_file}")
             else:
                 os.system(cmd)
+        if len(self.tri_models) > 1:
+            plt.bar(models, n) 
+            plt.xlabel("CTLearn TriModel")
+            plt.ylabel("Number of DL2 files")
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plt.savefig("dl2_files_per_model.png")
+            plt.show()
+
+    def get_tri_model_by_nickname(self, tri_model_nickname):
+        """
+        Get a tri-model by its nickname.
+
+        Parameters
+        ----------
+        nickname : str
+            The nickname of the tri-model to retrieve.
+
+        Returns
+        -------
+        CTLearnTriModel
+            The tri-model with the specified nickname, or None if not found.
+        """
+        for tri_model in self.tri_models:
+            if tri_model.project_directories.tri_model_nickname == tri_model_nickname:
+                return tri_model
+        return None

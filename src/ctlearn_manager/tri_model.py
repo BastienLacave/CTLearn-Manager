@@ -11,7 +11,6 @@ from .io.io import load_DL2_data_MC, load_true_shower_parameters
 from .model_manager import CTLearnModelManager, DataSample
 from .utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     CutType,
     DefaultCuts,
@@ -21,6 +20,12 @@ from .utils.utils import (
     set_mpl_style,
     ExportCurves,
     CurveType,
+    CTLMDirectories,
+    IRFType,
+    CutType,
+    get_irf_type_from_config,
+    get_color,
+    convert_irf_format,
 )
 
 __all__ = [
@@ -57,6 +62,7 @@ class CTLearnTriModelManager:
         direction_model: CTLearnModelManager,
         energy_model: CTLearnModelManager,
         type_model: CTLearnModelManager,
+        project_directories:CTLMDirectories,
         cluster_configuration=ClusterConfiguration(),
     ):
         """
@@ -115,20 +121,24 @@ class CTLearnTriModelManager:
         reco_field_suffix : str
             The suffix for the reconstruction field, determined by the stereo value.
         """
+        self.project_directories:CTLMDirectories  = project_directories
         if direction_model.model_parameters_table["reco"][0] in [
             "direction",
             "cameradirection",
             "skydirection",
         ]:
             self.direction_model = direction_model
+            self.direction_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("direction_model must be a direction model")
         if energy_model.model_parameters_table["reco"][0] == "energy":
             self.energy_model = energy_model
+            self.energy_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("energy_model must be an energy model")
         if type_model.model_parameters_table["reco"][0] == "type":
             self.type_model = type_model
+            self.type_model.cluster_configuration = cluster_configuration
         else:
             raise ValueError("type_model must be a type model")
         import ast
@@ -186,7 +196,7 @@ class CTLearnTriModelManager:
             f"🧠🧠🧠 CTLearnTriModelManager ▮ {self.direction_model.model_nickname} ▮ {self.energy_model.model_nickname} ▮ {self.type_model.model_nickname} ▮"
         )
         self.get_available_MC_directions()
-        set_mpl_style()
+        # set_mpl_style()
 
     def set_keys(self):
         """
@@ -268,29 +278,29 @@ class CTLearnTriModelManager:
                 model.update_model_manager_testing_data(data_sample)
         self.get_available_testing_directions()
 
-    def set_DL2_MC_file(
-        self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
-    ):
-        """
-        Set the DL2 Monte Carlo (MC) file for testing and update associated models.
+    # def set_DL2_MC_file(
+    #     self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
+    # ):
+    #     """
+    #     Set the DL2 Monte Carlo (MC) file for testing and update associated models.
 
-        Parameters
-        ----------
-        testing_MC_DL2_file : str
-            Path to the DL2 MC file to be used for testing.
-        testing_MC_DL2_data_sample : DataSample
-            Data sample object containing the testing data.
+    #     Parameters
+    #     ----------
+    #     testing_MC_DL2_file : str
+    #         Path to the DL2 MC file to be used for testing.
+    #     testing_MC_DL2_data_sample : DataSample
+    #         Data sample object containing the testing data.
 
-        Notes
-        -----
-        This method updates the DL2 MC file and data sample for all associated models,
-        including the direction, energy, and type models.
-        """
-        for model in [self.direction_model, self.energy_model, self.type_model]:
-            model.update_model_manager_DL2_MC_file(
-                testing_MC_DL2_file=testing_MC_DL2_file,
-                testing_MC_DL2_data_sample=testing_MC_DL2_data_sample,
-            )
+    #     Notes
+    #     -----
+    #     This method updates the DL2 MC file and data sample for all associated models,
+    #     including the direction, energy, and type models.
+    #     """
+    #     for model in [self.direction_model, self.energy_model, self.type_model]:
+    #         model.update_model_manager_DL2_MC_file(
+    #             testing_MC_DL2_file=testing_MC_DL2_file,
+    #             testing_MC_DL2_data_sample=testing_MC_DL2_data_sample,
+    #         )
 
     def delete_table_from_index(self, path: str):
         """
@@ -352,7 +362,7 @@ class CTLearnTriModelManager:
         for particle_type in ParticleType:
             try:
                 DL2_table = read_table_hdf5(
-                    self.direction_model.model_index_file,
+                    self.project_directories.model_index_file,
                     path=f"{self.direction_model.model_nickname}/testing/{particle_type.value}",
                 )
                 _zeniths = DL2_table[f"testing_{particle_type.value}_zenith_distances"]
@@ -368,6 +378,7 @@ class CTLearnTriModelManager:
 
         coords = set(zip(flat_zeniths, flat_azimuths))
         coords = sorted(coords, key=lambda x: x[0])
+        print(coords)
         if len(coords) > 0:
             print("Available testing directions:")
         for zenith, azimuth in coords:
@@ -420,18 +431,19 @@ class CTLearnTriModelManager:
         azimuths = []
 
         for particle_type in ParticleType:
-            try:
-                DL2_table = read_table_hdf5(
-                    self.direction_model.model_index_file,
-                    path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
-                )
-                _zeniths = DL2_table[
-                    f"testing_DL2_{particle_type.value}_zenith_distances"
-                ]
-                _azimuths = DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-            except:
-                _zeniths = []
-                _azimuths = []
+            _zeniths, _azimuths = self.project_directories.get_available_MC_directions(particle_type)
+            # try:
+            #     DL2_table = read_table_hdf5(
+            #         self.direction_model.model_index_file,
+            #         path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
+            #     )
+            #     _zeniths = DL2_table[
+            #         f"testing_DL2_{particle_type.value}_zenith_distances"
+            #     ]
+            #     _azimuths = DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
+            # except:
+            #     _zeniths = []
+            #     _azimuths = []
             zeniths.append(_zeniths)
             azimuths.append(_azimuths)
 
@@ -466,8 +478,8 @@ class CTLearnTriModelManager:
         self,
         zenith: float,
         azimuth: float,
-        output_dirs: list[str],
-        config_dir: str | None = None,
+        # output_dirs: list[str],
+        # config_dir: str | None = None,
         launch_particle_types: list[ParticleType] = [ParticleType.GAMMA_POINT],
         batch_size=64,
         dl2_subarray=True,
@@ -520,9 +532,9 @@ class CTLearnTriModelManager:
         validation, file matching, and command execution for both stereo and mono models.
         It supports cluster-based execution using SLURM or local execution.
         """
-        assert len(output_dirs) == len(launch_particle_types), (
-            "Output directories must match the number of launched particle types"
-        )
+        # assert len(output_dirs) == len(launch_particle_types), (
+        #     "Output directories must match the number of launched particle types"
+        # )
 
         if self.cluster_configuration.nodes > 1:
             raise ValueError("CTLearn prediction tool can only be ran on a single GPU")
@@ -534,17 +546,19 @@ class CTLearnTriModelManager:
 
         testing_files = []
         output_files = []
-        for particle_type, output_dir in zip(launch_particle_types, output_dirs):
+        for particle_type in launch_particle_types:
+            output_dir = self.project_directories.get_dl2_mc_directory(particle_type, zenith, azimuth)
+            os.makedirs(output_dir, exist_ok=True)
             direction_testing_table = read_table_hdf5(
-                self.direction_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.direction_model.model_nickname}/testing/{particle_type.value}",
             )
             energy_testing_table = read_table_hdf5(
-                self.energy_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.energy_model.model_nickname}/testing/{particle_type.value}",
             )
             type_testing_table = read_table_hdf5(
-                self.type_model.model_index_file,
+                self.project_directories.model_index_file,
                 path=f"{self.type_model.model_nickname}/testing/{particle_type.value}",
             )
             if (
@@ -604,11 +618,11 @@ class CTLearnTriModelManager:
             ]
             testing_files.extend(_files)
             output_files.extend(_output_files)
-            for model in [self.direction_model, self.energy_model, self.type_model]:
-                for file in _output_files:
-                    model.update_model_manager_DL2_MC_file(
-                        testing_MC_DL2_file=file, testing_MC_DL2_data_sample=data_sample
-                    )
+            # for model in [self.direction_model, self.energy_model, self.type_model]:
+            #     for file in _output_files:
+            #         model.update_model_manager_DL2_MC_file(
+            #             testing_MC_DL2_file=file, testing_MC_DL2_data_sample=data_sample
+            #         )
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels={channel} "
@@ -672,6 +686,7 @@ class CTLearnTriModelManager:
 
             if self.cluster_configuration.use_cluster:
                 # sbatch_file = write_sbatch_script(cluster_configuration.cluster, Path(input_file).stem, cmd, config_dir, env_name=cluster_configuration.python_env, account=cluster_configuration.account)
+                config_dir = self.project_directories.prediction_logs_directory
                 sbatch_file = self.cluster_configuration.write_sbatch_script(
                     Path(input_file).stem, cmd, config_dir
                 )
@@ -741,21 +756,25 @@ class CTLearnTriModelManager:
         channels_string = ""
         for channel in self.channels:
             channels_string += f"--DLImageReader.channels {channel} "
-        type_model_dir = np.sort(
-            glob.glob(
-                f"{self.type_model.model_parameters_table['model_dir'][0]}/{self.type_model.model_nickname}_v*"
-            )
-        )[-1]
-        energy_model_dir = np.sort(
-            glob.glob(
-                f"{self.energy_model.model_parameters_table['model_dir'][0]}/{self.energy_model.model_nickname}_v*"
-            )
-        )[-1]
-        direction_model_dir = np.sort(
-            glob.glob(
-                f"{self.direction_model.model_parameters_table['model_dir'][0]}/{self.direction_model.model_nickname}_v*"
-            )
-        )[-1]
+        # print(f"{self.project_directories.type_model_directory}/{self.project_directories.tri_model_nickname}_type/{self.project_directories.tri_model_nickname}_type_v*")
+        # type_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.type_model_directory}/{self.type_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        # energy_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.energy_model_directory}/{self.energy_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        # direction_model_dir = np.sort(
+        #     glob.glob(
+        #         f"{self.project_directories.direction_model_directory}/{self.direction_model.model_nickname}_v*"
+        #     )
+        # )[-1]
+        type_model_dir = self.project_directories.latest_type_model_directory
+        energy_model_dir = self.project_directories.latest_energy_model_directory
+        direction_model_dir = self.project_directories.latest_direction_model_directory
         allowed_tels = ast.literal_eval(
             self.direction_model.model_parameters_table["telescope_ids"][0]
         )
@@ -777,6 +796,9 @@ class CTLearnTriModelManager:
         config["LST1PredictionTool"]["output_path"] = output_file
         config["LST1PredictionTool"]["log_file"] = output_file.replace(".h5", ".log")
         config["LST1PredictionTool"]["overwrite"] = overwrite
+
+        if config_dir is None:
+            config_dir = self.project_directories.prediction_logs_directory
 
         config_file = f"{config_dir}/pred_config_{Path(input_file).stem}.json"
         with open(config_file, "w") as file:
@@ -940,7 +962,6 @@ class CTLearnTriModelManager:
         self,
         zenith: str,
         azimuth: str,
-        output_file: str,
         particle_type: ParticleType,
         overwrite=False,
     ):
@@ -981,10 +1002,15 @@ class CTLearnTriModelManager:
         - If only one file exists for the given parameters, merging is skipped.
         """
         import os
+        import glob
 
-        files = self.direction_model.get_DL2_MC_files(
-            zenith, azimuth, merged=False, particle_types=[particle_type]
-        )[particle_type.value]
+        output_directory = self.project_directories.get_dl2_mc_merged_directory(particle_type, zenith, azimuth)
+        os.makedirs(output_directory, exist_ok=True)
+        output_file = f"{output_directory}/merged_{particle_type.value}_zenith_{zenith.value}_azimuth_{azimuth.value}.dl2.h5"
+        # files = self.project_directories.get_dl2_mc_files(
+        #     zenith, azimuth, merged=False, particle_types=[particle_type]
+        # )[particle_type.value]
+        files = glob.glob(f"{self.project_directories.get_dl2_mc_directory(particle_type, zenith, azimuth)}/*.h5")
         if len(files) > 1:
             print(
                 f"🔀 Merging DL2 {particle_type.value} files for zenith {zenith} and azimuth {azimuth}"
@@ -993,14 +1019,14 @@ class CTLearnTriModelManager:
             print(f"Running : {cmd}")
             result = os.system(cmd)
             if result == 0:
-                for model in [
-                    self.direction_model,
-                    self.energy_model,
-                    self.type_model,
-                ]:
-                    model.update_merged_DL2_MC_files(
-                        zenith, azimuth, output_file, particle_type
-                    )
+                # for model in [
+                #     self.direction_model,
+                #     self.energy_model,
+                #     self.type_model,
+                # ]:
+                #     model.update_merged_DL2_MC_files(
+                #         zenith, azimuth, output_file, particle_type
+                #     )
                 # self.direction_model.update_merged_DL2_MC_files(
                 #     zenith, azimuth, output_file, particle_type
                 # )
@@ -1016,16 +1042,21 @@ class CTLearnTriModelManager:
                     f"Error: Failed to merge gamma files for zenith {zenith} and azimuth {azimuth}"
                 )
         elif len(files) == 1:
-            for model in [
-                    self.direction_model,
-                    self.energy_model,
-                    self.type_model,
-                ]:
-                    model.update_merged_DL2_MC_files(
-                        zenith, azimuth, files[0], particle_type
-                    )
+            # for model in [
+            #         self.direction_model,
+            #         self.energy_model,
+            #         self.type_model,
+            #     ]:
+            #         model.update_merged_DL2_MC_files(
+            #             zenith, azimuth, files[0], particle_type
+            #         )
+            cmd = f"cp {files[0]} {output_file}"
+            result = os.system(cmd)
+            assert result == 0, (
+                f"Error: Failed to copy file {files[0]} to {output_file}"
+            )
             print(
-                f"✅ There is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}, a new row has been added as 'merged' in the model index, as a duplicate of the single file row. To add more files, simply run testing and merge again."
+                f"✅ There is a single {particle_type.value} file for zenith {zenith} and azimuth {azimuth}, file copied to 'merged'."
             )
         else:
             raise ValueError(
@@ -1075,7 +1106,7 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.table import vstack
 
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for particle_type in particle_types:
@@ -1140,7 +1171,7 @@ class CTLearnTriModelManager:
         import matplotlib.pyplot as plt
         from astropy.table import vstack
 
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for particle_type in particle_types:
@@ -1150,9 +1181,14 @@ class CTLearnTriModelManager:
             for file in testing_DL2_files:
                 dl2_data.append(load_DL2_data_MC(file, tel_id=tel_id))
             dl2_data = vstack(dl2_data)
+            log_bins = np.logspace(
+                np.log10(dl2_data[self.reco_energy_key].min()),
+                np.log10(dl2_data[self.reco_energy_key].max()),
+                100,
+            )
             plt.hist(
                 dl2_data[self.reco_energy_key],
-                bins=100,
+                bins=log_bins,
                 range=(0, 1),
                 histtype="step",
                 density=True,
@@ -1213,7 +1249,7 @@ class CTLearnTriModelManager:
         fig, axs = plt.subplots(
             1, len(particle_types), figsize=(5 * len(particle_types), 4)
         )
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for i, particle_type in enumerate(particle_types):
@@ -1231,17 +1267,19 @@ class CTLearnTriModelManager:
             ax.scatter(
                 dl2_data[self.pointing_alt_key][0] / np.pi * 180,
                 dl2_data[self.pointing_az_key][0] / np.pi * 180,
-                color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                color=get_color("ctlearn_accent_1"),
                 label="Array pointing",
-                marker="x",
+                marker="o",
                 s=80,
+                edgecolor=get_color("ctlearn_accent_1"),
+                facecolor="none",
             )
             ax.hist2d(
                 dl2_data[self.reco_alt_key],
                 dl2_data[self.reco_az_key],
                 bins=100,
                 zorder=0,
-                cmap="viridis",
+                # cmap="viridis",
                 norm=plt.cm.colors.LogNorm(),
             )
             ax.set_xlabel("Altitude [deg]")
@@ -1300,7 +1338,7 @@ class CTLearnTriModelManager:
         fig, axs = plt.subplots(
             1, len(particle_types), figsize=(5 * len(particle_types), 4)
         )
-        DL2_MC_files = self.direction_model.get_DL2_MC_files(
+        DL2_MC_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth, particle_types=particle_types
         )
         for i, particle_type in enumerate(particle_types):
@@ -1342,14 +1380,14 @@ class CTLearnTriModelManager:
             ax.plot(
                 [log_bins[0], log_bins[-1]],
                 [log_bins[0], log_bins[-1]],
-                color=CTLearnManagerStyle.ctlearn_accent_1.value,
+                color=get_color("ctlearn_accent_1"),
                 ls="--",
             )
             ax.hist2d(
                 dl2_data[self.reco_energy_key],
                 dl2_data[self.true_energy_key],
                 bins=log_bins,
-                cmap="viridis",
+                # cmap="viridis",
                 norm=plt.cm.colors.LogNorm(),
             )
             ax.set_xlabel("CTLean Energy [TeV]")
@@ -1372,9 +1410,6 @@ class CTLearnTriModelManager:
         zenith: float,
         azimuth: float,
         config: str,
-        output_cuts_file: str,
-        output_irf_file: str,
-        output_benchmark_file: str,
         pointlike=True,
         electrons=False,
         protons=True,
@@ -1395,12 +1430,6 @@ class CTLearnTriModelManager:
             Azimuth angle of the observation in degrees.
         config : str
             Path to the configuration file for IRF generation.
-        output_cuts_file : str
-            Path to save the generated cuts file.
-        output_irf_file : str
-            Path to save the generated IRF file.
-        output_benchmark_file : str
-            Path to save the generated benchmark file.
         pointlike : bool, optional
             If True, use point-like gamma files. If False, use diffuse gamma files.
             Default is True.
@@ -1427,44 +1456,14 @@ class CTLearnTriModelManager:
           before calling this method if necessary.
         """
         import os
-
-        # irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
-        # match irf_type:
-        #     case IRFType.EFFICIENCY_OPTIMIZED:
-        #         cuts_type = CutsType.EFFICIENCY_OPTIMIZED
-        #     case IRFType.SENSITIVITY_OPTIMIZED:
-        #         cuts_type = CutsType.SENSITIVITY_OPTIMIZED
-        # cuts = Cuts(cuts_type, gammaness_efficiency = gammaness_efficiency, theta_efficiency = theta_efficiency)
-        # if config is None:
-        #     try:
-        #         config = self.direction_model.get_IRF_data(zenith, azimuth)[0]
-        #     except:
-        #         raise ValueError("A configuration file must be provided, at least the first time.")
-        # if output_cuts_file is None:
-        #     try:
-        #         output_cuts_file = self.direction_model.get_IRF_data(zenith, azimuth)[1]
-        #     except:
-        #         raise ValueError("An output cuts file must be provided, at least the first time.")
-        # if output_irf_file is None:
-        #     try:
-        #         output_irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[2]
-        #     except:
-        #         raise ValueError("An output IRF file must be provided, at least the first time.")
-        # if output_benchmark_file is None:
-        #     try:
-        #         output_benchmark_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
-        #     except:
-        #         raise ValueError("An output benchmark file must be provided, at least the first time.")
-        print(
-            "⚠️⚠️⚠️ DO NOT DELETE OR MOVE CONFIG FILES, they are used extensively in the code for plotting."
-        )
+        from pathlib import Path
 
         if pointlike:
-            gamma_files = self.direction_model.get_DL2_MC_files(
+            gamma_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=True
             )[ParticleType.GAMMA_POINT.value]
         else:
-            gamma_files = self.direction_model.get_DL2_MC_files(
+            gamma_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=True
             )[ParticleType.GAMMA_DIFFUSE.value]
         if len(gamma_files) > 1:
@@ -1473,7 +1472,7 @@ class CTLearnTriModelManager:
             )
         gamma_file = gamma_files[0]
         if electrons:
-            electrons_files = self.direction_model.get_DL2_MC_files(
+            electrons_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
             )[ParticleType.ELECTRON.value]
             if len(electrons_files) > 1:
@@ -1483,7 +1482,7 @@ class CTLearnTriModelManager:
             electron_file = electrons_files[0]
 
         if protons:
-            proton_files = self.direction_model.get_DL2_MC_files(
+            proton_files = self.project_directories.get_dl2_mc_files(
                 zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
             )[ParticleType.PROTON.value]
             if len(proton_files) > 1:
@@ -1492,22 +1491,58 @@ class CTLearnTriModelManager:
                 )
             proton_file = proton_files[0]
 
-        os.makedirs(output_cuts_file.rsplit("/", 1)[0], exist_ok=True)
-        os.makedirs(output_irf_file.rsplit("/", 1)[0], exist_ok=True)
-        os.makedirs(output_benchmark_file.rsplit("/", 1)[0], exist_ok=True)
+        
+        irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
 
-        electron_string = f" --electron-file {electron_file}" if electrons else ""
-        proton_string = f" --proton-file {proton_file}" if protons else ""
-        do_background_string = " --do-background" if protons else "--no-do-background"
+        match irf_type:
+            case IRFType.EFFICIENCY_OPTIMIZED:
+                cuts_type = CutType.EFFICIENCY_OPTIMIZED
+                cuts = Cuts(
+                    cuts_type,
+                    efficiency_gammaness=gammaness_efficiency,
+                    efficiency_theta=theta_efficiency,
+                )
+            case IRFType.SENSITIVITY_OPTIMIZED:
+                cuts_type = CutType.SENSITIVITY_OPTIMIZED
+                cuts = Cuts(
+                    cuts_type,
+                    gammaness_cut=None,
+                    theta_cut=None,
+                    efficiency_gammaness=None,
+                    efficiency_theta=None,
+                )
+        
+
+        output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
+        os.makedirs(output_directory, exist_ok=True)
+
+        output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.fits"
+        output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.fits"
+        compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
+        output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.fits"
+
+        cmd = f"scp {config} {output_directory}"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to copy config file to output directory : {result}"
+
+        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml : {result}"
+
+        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+
+        electron_string = f"--electron-file {electron_file}" if electrons else ""
+        proton_string = f"--proton-file {proton_file}" if protons else ""
+        do_background_string = "--do-background" if protons else "--no-do-background"
         cmd = f"ctapipe-optimize-event-selection \
 -c {config} \
 --gamma-file {gamma_file} \
 {proton_string} \
 {electron_string} \
 --output {output_cuts_file} \
---overwrite True"
+--overwrite True \
+--Tool.log_level DEBUG"
         print(cmd)
-        # --EventSelectionOptimizer.optimization_algorithm=PercentileCuts"
         result_cuts = os.system(cmd)
         if result_cuts != 0:
             raise RuntimeError(
@@ -1521,259 +1556,600 @@ class CTLearnTriModelManager:
 {do_background_string} \
 --output {output_irf_file} \
 --benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied --overwrite --spatial-selection-applied"
+--no-spatial-selection-applied --overwrite"
         print(cmd)
         result_irfs = os.system(cmd)
         if result_irfs != 0:
             raise RuntimeError(
                 f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
-        for model in [
-            self.direction_model,
-            self.energy_model,
-            self.type_model,
-        ]:
-            model.update_model_manager_IRF_data(
-                config,
-                output_cuts_file,
-                output_irf_file,
-                output_benchmark_file,
-                zenith,
-                azimuth,
+        
+        convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+        if not self.stereo:
+
+            cmd = f"manager_create_irf_files \
+-g {gamma_file} \
+{proton_string} \
+-o {compatible_output_irf_file} \
+--energy-dependent-gh \
+--energy-dependent-theta \
+--gh-efficiency 0.7 \
+--theta-containment 0.7 \
+--overwrite "
+            print(cmd)
+            result_irfs = os.system(cmd)
+            if result_irfs != 0:
+                raise RuntimeError(
+                    f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
             )
-        # self.direction_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
-        # self.energy_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
-        # self.type_model.update_model_manager_IRF_data(
-        #     config,
-        #     output_cuts_file,
-        #     output_irf_file,
-        #     output_benchmark_file,
-        #     zenith,
-        #     azimuth,
-        # )
+
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def plot_benchmark(
+    def produce_irfs_with_uncertainties(
+        self,
+        zenith: float,
+        azimuth: float,
+        config: str,
+        pointlike=True,
+        electrons=False,
+        unblinded=True,
+        resume_file_index=None,
+        resume_cut_index=None,
+        overwrite=False,
+    ):
+        """
+        Produce Instrument Response Functions (IRFs) for given observational parameters.
+
+        This method generates IRFs, cuts files, and benchmark files for a specified
+        zenith and azimuth angle using the provided configuration. It supports
+        processing gamma, electron, and proton particle types.
+
+        Parameters
+        ----------
+        zenith : float
+            Zenith angle of the observation in degrees.
+        azimuth : float
+            Azimuth angle of the observation in degrees.
+        config : str
+            Path to the configuration file for IRF generation.
+        pointlike : bool, optional
+            If True, use point-like gamma files. If False, use diffuse gamma files.
+            Default is True.
+        electrons : bool, optional
+            If True, include electron files in the IRF generation. Default is False.
+        overwrite : bool, optional
+            If True, overwrite existing output files. Default is False.
+
+        Raises
+        ------
+        ValueError
+            If multiple files are found for a particle type or if required parameters
+            are missing.
+        RuntimeError
+            If the system commands for generating cuts or IRFs fail.
+
+        Notes
+        -----
+        - Ensure that the configuration file and input files are not moved or deleted
+          as they are extensively used in the code for plotting and analysis.
+        - Use `CTLearnTriModelManager.merge_DL2_files()` to merge multiple files
+          before calling this method if necessary.
+        """
+        import os
+        from pathlib import Path
+
+        if pointlike:
+            gamma_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_POINT], merged=False
+            )[ParticleType.GAMMA_POINT.value]
+        else:
+            gamma_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.GAMMA_DIFFUSE], merged=False
+            )[ParticleType.GAMMA_DIFFUSE.value]
+        if len(gamma_files) == 1:
+            raise ValueError(
+                f"Only one file found for gamma, zenith {zenith} and azimuth {azimuth}, please use produce_irfs() instead."
+            )
+        if electrons:
+            electrons_files = self.project_directories.get_dl2_mc_files(
+                zenith, azimuth, particle_types=[ParticleType.ELECTRON], merged=True
+            )[ParticleType.ELECTRON.value]
+            if len(electrons_files) > 1:
+                raise ValueError(
+                    f"Multiple files found for electrons, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()"
+                )
+            electron_file = electrons_files[0]
+
+        proton_files = self.project_directories.get_dl2_mc_files(
+            zenith, azimuth, particle_types=[ParticleType.PROTON], merged=True
+        )[ParticleType.PROTON.value]
+        if len(proton_files) > 1:
+            raise ValueError(
+                f"Multiple files found for proton, zenith {zenith} and azimuth {azimuth}, please merge them first with CTLearnTriModelManager.merge_DL2_files()"
+            )
+        proton_file = proton_files[0]
+        
+        irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
+
+        # Check that irf_type is sensitivity optimized otherwise raise error
+        if irf_type.value != "sensitivity_optimized":
+            raise ValueError(
+                "For unblinded IRFs with uncertainties, only sensitivity optimized IRFs are supported. "
+                f"Current IRF type in config is {irf_type.value}. Please update the config file."
+            )
+        # Init a Cuts object for optimization the sensitivity
+        cuts = Cuts(
+            CutType.SENSITIVITY_OPTIMIZED,
+            gammaness_cut=None,
+            theta_cut=None,
+            efficiency_gammaness=None,
+            efficiency_theta=None,
+        )
+
+        irf_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
+        os.makedirs(irf_directory, exist_ok=True)
+        output_directory = f"{irf_directory}/IRFs_with_uncertainties/"
+        os.makedirs(output_directory, exist_ok=True)
+
+        cmd = f"scp {config} {output_directory}"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to copy config file to output directory : {result}"
+
+        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        result = os.system(cmd)
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml : {result}"
+
+        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+
+        electron_string = f"--electron-file {electron_file}" if electrons else ""
+        if resume_file_index is None and resume_cut_index is None:
+            for g, gamma_file in enumerate(gamma_files):
+                output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{g}.fits"
+                cmd = f"ctapipe-optimize-event-selection \
+-c {config} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file} \
+{electron_string} \
+--output {output_cuts_file} \
+--overwrite True"
+                print(cmd)
+                result_cuts = os.system(cmd)
+                if result_cuts != 0:
+                    raise RuntimeError(
+                        f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
+                )
+        for g, gamma_file in enumerate(gamma_files):
+            # Skip the previous files if resuming
+            if resume_file_index is not None and g < resume_file_index:
+                continue
+            for i in range(len(gamma_files)):
+                # Skip the previous cuts if resuming
+                if resume_cut_index is not None and i < resume_cut_index:
+                    continue
+                # Skip the current gamma file if unblinded
+                if i == g and unblinded:
+                    continue
+                cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}_{i}.fits"
+                output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
+                compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
+                output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}_{g}_with_cuts_{i}.fits"
+                cmd = f"ctapipe-compute-irf \
+-c {config} --IrfTool.cuts_file {cuts_file} \
+--gamma-file {gamma_file} \
+--proton-file {proton_file} \
+{electron_string} \
+--do-background \
+--output {output_irf_file} \
+--benchmark-output {output_benchmark_file} \
+--no-spatial-selection-applied --overwrite"
+                print(cmd)
+                result_irfs = os.system(cmd)
+                if result_irfs != 0:
+                    raise RuntimeError(
+                        f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
+                    )
+                convert_irf_format(output_irf_file, cuts_file, compatible_output_irf_file)
+
+
+
+    def plot_sensitivity_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+        for cut in cuts:
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
+                    hudl["SENSITIVITY"].data["ENERG_HI"] - hudl["SENSITIVITY"].data["ENERG_LO"]
+                )
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+                    )
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
+        if len(cuts) > 1:
+            ax.legend()
+        if title is not None:
+            ax.set_title(title)
+        if ax is None:
+            plt.show()
+
+    def plot_angular_resolution_benchmark(
         self,
         zenith: float,
         azimuth: float,
         cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
         containments: list[int] = [68, 95],
         title: str = None,
-        axs=None,
+        ax=None,
         label=None,
     ):
-        """
-        Plot benchmark performance metrics for a given zenith and azimuth.
-
-        This function generates multiple plots to visualize sensitivity, angular resolution,
-        energy resolution, and energy bias for the specified zenith and azimuth angles.
-        The plots are generated based on the provided cuts and containment percentages.
-
-        Parameters
-        ----------
-        zenith : float
-            Zenith angle in degrees.
-        azimuth : float
-            Azimuth angle in degrees.
-        cuts : list[Cuts], optional
-            List of cut configurations to apply. Defaults to [DefaultCuts.EFF_70.value].
-        containments : list[int], optional
-            List of containment percentages to plot angular resolution. Defaults to [68, 95].
-        title : str, optional
-            Title for the plots. Defaults to None.
-        axs : list[matplotlib.axes.Axes], optional
-            List of axes to plot on. If None, new figures and axes are created. Defaults to None.
-        label : str, optional
-            Label for the plots. Defaults to None.
-
-        Notes
-        -----
-        - The function uses Matplotlib for plotting and Astropy for reading FITS files.
-        - If multiple cuts are provided, legends are created for both cuts and containment percentages.
-        - The function generates four separate plots:
-            1. Sensitivity vs. Energy
-            2. Angular resolution vs. Energy
-            3. Energy resolution vs. Energy
-            4. Energy bias vs. Energy
-
-        Raises
-        ------
-        KeyError
-            If the required data keys are not found in the FITS files.
-        """
         import matplotlib.pyplot as plt
         from astropy.io import fits
 
-        if axs is None:
+        if ax is None:
             fig, ax = plt.subplots()
-        else:
-            ax = axs[0]
-        if len(cuts) == 1:
-            cuts[0].plot_cuts_info_plt(ax)
-        for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
-                hudl["SENSITIVITY"].data["ENERG_HI"]
-                - hudl["SENSITIVITY"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
-                    label=cut.get_label(),
-                )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.yscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
-        if len(cuts) > 1:
-            plt.legend()
-        if title is not None:
-            plt.title(title)
-        if axs is None:
-            plt.show()
-
-        fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        line_styles = ["-", "--", "-.", ":"]
         for cut, color in zip(cuts, default_colors[: len(cuts)]):
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
-                hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
-                - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
-            )
-            line_styles = ["-", "--", "-.", ":"]
-            for containment, line_style in zip(containments, line_styles):
-                plt.plot(
-                    energy_center[0],
-                    hudl["ANGULAR RESOLUTION"].data[
-                        f"ANGULAR_RESOLUTION_{containment}"
-                    ][0, 0, :],
-                    color=color,
-                    ls=line_style,
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
+                    hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
+                    - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
                 )
-
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
-        # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Angular resolution [deg]")
-        # Create separate legends for cuts and containment percentages
-        # Create separate legends for cuts and containment percentages
+                for containment, line_style in zip(containments, line_styles):
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ANGULAR RESOLUTION"].data[f"ANGULAR_RESOLUTION_{containment}"][0, 0, :],
+                        color=color,
+                        ls=line_style,
+                    )
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Angular resolution [deg]")
         cut_labels = [cut.get_label() for cut in cuts]
         containment_labels = [f"{containment}%" for containment in containments]
         cut_legend = ax.legend(
-            handles=[
-                plt.Line2D([0], [0], color=color, lw=2)
-                for color in default_colors[: len(cuts)]
-            ],
+            handles=[plt.Line2D([0], [0], color=color, lw=2) for color in default_colors[: len(cuts)]],
             labels=cut_labels,
             loc="best",
         )
         containment_legend = ax.legend(
-            handles=[
-                plt.Line2D([0], [0], color="black", ls=ls, lw=2)
-                for ls in line_styles[: len(containments)]
-            ],
+            handles=[plt.Line2D([0], [0], color="black", ls=ls, lw=2) for ls in line_styles[: len(containments)]],
             labels=containment_labels,
             loc="lower left",
             title="Containment",
         )
         if len(cuts) > 1:
             ax.add_artist(cut_legend)
-
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
 
-        fig, ax = plt.subplots()
+    def plot_energy_resolution_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
-                hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
-                - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
-                    label=cut.get_label(),
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+                    hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+                    - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Energy resolution")
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+                    )
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Energy resolution")
         if len(cuts) > 1:
-            plt.legend()
+            ax.legend()
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
 
-        fig, ax = plt.subplots()
+    def plot_energy_bias_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
         for cut in cuts:
-            irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[3]
-            hudl = fits.open(irf_file)
-            energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
-                hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
-                - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
-            )
-            if len(cuts) > 1:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
-                    label=cut.get_label(),
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+                    hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+                    - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
-            else:
-                plt.plot(
-                    energy_center[0],
-                    hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
-                )
-        plt.xscale("log")
-        plt.xlabel("Energy [TeV]")
-        plt.ylabel("Energy bias")
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+                    )
+        ax.axhline(0, color="black", ls="--", lw=1)
+        ax.set_xscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Energy bias")
         if len(cuts) > 1:
-            plt.legend()
+            ax.legend()
         if title is not None:
-            plt.title(title)
-        if axs is None:
+            ax.set_title(title)
+        if ax is None:
             plt.show()
-        hudl.close()
+
+    # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    # def plot_benchmark(
+    #     self,
+    #     zenith: float,
+    #     azimuth: float,
+    #     cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+    #     containments: list[int] = [68, 95],
+    #     title: str = None,
+    #     axs=None,
+    #     label=None,
+    # ):
+    #     """
+    #     Plot benchmark performance metrics for a given zenith and azimuth.
+
+    #     This function generates multiple plots to visualize sensitivity, angular resolution,
+    #     energy resolution, and energy bias for the specified zenith and azimuth angles.
+    #     The plots are generated based on the provided cuts and containment percentages.
+
+    #     Parameters
+    #     ----------
+    #     zenith : float
+    #         Zenith angle in degrees.
+    #     azimuth : float
+    #         Azimuth angle in degrees.
+    #     cuts : list[Cuts], optional
+    #         List of cut configurations to apply. Defaults to [DefaultCuts.EFF_70.value].
+    #     containments : list[int], optional
+    #         List of containment percentages to plot angular resolution. Defaults to [68, 95].
+    #     title : str, optional
+    #         Title for the plots. Defaults to None.
+    #     axs : list[matplotlib.axes.Axes], optional
+    #         List of axes to plot on. If None, new figures and axes are created. Defaults to None.
+    #     label : str, optional
+    #         Label for the plots. Defaults to None.
+
+    #     Notes
+    #     -----
+    #     - The function uses Matplotlib for plotting and Astropy for reading FITS files.
+    #     - If multiple cuts are provided, legends are created for both cuts and containment percentages.
+    #     - The function generates four separate plots:
+    #         1. Sensitivity vs. Energy
+    #         2. Angular resolution vs. Energy
+    #         3. Energy resolution vs. Energy
+    #         4. Energy bias vs. Energy
+
+    #     Raises
+    #     ------
+    #     KeyError
+    #         If the required data keys are not found in the FITS files.
+    #     """
+    #     import matplotlib.pyplot as plt
+    #     from astropy.io import fits
+
+    #     if axs is None:
+    #         fig, ax = plt.subplots()
+    #     else:
+    #         ax = axs[0]
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         print(irf_file)
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["SENSITIVITY"].data["ENERG_HI"]
+    #             - hudl["SENSITIVITY"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.yscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Sensitivity [erg s$^{-1}$ cm$^{-2}$]")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    #     for cut, color in zip(cuts, default_colors[: len(cuts)]):
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ANGULAR RESOLUTION "].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
+    #             - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
+    #         )
+    #         line_styles = ["-", "--", "-.", ":"]
+    #         for containment, line_style in zip(containments, line_styles):
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ANGULAR RESOLUTION"].data[
+    #                     f"ANGULAR_RESOLUTION_{containment}"
+    #                 ][0, 0, :],
+    #                 color=color,
+    #                 ls=line_style,
+    #             )
+
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_25'][0,0,:], label='25%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_50'][0,0,:], label='50%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_68'][0,0,:], label='68%')
+    #     # plt.plot(energy_center[0], hudl['ANGULAR RESOLUTION'].data['ANGULAR_RESOLUTION_95'][0,0,:], label='95%')
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Angular resolution [deg]")
+    #     # Create separate legends for cuts and containment percentages
+    #     # Create separate legends for cuts and containment percentages
+    #     cut_labels = [cut.get_label() for cut in cuts]
+    #     containment_labels = [f"{containment}%" for containment in containments]
+    #     cut_legend = ax.legend(
+    #         handles=[
+    #             plt.Line2D([0], [0], color=color, lw=2)
+    #             for color in default_colors[: len(cuts)]
+    #         ],
+    #         labels=cut_labels,
+    #         loc="best",
+    #     )
+    #     containment_legend = ax.legend(
+    #         handles=[
+    #             plt.Line2D([0], [0], color="black", ls=ls, lw=2)
+    #             for ls in line_styles[: len(containments)]
+    #         ],
+    #         labels=containment_labels,
+    #         loc="lower left",
+    #         title="Containment",
+    #     )
+    #     if len(cuts) > 1:
+    #         ax.add_artist(cut_legend)
+
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+    #             - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Energy resolution")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+
+    #     fig, ax = plt.subplots()
+    #     if len(cuts) == 1:
+    #         cuts[0].plot_cuts_info_plt(ax)
+    #     for cut in cuts:
+    #         irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
+    #         hudl = fits.open(irf_file)
+    #         energy_center = hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"] + 0.5 * (
+    #             hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
+    #             - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
+    #         )
+    #         if len(cuts) > 1:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+    #                 label=cut.get_label(),
+    #             )
+    #         else:
+    #             plt.plot(
+    #                 energy_center[0],
+    #                 hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :],
+    #             )
+    #     plt.xscale("log")
+    #     plt.xlabel("Energy [TeV]")
+    #     plt.ylabel("Energy bias")
+    #     if len(cuts) > 1:
+    #         plt.legend()
+    #     if title is not None:
+    #         plt.title(title)
+    #     if axs is None:
+    #         plt.show()
+    #     hudl.close()
 
     def plot_cuts(
         self,
@@ -1834,7 +2210,7 @@ class CTLearnTriModelManager:
         for i, coord in enumerate(coords):
             zenith, azimuth = coord
             for cut in cuts:
-                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cut)[1]
+                cuts_file = self.get_IRF_data(zenith, azimuth, cut)["cuts_file"]
                 if label is None:
                     if (len(cuts) > 1) or (import_from_h5 is not None):
                         l = cut.get_label()
@@ -1905,7 +2281,7 @@ class CTLearnTriModelManager:
             EnergyDispersion2D,
         )
 
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[2]
+        irf_file = self.get_IRF_data(zenith, azimuth, cuts)["irf_file"]
         # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
         bkg = Background2D.read(irf_file, hdu="BACKGROUND")
@@ -2091,12 +2467,12 @@ class CTLearnTriModelManager:
         for i, coord in enumerate(coords):
             for cut in cuts:
                 zenith, azimuth = coord
-                # try:
-                e_bins, ang_res_err = self.get_angular_resolution_DL2(
-                    zenith, azimuth, cut, particle_type
-                )
-                # except:
-                #     continue
+                try:
+                    e_bins, ang_res_err = self.get_angular_resolution_DL2(
+                        zenith, azimuth, cut, particle_type
+                    )
+                except:
+                    continue
                 e = (e_bins[:-1].value + e_bins[1:].value) / 2
                 ang_res = [e_r[0].value for e_r in ang_res_err]
                 ang_res_minus = [e_r[0].value - e_r[1].value for e_r in ang_res_err]
@@ -2228,22 +2604,11 @@ class CTLearnTriModelManager:
         from astropy.io.misc.hdf5 import read_table_hdf5
         from astropy.table import join, vstack
 
-        DL2_gamma_table = read_table_hdf5(
-            self.direction_model.model_index_file,
-            path=f"{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}",
-        )
-        testing_DL2_gamma_files = DL2_gamma_table[
-            f"testing_DL2_{particle_type.value}_files"
-        ][
-            (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == zenith
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == azimuth
-            )
-        ]
+        testing_DL2_gamma_files = self.project_directories.get_dl2_mc_files(
+            zenith,
+            azimuth,
+            particle_types=[particle_type],
+        )[particle_type.value]
         if len(testing_DL2_gamma_files) == 0:
             return
         dl2_gamma = []
@@ -2286,7 +2651,7 @@ class CTLearnTriModelManager:
                 )
 
             case CutType.EFFICIENCY_OPTIMIZED | CutType.SENSITIVITY_OPTIMIZED:
-                cuts_file = self.direction_model.get_IRF_data(zenith, azimuth, cuts)[1]
+                cuts_file = self.get_IRF_data(zenith, azimuth, cuts)["cuts_file"]
                 dl2_gamma, log_bins = self.apply_energy_dependent_cuts_MC(
                     dl2_gamma, cuts_file, theta_cut=apply_theta_cut
                 )
@@ -2618,10 +2983,10 @@ class CTLearnTriModelManager:
         # if export_to_h5 is not None:
         #     export_curves = ExportCurves(export_to_h5)
 
-        testing_DL2_gamma_files = self.direction_model.get_DL2_MC_files(
+        testing_DL2_gamma_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth
         )[ParticleType.GAMMA_POINT.value]
-        testing_DL2_proton_files = self.direction_model.get_DL2_MC_files(
+        testing_DL2_proton_files = self.project_directories.get_dl2_mc_files(
             zenith, azimuth
         )[ParticleType.PROTON.value]
 
@@ -2692,7 +3057,60 @@ class CTLearnTriModelManager:
         # plt.xlim(-0.05, 1.05)
         # plt.ylim(-0.05, 1.05)
         plt.show()
+        
+    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
+    def get_IRF_data(self, zenith=None, azimuth=None, cuts: Cuts = None):
+        """
+        Retrieve Instrument Response Function (IRF) data based on specified parameters.
 
+        Parameters
+        ----------
+        zenith : float, optional
+            The zenith angle for which to retrieve IRF data. If None, the average zenith
+            from the validity range is used.
+        azimuth : float, optional
+            The azimuth angle for which to retrieve IRF data. If None, the average azimuth
+            from the validity range is used.
+        cuts : Cuts
+            The cuts object specifying the IRF type and efficiency parameters.
+
+        Returns
+        -------
+        tuple
+            A tuple containing:
+            - config (str): The configuration string for the matched IRF data.
+            - cuts_file (str): The file path to the cuts file.
+            - irf_file (str): The file path to the IRF file.
+            - benchmark_file (str): The file path to the benchmark file.
+
+        Raises
+        ------
+        IndexError
+            If no IRF data is found for the specified cuts or direction, or if multiple
+            matches are found for the given parameters.
+
+        Notes
+        -----
+        If both `zenith` and `azimuth` are None, the method calculates the average zenith
+        and azimuth from the validity range and retrieves the closest IRF data.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if zenith is None or azimuth is None:
+            average_zenith = (
+                self.direction_model.validity.zenith_range[0] + self.validity.zenith_range[1]
+            ) / 2
+            average_azimuth = (
+                self.direction_model.validity.azimuth_range[0] + self.validity.azimuth_range[1]
+            ) / 2
+            # return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
+            return self.project_directories.get_closest_irf_files(
+            zenith, azimuth, cuts
+        )
+
+        irf_files = self.project_directories.get_irf_files(zenith, azimuth, cuts)
+        return irf_files
+    
     def compare_irfs_to_RF(self, zenith: float, azimuth=None):
         """
         Compare Instrument Response Functions (IRFs) to Random Forest (RF) benchmarks.
@@ -2771,7 +3189,7 @@ class CTLearnTriModelManager:
                 flux_sensitivity_file, format="hdf5", path="sensitivity"
             )
 
-        irf_file = self.direction_model.get_IRF_data(zenith, azimuth)[3]
+        irf_file = self.get_IRF_data(zenith, azimuth)["benchmark_file"]
         hudl = fits.open(irf_file)
 
         energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
@@ -2789,7 +3207,7 @@ class CTLearnTriModelManager:
             flux_sensitivity_table["flux_sensitivity"]
             + flux_sensitivity_table["flux_sensitivity_err_plus"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color= get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],
@@ -2818,7 +3236,7 @@ class CTLearnTriModelManager:
             angular_resolution_table["angular_res_err_lo"],
             angular_resolution_table["angular_res_err_hi"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color=get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],
@@ -2845,7 +3263,7 @@ class CTLearnTriModelManager:
             energy_resolution_table["energy_res_err_lo"],
             energy_resolution_table["energy_res_err_hi"],
             alpha=0.5,
-            color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+            color=get_color("ctlearn_1"),
         )
         plt.plot(
             energy_center[0],

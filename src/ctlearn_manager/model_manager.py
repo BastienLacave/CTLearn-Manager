@@ -13,7 +13,6 @@ from astropy.table import QTable
 
 from ctlearn_manager.utils.utils import (
     ClusterConfiguration,
-    CTLearnManagerStyle,
     Cuts,
     DataSample,
     IRFType,
@@ -21,6 +20,8 @@ from ctlearn_manager.utils.utils import (
     get_irf_type_from_config,
     remove_row_from_table_utils,
     set_mpl_style,
+    CTLMDirectories,
+    get_color,
 )
 
 # from ctlearn_manager.utils.index_tables import IndexTables
@@ -96,7 +97,8 @@ class CTLearnModelManager:
     def __init__(
         self,
         model_parameters,
-        MODEL_INDEX_FILE,
+        # MODEL_INDEX_FILE,
+        project_directories: CTLMDirectories,
         load=False,
         cluster_configuration=ClusterConfiguration(),
     ):
@@ -130,14 +132,15 @@ class CTLearnModelManager:
         """
         from astropy.io.misc.hdf5 import read_table_hdf5
 
-        self.model_index_file = MODEL_INDEX_FILE
+        # self.project_directories.model_index_file = MODEL_INDEX_FILE
         self.model_nickname = model_parameters.get("model_nickname", "new_model")
+        self.project_directories = project_directories
         if not load:
             self.save_to_index(model_parameters)
             print(f"🧠 Model name: {self.model_nickname}")
-
+        
         self.model_parameters_table = read_table_hdf5(
-            f"{self.model_index_file}", path=IndexTables(self).PARAMETERS.table_path
+            f"{self.project_directories.model_index_file}", path=IndexTables(self).PARAMETERS.table_path
         )
         self.validity = ModelRangeOfValidity(self)
         self.telescope_ids = ast.literal_eval(
@@ -154,13 +157,13 @@ class CTLearnModelManager:
             0
         ]  # True if self.min_telescopes >= 2 else False
         training_table_gamma = read_table_hdf5(
-            f"{self.model_index_file}",
+            f"{self.project_directories.model_index_file}",
             path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
         )
 
         if self.model_parameters_table["reco"][0] == "type":
             training_table_proton = read_table_hdf5(
-                f"{self.model_index_file}",
+                f"{self.project_directories.model_index_file}",
                 path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path,
             )
             if (len(training_table_proton["training_proton_patterns"]) == 0) or (
@@ -188,7 +191,7 @@ class CTLearnModelManager:
         #     raise ValueError("All proton related lists must be the same length")
 
         self.cluster_configuration = cluster_configuration
-        set_mpl_style()
+        # set_mpl_style()
 
         # current_model_dir = self.model_parameters_table['model_dir'][0]
         # if f"/{self.model_nickname}" not in current_model_dir:
@@ -258,7 +261,7 @@ class CTLearnModelManager:
 
         try:
             model_table = QTable.read(
-                self.model_index_file,
+                self.project_directories.model_index_file,
                 format="hdf5",
                 path=paramaters_index_table.table_path,
             )
@@ -316,7 +319,7 @@ class CTLearnModelManager:
             )
             write_table_hdf5(
                 model_table,
-                self.model_index_file,
+                self.project_directories.model_index_file,
                 path=paramaters_index_table.table_path,
                 append=True,
                 overwrite=True,
@@ -331,7 +334,7 @@ class CTLearnModelManager:
 
                 try:
                     training_table = read_table_hdf5(
-                        self.model_index_file,
+                        self.project_directories.model_index_file,
                         path=training_index_table.table_path,
                     )
                 except:
@@ -351,7 +354,7 @@ class CTLearnModelManager:
                 )
                 write_table_hdf5(
                     training_table,
-                    self.model_index_file,
+                    self.project_directories.model_index_file,
                     path=training_index_table.table_path,
                     append=True,
                     overwrite=True,
@@ -459,7 +462,7 @@ class CTLearnModelManager:
                 _save_best_validation_only = True
                 model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
                 load_model = True
-                os.system(f"mkdir -p {model_dir}")
+                # os.system(f"mkdir -p {model_dir}")
             else:
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
@@ -471,13 +474,13 @@ class CTLearnModelManager:
                     _save_best_validation_only = True
                 else:
                     print(f"🆕 Model does not exist: will create {model_dir}")
-                    _save_best_validation_only = False
+                    _save_best_validation_only = True
         else:
             model_version = 0
             model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
             print(f"🆕 Model does not exist: will create {model_dir}")
-            os.system(f"mkdir -p {model_dir}")
-            _save_best_validation_only = False
+            os.system(f"mkdir -p {base_model_dir}")
+            _save_best_validation_only = True
 
         if save_best_validation_only is not None:
             _save_best_validation_only = save_best_validation_only
@@ -491,7 +494,7 @@ class CTLearnModelManager:
                 else f"--TrainCTLearnModel.model_type=LoadedModel --LoadedModel.load_model_from={transfer_learning_model_cpk} "
             )
         training_gamma_table = read_table_hdf5(
-            self.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
+            self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
         )
         signal_patterns = ""
         for pattern in training_gamma_table["training_gamma_diffuse_patterns"]:
@@ -499,7 +502,7 @@ class CTLearnModelManager:
         background_patterns = ""
         if self.model_parameters_table["reco"][0] == "type":
             training_proton_table = read_table_hdf5(
-                self.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
             )
             for pattern in training_proton_table["training_proton_patterns"]:
                 background_patterns += f'--pattern-background "{pattern}" '
@@ -635,7 +638,7 @@ class CTLearnModelManager:
         epochs = np.arange(1, len(losses_train) + 1)
         if len(epochs) == 0:
             print(
-                f"❌ No training logs found for {self.model_nickname}, stert the training to see the loss."
+                f"❌ No training logs found for {self.model_nickname}, start the training to see the loss."
             )
             return
         if len(epochs) > 1:
@@ -678,7 +681,7 @@ class CTLearnModelManager:
         
 
         model_table = read_table_hdf5(
-            self.model_index_file, path=IndexTables(self).PARAMETERS.table_path
+            self.project_directories.model_index_file, path=IndexTables(self).PARAMETERS.table_path
         )
         # model_index = np.where(model_table['model_nickname'] == self.model_nickname)[0][0]
         print(f"💾 Model {self.model_nickname} index update:")
@@ -694,7 +697,7 @@ class CTLearnModelManager:
             print(f"\t➡️ {key} updated to {value}")
         write_table_hdf5(
             model_table,
-            self.model_index_file,
+            self.project_directories.model_index_file,
             path=IndexTables(self).PARAMETERS.table_path,
             append=True,
             overwrite=True,
@@ -734,7 +737,7 @@ class CTLearnModelManager:
         testing_index_table = IndexTables(self, particle_type).TESTING
         try:
             testing_table = read_table_hdf5(
-                self.model_index_file,
+                self.project_directories.model_index_file,
                 path=testing_index_table.table_path,
             )
         except:
@@ -764,7 +767,7 @@ class CTLearnModelManager:
             )
         write_table_hdf5(
             testing_table,
-            self.model_index_file,
+            self.project_directories.model_index_file,
             path=testing_index_table.table_path,
             append=True,
             overwrite=True,
@@ -774,692 +777,6 @@ class CTLearnModelManager:
         #     f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) : {testing_dir}/{testing_pattern} updated"
         # )
 
-    def update_model_manager_DL2_MC_file(
-        self, testing_MC_DL2_file: str, testing_MC_DL2_data_sample: DataSample
-    ):
-        """
-        Update the model manager's DL2 Monte Carlo (MC) file with new testing data.
-
-        Parameters
-        ----------
-        testing_MC_DL2_file : str
-            Path to the testing MC DL2 file.
-        testing_MC_DL2_data_sample : DataSample
-            Data sample containing testing MC DL2 metadata such as zenith distance,
-            azimuth, and particle type.
-
-        Raises
-        ------
-        AssertionError
-            If the zenith distance or azimuth in the testing_MC_DL2_data_sample
-            does not have units of degrees.
-
-        Notes
-        -----
-        This method reads the existing DL2 MC data for the specified particle type
-        from the model index file. If the provided testing data is not already
-        present, it appends the new data to the table and writes it back to the
-        model index file.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-
-        testing_zenith_distance = testing_MC_DL2_data_sample.zenith_distance
-        testing_azimuth = testing_MC_DL2_data_sample.azimuth
-        particle_type = testing_MC_DL2_data_sample.particle_type
-
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
-
-        try:
-            DL2_gamma_table = read_table_hdf5(
-                self.model_index_file,
-                path=dl2_mc_index_table.table_path,
-            )
-        except:
-            DL2_gamma_table = dl2_mc_index_table.default_table
-
-        # print(f"💾 Model {self.model_nickname} DL2 data update:")
-        if len(DL2_gamma_table) == 0:
-            DL2_gamma_table = dl2_mc_index_table.default_table
-
-        match = np.where(
-            (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_files"]
-                == testing_MC_DL2_file
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == testing_zenith_distance
-            )
-            & (
-                DL2_gamma_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == testing_azimuth
-            )
-            & (
-                DL2_gamma_table["merged"] == False
-            )
-        )[0]
-        if len(match) == 0:
-            assert testing_zenith_distance.unit == u.deg, (
-                f"Zenith distance must be in degrees: {testing_zenith_distance}"
-            )
-            assert testing_azimuth.unit == u.deg, (
-                f"Azimuth must be in degrees: {testing_azimuth}"
-            )
-            DL2_gamma_table.add_row(
-                [testing_MC_DL2_file, testing_zenith_distance, testing_azimuth, False]
-            )
-        write_table_hdf5(
-            DL2_gamma_table,
-            self.model_index_file,
-            path=dl2_mc_index_table.table_path,
-            append=True,
-            overwrite=True,
-            serialize_meta=True,
-        )
-        # print(f"\t➡️ Testing DL2 {particle_type.value} data updated")
-
-    def delete_DL2_MC_file(self, testing_DL2_file: str, particle_type: ParticleType):
-        """
-        Delete a DL2 Monte Carlo (MC) file entry from the model index file.
-
-        Parameters
-        ----------
-        testing_DL2_file : str
-            The path or name of the DL2 file to be removed.
-        particle_type : ParticleType
-            The type of particle associated with the DL2 file (e.g., gamma, proton).
-
-        Notes
-        -----
-        This method reads the DL2 MC table from the model index file, removes the
-        entry corresponding to the specified DL2 file, and writes the updated table
-        back to the file. If the specified file is not found in the table, no changes
-        are made.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
-
-        DL2_table = read_table_hdf5(
-            self.model_index_file,
-            path=dl2_mc_index_table.table_path,
-        )
-        match = np.where(
-            DL2_table[f"testing_DL2_{particle_type.value}_files"] == testing_DL2_file
-        )[0]
-        if len(match) > 0:
-            DL2_table.remove_rows(match)
-        write_table_hdf5(
-            DL2_table,
-            self.model_index_file,
-            path=dl2_mc_index_table.table_path,
-            append=True,
-            overwrite=True,
-            serialize_meta=True,
-        )
-
-    def update_model_manager_DL2_data_files(
-        self, DL2_files, DL2_zenith_distances, DL2_azimuths
-    ):
-        """
-        Update the DL2 data files associated with the model manager.
-
-        This method reads the existing DL2 data table from an HDF5 file, updates it with
-        new DL2 data if provided, and writes the updated table back to the file. If the
-        DL2 data table does not exist, it initializes a new table.
-
-        Parameters
-        ----------
-        DL2_files : list of str
-            List of file paths to DL2 data files.
-        DL2_zenith_distances : list of float
-            List of zenith distances corresponding to the DL2 files.
-        DL2_azimuths : list of float
-            List of azimuth angles corresponding to the DL2 files.
-
-        Raises
-        ------
-        Exception
-            If there is an error reading or writing the HDF5 file.
-
-        Notes
-        -----
-        - The method ensures that duplicate entries (based on file path, zenith distance,
-          and azimuth) are not added to the DL2 data table.
-        - The updated table is saved to the HDF5 file under the path
-          `<model_nickname>/DL2/Data`.
-        - If the table is empty or does not exist, it is initialized with the appropriate
-          column names and data types.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-
-        dl2_data_index_table = IndexTables(self).DL2_DATA
-
-        try:
-            DL2_data_table = read_table_hdf5(
-                self.model_index_file, path=dl2_data_index_table.table_path
-            )
-        except:
-            DL2_data_table = dl2_data_index_table.default_table
-
-        print(f"💾 Model {self.model_nickname} DL2 data update:")
-        if len(DL2_data_table) == 0:
-            DL2_data_table = dl2_data_index_table.default_table
-
-        if len(DL2_files) > 0:
-            for i in range(len(DL2_files)):
-                match = np.where(
-                    (DL2_data_table["DL2_files"] == DL2_files[i])
-                    & (
-                        DL2_data_table["DL2_zenith_distances"]
-                        == DL2_zenith_distances[i]
-                    )
-                    & (DL2_data_table["DL2_azimuths"] == DL2_azimuths[i])
-                )[0]
-                if len(match) == 0:
-                    DL2_data_table.add_row(
-                        [DL2_files[i], DL2_zenith_distances[i], DL2_azimuths[i]]
-                    )
-                # else:
-                #     DL2_data_table.remove_rows(match)
-            write_table_hdf5(
-                DL2_data_table,
-                self.model_index_file,
-                path=dl2_data_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-            print("\t➡️ Testing DL2 real data updated")
-
-    def update_merged_DL2_MC_files(
-        self,
-        testing_DL2_zenith_distance: float,
-        testing_DL2_azimuth: float,
-        testing_DL2_merged_file: str,
-        particle_type: ParticleType,
-    ):
-        """
-        Update the merged DL2 MC files for a specific particle type and testing configuration.
-
-        This method reads the existing DL2 table from an HDF5 file, removes any rows that match
-        the given testing zenith distance and azimuth, and adds a new row with the provided
-        merged file information. The updated table is then written back to the HDF5 file.
-
-        Parameters
-        ----------
-        testing_DL2_zenith_distance : float
-            The zenith distance of the testing DL2 data to update.
-        testing_DL2_azimuth : float
-            The azimuth of the testing DL2 data to update.
-        testing_DL2_merged_file : str
-            The file path of the merged DL2 data to add.
-        particle_type : ParticleType
-            The type of particle (e.g., gamma, proton) for which the DL2 data is being updated.
-
-        Raises
-        ------
-        ValueError
-            If the particle type is invalid or the HDF5 file cannot be read or written.
-
-        Notes
-        -----
-        The method uses the `astropy.io.misc.hdf5` module to handle HDF5 file operations.
-        It ensures that the DL2 table is updated without duplicate entries for the same
-        zenith distance and azimuth combination.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-
-        dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
-
-        # print(f"💾 Model {self.model_nickname} DL2 merged data update:")
-        DL2_table = read_table_hdf5(
-            self.model_index_file,
-            path=dl2_mc_index_table.table_path,
-        )
-        match = np.where(
-            (
-                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                == testing_DL2_zenith_distance
-            )
-            & (
-                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                == testing_DL2_azimuth
-            )
-            & (
-                DL2_table["merged"] == False  # noqa: E712
-            )
-        )[0]
-        if len(match) > 0:
-            match = np.where(
-                (
-                    DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                    == testing_DL2_zenith_distance
-                )
-                & (
-                    DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                    == testing_DL2_azimuth
-                )
-                & (
-                    DL2_table["merged"] == True  # noqa: E712
-                )
-            )[0]
-            if len(match) > 0:
-                DL2_table.remove_rows(match)
-            DL2_table.add_row(
-                [testing_DL2_merged_file, testing_DL2_zenith_distance, testing_DL2_azimuth, True]
-            )
-            write_table_hdf5(
-                DL2_table,
-                self.model_index_file,
-                path=dl2_mc_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-            # print(f"\t➡️ Testing DL2 {particle_type.value} merged data updated")
-        else:
-            raise ValueError(
-                f"DL2 table for {particle_type.value} does not exist for zenith distance {testing_DL2_zenith_distance} and azimuth {testing_DL2_azimuth}"
-            )
-        
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def update_model_manager_IRF_data(
-        self, config, cuts_file, irf_file, bencmark_file, zenith, azimuth
-    ):
-        """
-        Update the IRF (Instrument Response Function) data for the model manager.
-
-        This function reads the existing IRF data from an HDF5 file, checks if the
-        provided configuration and parameters already exist, and updates or adds
-        the data accordingly. The updated IRF data is then written back to the HDF5 file.
-
-        Parameters
-        ----------
-        config : str
-            The configuration identifier for the IRF data.
-        cuts_file : str
-            The path to the cuts file associated with the IRF data.
-        irf_file : str
-            The path to the IRF file.
-        bencmark_file : str
-            The path to the benchmark file (note: 'bencmark_file' appears to be a typo).
-        zenith : float
-            The zenith angle in degrees.
-        azimuth : float
-            The azimuth angle in degrees.
-
-        Raises
-        ------
-        Exception
-            If there is an error reading or writing the HDF5 file.
-
-        Notes
-        -----
-        - If the IRF data for the given parameters already exists, it is replaced.
-        - If the IRF data does not exist, a new entry is added.
-        - The function uses `astropy.io.misc.hdf5` for reading and writing HDF5 files.
-        - The IRF data is stored in a QTable with specific column names, data types,
-          and units.
-
-        See Also
-        --------
-        astropy.io.misc.hdf5.read_table_hdf5 : Read a table from an HDF5 file.
-        astropy.io.misc.hdf5.write_table_hdf5 : Write a table to an HDF5 file.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
-
-        irf_index_table = IndexTables(self).IRF
-
-        try:
-            IRF_table = read_table_hdf5(
-                self.model_index_file, path=irf_index_table.table_path
-            )
-        except:
-            IRF_table = irf_index_table.default_table
-        if len(IRF_table) == 0:
-            IRF_table = irf_index_table.default_table
-
-        match = np.where(
-            (IRF_table["config"] == config).any()
-            and (IRF_table["cuts_file"] == cuts_file).any()
-            and (IRF_table["irf_file"] == irf_file).any()
-            and (IRF_table["benckmark_file"] == bencmark_file).any()
-            and (
-                (IRF_table["zenith"] == zenith).any()
-                and (IRF_table["azimuth"] == azimuth).any()
-            ).all()
-        )[0]
-        if len(match) == 0:
-            IRF_table.add_row(
-                [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
-            )
-            write_table_hdf5(
-                IRF_table,
-                self.model_index_file,
-                path=irf_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-        else:
-            IRF_table.remove_rows(match)
-            IRF_table.add_row(
-                [config, cuts_file, irf_file, bencmark_file, zenith, azimuth]
-            )
-            write_table_hdf5(
-                IRF_table,
-                self.model_index_file,
-                path=irf_index_table.table_path,
-                append=True,
-                overwrite=True,
-                serialize_meta=True,
-            )
-        print(
-            f"Model {self.model_nickname} IRF data update ({zenith}, {azimuth}) : {config} | {cuts_file} | {irf_file} | {bencmark_file}"
-        )
-
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_IRF_data(self, zenith=None, azimuth=None, cuts: Cuts = None):
-        """
-        Retrieve Instrument Response Function (IRF) data based on specified parameters.
-
-        Parameters
-        ----------
-        zenith : float, optional
-            The zenith angle for which to retrieve IRF data. If None, the average zenith
-            from the validity range is used.
-        azimuth : float, optional
-            The azimuth angle for which to retrieve IRF data. If None, the average azimuth
-            from the validity range is used.
-        cuts : Cuts
-            The cuts object specifying the IRF type and efficiency parameters.
-
-        Returns
-        -------
-        tuple
-            A tuple containing:
-            - config (str): The configuration string for the matched IRF data.
-            - cuts_file (str): The file path to the cuts file.
-            - irf_file (str): The file path to the IRF file.
-            - benchmark_file (str): The file path to the benchmark file.
-
-        Raises
-        ------
-        IndexError
-            If no IRF data is found for the specified cuts or direction, or if multiple
-            matches are found for the given parameters.
-
-        Notes
-        -----
-        If both `zenith` and `azimuth` are None, the method calculates the average zenith
-        and azimuth from the validity range and retrieves the closest IRF data.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
-
-        if zenith is None or azimuth is None:
-            average_zenith = (
-                self.validity.zenith_range[0] + self.validity.zenith_range[1]
-            ) / 2
-            average_azimuth = (
-                self.validity.azimuth_range[0] + self.validity.azimuth_range[1]
-            ) / 2
-            return self.get_closest_IRF_data(average_zenith, average_azimuth, cuts)
-
-        IRF_table = read_table_hdf5(
-            self.model_index_file, path=IndexTables(self).IRF.table_path
-        )
-        target_irf_type = cuts.irf_type
-        target_gamma_efficiency = cuts.efficiency_gammaness
-        target_theta_efficiency = (
-            cuts.efficiency_theta
-            if cuts.efficiency_theta is not None
-            else cuts.efficiency_gammaness
-        )
-
-        mask_cuts = np.where(
-            [
-                get_irf_type_from_config(config)[0] == target_irf_type
-                for config in IRF_table["config"]
-            ]
-        )[0]
-        if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-            mask_cuts = [
-                i in mask_cuts
-                and abs(get_irf_type_from_config(config)[1] - target_gamma_efficiency)
-                < 1e-3
-                and abs(get_irf_type_from_config(config)[2] - target_theta_efficiency)
-                < 1e-3
-                for i, config in enumerate(IRF_table["config"])
-            ]
-        if not np.any(mask_cuts):
-            raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
-
-        mask_direction = (IRF_table["zenith"] == zenith) & (
-            IRF_table["azimuth"] == azimuth
-        )
-        if not np.any(mask_direction):
-            raise IndexError(
-                f"No IRF data found for zenith {zenith} and azimuth {azimuth}"
-            )
-
-        match = np.where(np.array(mask_cuts) & np.array(mask_direction))[0]
-        if len(match) > 1:
-            raise IndexError(
-                f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data."
-            )
-        return (
-            IRF_table["config"][match][0],
-            IRF_table["cuts_file"][match][0],
-            IRF_table["irf_file"][match][0],
-            IRF_table["benckmark_file"][match][0],
-        )
-
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_closest_IRF_data(self, zenith: float, azimuth: float, cuts: Cuts = None):
-        """
-        Retrieve the closest Instrument Response Function (IRF) data based on zenith and azimuth angles.
-
-        Parameters
-        ----------
-        zenith : float
-            The zenith angle for which to find the closest IRF data.
-        azimuth : float
-            The azimuth angle for which to find the closest IRF data.
-        cuts : Cuts, optional
-            An optional `Cuts` object specifying the IRF type and efficiency parameters
-            (e.g., gammaness and theta efficiency) to filter the IRF data.
-
-        Returns
-        -------
-        tuple
-            A tuple containing:
-            - config : str
-                The configuration string of the closest IRF data.
-            - cuts_file : str
-                The file path to the cuts file associated with the IRF data.
-            - irf_file : str
-                The file path to the IRF file.
-            - benchmark_file : str
-                The file path to the benchmark file.
-
-        Raises
-        ------
-        IndexError
-            If no IRF data is found for the specified cuts or if multiple IRF data entries
-            match the given zenith and azimuth angles.
-
-        Notes
-        -----
-        The function reads the IRF data from an HDF5 file and filters it based on the
-        provided cuts. It then identifies the closest match to the specified zenith and
-        azimuth angles. If multiple matches are found, an error is raised.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
-
-        IRF_table = read_table_hdf5(
-            self.model_index_file, path=IndexTables(self).IRF.table_path
-        )
-        if cuts is not None:
-            target_irf_type = cuts.irf_type
-            target_gamma_efficiency = cuts.efficiency_gammaness
-            target_theta_efficiency = cuts.efficiency_theta
-
-            mask_cuts = np.where(
-                [
-                    get_irf_type_from_config(config)[0] == target_irf_type
-                    for config in IRF_table["config"]
-                ]
-            )[0]
-            if target_irf_type == IRFType.EFFICIENCY_OPTIMIZED:
-                mask_cuts = [
-                    i in mask_cuts
-                    and abs(
-                        get_irf_type_from_config(config)[1] - target_gamma_efficiency
-                    )
-                    < 1e-3
-                    and abs(
-                        get_irf_type_from_config(config)[2] - target_theta_efficiency
-                    )
-                    < 1e-3
-                    for i, config in enumerate(IRF_table["config"])
-                ]
-            if not np.any(mask_cuts):
-                raise IndexError(f"No IRF data found for the specified cuts: {cuts}")
-            IRF_table = IRF_table[mask_cuts]
-
-        match = np.argmin(
-            np.abs(IRF_table["zenith"] - zenith)
-            + np.abs(IRF_table["azimuth"] - azimuth)
-        )
-        if type(match) == np.int64:  # noqa: E721
-            match = [match]
-        if len(match) > 1:
-            raise IndexError(
-                f"Multiple IRF data found for zenith {zenith} and azimuth {azimuth} (closest to training data), specify the direction and corresponding cuts to select the IRF data."
-            )
-        return (
-            IRF_table["config"][match],
-            IRF_table["cuts_file"][match],
-            IRF_table["irf_file"][match],
-            IRF_table["benckmark_file"][match],
-        )
-
-    @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_DL2_MC_files(
-        self,
-        zenith: float,
-        azimuth: float,
-        merged: bool = None,
-        particle_types: list[ParticleType] = [
-            ParticleType.GAMMA_POINT,
-            ParticleType.PROTON,
-        ],
-    ):
-        """
-        Retrieve DL2 Monte Carlo (MC) files for specified zenith and azimuth angles.
-
-        Parameters
-        ----------
-        zenith : float
-            The zenith angle for which to retrieve DL2 MC files.
-        azimuth : float
-            The azimuth angle for which to retrieve DL2 MC files.
-        particle_types : list of ParticleType, optional
-            A list of particle types to retrieve DL2 MC files for. Defaults to
-            [ParticleType.GAMMA_POINT, ParticleType.PROTON].
-
-        Returns
-        -------
-        dict
-            A dictionary where keys are particle type values (str) and values are
-            lists of file paths corresponding to the DL2 MC files for the specified
-            zenith and azimuth angles.
-
-        Raises
-        ------
-        IndexError
-            If no DL2 MC files are found for a given particle type, zenith, and
-            azimuth combination.
-
-        Notes
-        -----
-        This method reads data from an HDF5 file specified by `self.model_index_file`
-        and extracts file paths for DL2 MC files based on the provided zenith and
-        azimuth angles. If no files are found for a particle type, an empty list
-        is returned for that particle type.
-        """
-        from astropy.io.misc.hdf5 import read_table_hdf5
-
-        DL2_files = {}
-
-        for particle_type in particle_types:
-            try:
-                dl2_mc_index_table = IndexTables(self, particle_type).DL2_MC
-                DL2_table = read_table_hdf5(
-                    self.model_index_file,
-                    path=dl2_mc_index_table.table_path,
-                )
-
-                if merged is None:
-                    pre_match = np.where(
-                        (
-                            DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                            == zenith
-                        )
-                        & (
-                            DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                            == azimuth
-                        )
-                    )[0]
-                    merged_states = DL2_table["merged"][pre_match]
-                    if True in merged_states:
-                        match = np.where(
-                            (
-                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                                == zenith
-                            )
-                            & (
-                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                                == azimuth
-                            )
-                            & (DL2_table["merged"] == True)  # noqa: E712
-                        )[0]
-                    else:
-                        match = np.where(
-                            (
-                                DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                                == zenith
-                            )
-                            & (
-                                DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                                == azimuth
-                            )
-                            & (DL2_table["merged"] == False)  # noqa: E712
-                        )[0]
-                else:
-                    match = np.where(
-                    (
-                        DL2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
-                        == zenith
-                    )
-                    & (
-                        DL2_table[f"testing_DL2_{particle_type.value}_azimuths"]
-                        == azimuth
-                    )
-                    & (DL2_table["merged"] == merged)
-                )[0]
-                if len(match) == 0:
-                    raise IndexError(
-                        f"No DL2 {particle_type.value} MC files found for zenith {zenith} and azimuth {azimuth}"
-                    )
-                _DL2_files = DL2_table[f"testing_DL2_{particle_type.value}_files"][
-                    match
-                ]
-            except:
-                _DL2_files = []
-            DL2_files[particle_type.value] = _DL2_files
-        return DL2_files
 
     def plot_zenith_azimuth_ranges(self, ax=None, plot_testing_nodes=True):
         """
@@ -1521,7 +838,7 @@ class CTLearnModelManager:
                     s=100,
                     zorder=0,
                     label="Training",
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                    color=get_color("ctlearn_1")
                 )
             else:
                 # Plot a portion of a circle between the azimuth range at the correct zenith
@@ -1530,7 +847,7 @@ class CTLearnModelManager:
                 r = np.full_like(theta, zenith_min).to(u.deg)
                 ax.plot(theta, r, lw=3, zorder=0)
                 training_gamma_table = read_table_hdf5(
-                    self.model_index_file,
+                    self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
                 )
                 zeniths = training_gamma_table[
@@ -1544,7 +861,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                        color=get_color("ctlearn_1"),
                         label="Training",
                     )
         else:
@@ -1559,20 +876,20 @@ class CTLearnModelManager:
                     r2.value,
                     alpha=0.3,
                     zorder=0,
-                    color=CTLearnManagerStyle.ctlearn_highlight.value,
+                    color=get_color("ctlearn_highlight"),
                 )
                 ax.plot(
                     theta,
                     r1,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     theta,
                     r2,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
             else:
@@ -1586,39 +903,39 @@ class CTLearnModelManager:
                     r2,
                     alpha=0.3,
                     zorder=0,
-                    color=CTLearnManagerStyle.ctlearn_highlight.value,
+                    color=get_color("ctlearn_highlight"),
                 )
                 ax.plot(
                     theta,
                     r1,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     theta,
                     r2,
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     (theta[0], theta[0]),
                     (r1[0], r2[0]),
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
                 ax.plot(
                     (theta[-1], theta[-1]),
                     (r1[-1], r2[-1]),
                     lw=3,
-                    color=plt.rcParams["axes.prop_cycle"].by_key()["color"][1],
+                    color=get_color("ctlearn_2"),
                     zorder=0,
                 )
-                ax.set_ylim(0, 60)
+                # ax.set_ylim(0, 60)
                 training_gamma_table = read_table_hdf5(
-                    self.model_index_file,
+                    self.project_directories.model_index_file,
                     path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
                 )
                 zeniths = training_gamma_table[
@@ -1632,13 +949,13 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=plt.rcParams["axes.prop_cycle"].by_key()["color"][0],
+                        color=get_color("ctlearn_1"),
                         label="Training",
                     )
 
         try:
             testing_dl1_table = read_table_hdf5(
-                self.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).TESTING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).TESTING.table_path
             )
             zeniths = testing_dl1_table["testing_gamma_point_zenith_distances"]
             azimuths = testing_dl1_table["testing_gamma_point_azimuths"].to(u.rad)
@@ -1651,7 +968,7 @@ class CTLearnModelManager:
                         zenith,
                         s=50,
                         facecolors="none",
-                        edgecolors=CTLearnManagerStyle.ctlearn_accent_1.value,
+                        edgecolors=get_color("ctlearn_accent_1"),
                         label="Testing DL1",
                         zorder=3,
                     )
@@ -1660,7 +977,7 @@ class CTLearnModelManager:
 
         try:
             mc_dl2_table = read_table_hdf5(
-                self.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).DL2_MC.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).DL2_MC.table_path
             )
             zeniths = mc_dl2_table["testing_DL2_gamma_point_zenith_distances"]
             azimuths = mc_dl2_table["testing_DL2_gamma_point_azimuths"].to(u.rad)
@@ -1672,7 +989,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         s=50,
-                        color=CTLearnManagerStyle.ctlearn_accent_2.value,
+                        color=get_color("ctlearn_accent_2"),
                         label="Testing DL2",
                         zorder=2,
                     )
@@ -1684,7 +1001,8 @@ class CTLearnModelManager:
         ax.set_theta_zero_location("E")
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
-        ax.set_ylim(0, 60)
+        # print(zenith_max.value)
+        # ax.set_ylim((0, np.max(60, int(zenith_max.value))))
         ax.set_yticks(np.arange(10, 61, 10))
         ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel("Azimuth [deg]", fontsize=10)
@@ -1732,7 +1050,7 @@ class CTLearnModelManager:
 
         fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
         training_gamma_table = read_table_hdf5(
-            self.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
+            self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path
         )
         zeniths = training_gamma_table["training_gamma_diffuse_zenith_distances"]
         azimuths = training_gamma_table["training_gamma_diffuse_azimuths"].to(u.rad)
@@ -1745,7 +1063,7 @@ class CTLearnModelManager:
                     azimuth,
                     zenith,
                     s=50,
-                    color=CTLearnManagerStyle.ctlearn_1.value,
+                    color=get_color("ctlearn_1"),
                     label="Gammas",
                     zorder=10,
                 )
@@ -1757,7 +1075,7 @@ class CTLearnModelManager:
 
         if self.model_parameters_table["reco"][0] == "type":
             training_proton_table = read_table_hdf5(
-                self.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
+                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.PROTON).TRAINING.table_path
             )
             zeniths = training_proton_table["training_proton_zenith_distances"]
             azimuths = training_proton_table["training_proton_azimuths"].to(u.rad)
@@ -1770,7 +1088,7 @@ class CTLearnModelManager:
                         azimuth,
                         zenith,
                         label="Protons",
-                        edgecolor=CTLearnManagerStyle.ctlearn_accent_1.value,
+                        edgecolor=get_color("ctlearn_accent_1"),
                         facecolors="w",
                         zorder=1,
                         s=100,
@@ -1798,7 +1116,7 @@ class CTLearnModelManager:
         plt.show()
 
     def remove_row_from_table(self, table_path: str, row_index: int):
-        remove_row_from_table_utils(self.model_index_file, table_path, row_index)
+        remove_row_from_table_utils(self.project_directories.model_index_file, table_path, row_index)
 
 
 class ModelRangeOfValidity:
@@ -1856,7 +1174,7 @@ class ModelRangeOfValidity:
         from astropy.io.misc.hdf5 import read_table_hdf5
 
         training_gamma_table = read_table_hdf5(
-            model_manager.model_index_file,
+            model_manager.project_directories.model_index_file,
             path=IndexTables(model_manager, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
         )
         # training_proton_table = read_table_hdf5(model_manager.model_index_file, path=f'{model_manager.model_nickname}/training/proton')
