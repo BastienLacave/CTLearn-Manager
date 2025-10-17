@@ -4,5 +4,5 @@ StereoPredictCTLearnModel:
     force_dl1_lookup: False
     TableQualityQuery:
       quality_criteria:
-        - ["enough intensity", "hillas_intensity > 25"]
+        - ["enough intensity", "hillas_intensity > 50"]
         #- ["not clipped", "leakage_intensity_width_2 < 0.2"]
