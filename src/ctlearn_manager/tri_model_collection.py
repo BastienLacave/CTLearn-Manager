@@ -400,8 +400,10 @@ class TriModelCollection:
             If the pointing data cannot be found in the provided pointing table.
         """
         import astropy.units as u
+        from astropy.io.misc.hdf5 import read_table_hdf5
 
         from ctlearn_manager.utils.utils import get_avg_pointing
+        from .model_manager import IndexTables
 
         try:
             avg_data_ze, avg_data_az = get_avg_pointing(
@@ -415,28 +417,50 @@ class TriModelCollection:
             print(f"⚠️ Pointing not found at {pointing_table}, skipping : {input_file}")
             return
 
-        avg_model_azs = []
-        avg_model_zes = []
+        min_distances = []
+        
         for tri_model in self.tri_models:
-            avg_model_azs.append(
-                np.mean(tri_model.direction_model.validity.azimuth_range)
-                .to(u.deg)
-                .value
+            training_gamma_table = read_table_hdf5(
+                tri_model.direction_model.project_directories.model_index_file,
+                path=IndexTables(tri_model.direction_model, ParticleType.GAMMA_DIFFUSE).TRAINING.table_path,
             )
-            avg_model_zes.append(
-                np.mean(tri_model.direction_model.validity.zenith_range).to(u.deg).value
+            zeniths_nodes = training_gamma_table[
+                "training_gamma_diffuse_zenith_distances"
+            ]
+            azimuths_nodes = training_gamma_table["training_gamma_diffuse_azimuths"].to(
+                u.rad
             )
-        avg_model_azs = np.array(avg_model_azs) * u.deg
-        avg_model_zes = np.array(avg_model_zes) * u.deg
-        # angular_distance_matrix = angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
-        closest_model_index = np.argmin(
-            angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
-        )
+            angular_distances = angular_distance(
+                avg_data_ze, avg_data_az, 
+                zeniths_nodes, azimuths_nodes
+            )
+            min_distances.append(np.min(angular_distances).value)
+
+        
+
+        # avg_model_azs = []
+        # avg_model_zes = []
+        # for tri_model in self.tri_models:
+        #     avg_model_azs.append(
+        #         np.mean(tri_model.direction_model.validity.azimuth_range)
+        #         .to(u.deg)
+        #         .value
+        #     )
+        #     avg_model_zes.append(
+        #         np.mean(tri_model.direction_model.validity.zenith_range).to(u.deg).value
+        #     )
+        # avg_model_azs = np.array(avg_model_azs) * u.deg
+        # avg_model_zes = np.array(avg_model_zes) * u.deg
+        # # angular_distance_matrix = angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
+        # closest_model_index = np.argmin(
+        #     angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
+        # )
+        closest_model_index = np.argmin(min_distances)
         closest_model = self.tri_models[closest_model_index]
 
         if verbose:
             print(
-                f"📁 File : {input_file.split('/')[-1]}      📡 Pointing : ({avg_data_ze.value:.3f}, {avg_data_az.value:.3f})      🧠 Closest Model : ({np.mean(closest_model.direction_model.validity.zenith_range).value:.3f}, {np.mean(closest_model.direction_model.validity.azimuth_range).value:.3f})"
+                f"📁 File : {input_file.split('/')[-1]}      📡 Pointing : ({avg_data_ze.value:.3f}, {avg_data_az.value:.3f})      🧠 Closest Model {closest_model.direction_model.model_nickname} : ({np.mean(closest_model.direction_model.validity.zenith_range).value:.3f}, {np.mean(closest_model.direction_model.validity.azimuth_range).value:.3f})"
             )
         # print(f"｜📡 Average pointing of {input_file.split('/')[-1]} : ({avg_data_ze:3f}, {avg_data_az:3f})")
         # print(f"｜🔍 Closest model avg node : ({np.mean(closest_model.direction_model.validity.zenith_range).value}, {np.mean(closest_model.direction_model.validity.azimuth_range).value})")
@@ -532,14 +556,18 @@ class TriModelCollection:
         ]
         if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(
-                2, 1, gridspec_kw={"height_ratios": [3, 1]}
+                2, 1, gridspec_kw={"height_ratios": [3, 1]},
+                sharex=True
             )
+            plt.subplots_adjust(hspace=0)
+            ax.set_xticks([])
+            ax.set_xlabel("")
             ax_rel.set_xlabel("True Energy (TeV)")
             ax_rel.set_ylabel("Rel. Impr. (%)")
             ax_rel.grid(True, linestyle="--", alpha=0.5)
             ax_rel.set_xscale("log")
             ax_rel.set_ymargin(0.05)
-            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
+            # ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
         else:
             fig, ax = plt.subplots()
         cuts.plot_cuts_info_plt(ax)
@@ -677,7 +705,7 @@ class TriModelCollection:
 
         if compare_with is not None:
             ax_rel.set_xlim(ax.get_xlim())
-            ax_rel.set_ylim(bottom=0)
+            # ax_rel.set_ylim(bottom=0)
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)
@@ -705,14 +733,18 @@ class TriModelCollection:
         ]
         if compare_with is not None:
             fig, (ax, ax_rel) = plt.subplots(
-                2, 1, gridspec_kw={"height_ratios": [3, 1]}
+                2, 1, gridspec_kw={"height_ratios": [3, 1]},
+                sharex=True
             )
+            plt.subplots_adjust(hspace=0)
+            ax.set_xticks([])
+            ax.set_xlabel("")
             ax_rel.set_xlabel("True Energy (TeV)")
             ax_rel.set_ylabel("Rel. Impr. (%)")
             ax_rel.grid(True, linestyle="--", alpha=0.5)
             ax_rel.set_xscale("log")
             ax_rel.set_ymargin(0.05)
-            ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
+            # ax_rel.set_yticks([0, 10, 20, 30, 40, 50])
         else:
             fig, ax = plt.subplots()
         stored_efficiency_theta = cuts.efficiency_theta
@@ -769,8 +801,9 @@ class TriModelCollection:
             )
             if compare_with is not None:
                 # ax.set_xscale(ax_rel.get_xscale())
-                ax.set_xticks([])
-                ax.set_xlabel("")
+
+                # ax.set_xticks([])
+                # ax.set_xlabel("")
                 fig.subplots_adjust(hspace=0)
                 if len(compare_with_index) > 0:
                     ref_e_bins, ref_ang_res_err = self.tri_models[
@@ -846,7 +879,7 @@ class TriModelCollection:
 
         if compare_with is not None:
             ax_rel.set_xlim(ax.get_xlim())
-            ax_rel.set_ylim(bottom=0)
+            # ax_rel.set_ylim(bottom=0)
         ax.legend()
         plt.tight_layout()
         plt.subplots_adjust(hspace=0.0)

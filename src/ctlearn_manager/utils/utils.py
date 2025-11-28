@@ -865,6 +865,7 @@ class DataSample:
         import astropy.units as u
         from ctapipe.io import read_table
         from tqdm import tqdm
+        import gc
 
         self.directory = directory
         self.pattern = pattern
@@ -937,6 +938,7 @@ class DataSample:
         print(
             f"\t -> {self.particle_type.value} @ ({self.zenith_distance}, {self.azimuth})"
         )
+        gc.collect()
 
 
 class CutType(Enum):
@@ -1566,7 +1568,7 @@ class CTLMDirectories:
     def get_available_MC_directions(self, particle_type: ParticleType):
         import glob
 
-        paths = glob.glob(f"{self.dl2_mc_directory}/{particle_type.value}/*/")
+        paths = glob.glob(f"{self.dl2_mc_directory}/{particle_type.value}/*/*.h5")
         zeniths = []
         azimuths = []
         for path in paths:

@@ -37,7 +37,8 @@ lines.markeredgewidth : 0.0
 lines.solid_capstyle : round
 lines.dash_capstyle : round
 image.cmap : viridis
-
+lines.markeredgecolor : "white"
+lines.markeredgewidth : 1.5
 
 # SCATTER PLOT
 scatter.marker : o

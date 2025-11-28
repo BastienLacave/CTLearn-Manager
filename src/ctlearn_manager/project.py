@@ -4,6 +4,7 @@ from pathlib import Path
 from . import CTLearnModelManager, CTLearnTriModelManager, DataSample
 from .utils import CTLMDirectories, get_user_confirmation, ClusterConfiguration, set_mpl_style
 from ctlearn_manager.utils.utils import set_global_theme, ColorTheme
+from .utils import remove_model_from_index
 # from.io import load_model_from_index
 
 __all__ = [
@@ -51,6 +52,9 @@ class CTLearnManagerProject:
             else:
                 get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
                 os.system(f"rm -rf {tri_models_directory}")
+                remove_model_from_index(f"{tri_model_nickname}_type", f"{self.project_directory}model_index.h5")
+                remove_model_from_index(f"{tri_model_nickname}_energy", f"{self.project_directory}model_index.h5")
+                remove_model_from_index(f"{tri_model_nickname}_direction", f"{self.project_directory}model_index.h5")
         project_directories = CTLMDirectories(self.project_directory, tri_model_nickname)
         
 
@@ -107,6 +111,33 @@ class CTLearnManagerProject:
                 model_parameters,
                 project_directories
             )
+
+    def delete_tri_model(
+        self,
+        tri_model_nickname: str,
+    ):
+        """
+        Delete an existing CTLearn model manager instance with the given nickname.
+        
+        Parameters:
+            tri_model_nickname (str): Nickname for the model.
+        """
+        tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
+        if not Path(tri_models_directory).exists():
+            raise FileNotFoundError(
+                f"TriModel {tri_model_nickname} does not exist in {self.project_directory}."
+            )
+        get_user_confirmation(prompt=f"Are you sure you want to delete TriModel {tri_model_nickname} and all its data? This action cannot be undone.")
+        os.system(f"rm -rf {tri_models_directory}")
+        import h5py
+
+        project_directories = CTLMDirectories(self.project_directory, tri_model_nickname)
+
+        with h5py.File(project_directories.model_index_file, "r+") as f:
+            del f[f"{tri_model_nickname}_type"]
+            del f[f"{tri_model_nickname}_energy"]
+            del f[f"{tri_model_nickname}_direction"]
+
 
     def open_tri_model(
         self,

@@ -323,9 +323,9 @@ class CTLearnTriModelManager:
         """
         import h5py
 
-        with h5py.File(self.direction_model.model_index_file, "r+") as f:
+        with h5py.File(self.project_directories.model_index_file, "r+") as f:
             del f[path]
-            print(f"Table {path} erased from {self.direction_model.model_index_file}")
+            print(f"Table {path} erased from {self.project_directories.model_index_file}")
 
     def get_available_testing_directions(self):
         """
@@ -663,6 +663,8 @@ class CTLearnTriModelManager:
                     f"Output file {output_file} already exists, skipping, set overwrite=True to overwrite"
                 )
                 continue
+            if os.path.exists(output_file) and overwrite:
+                os.system(f"rm {output_file}")
             if self.stereo:
                 cmd = f"ctlearn-predict-stereo-model --input_url {input_file} \
 --PredictCTLearnModel.batch_size={batch_size} \
@@ -2284,13 +2286,18 @@ class CTLearnTriModelManager:
         )
 
         irf_file = self.get_IRF_data(zenith, azimuth, cuts)["irf_file"]
+        print(f"Reading IRFs from file: {irf_file}")
         # rad_max = RadMax2D.read(irf_file, hdu="RAD MAX")
         aeff = EffectiveAreaTable2D.read(irf_file, hdu="EFFECTIVE AREA")
-        bkg = Background2D.read(irf_file, hdu="BACKGROUND")
+        
         edisp = EnergyDispersion2D.read(irf_file, hdu="ENERGY DISPERSION")
         edisp.peek()
         aeff.peek()
-        bkg.peek()
+        try:
+            bkg = Background2D.read(irf_file, hdu="BACKGROUND")
+            bkg.peek()
+        except:
+            print(f"Could not read BACKGROUND IRF from file {irf_file}")
 
     def plot_loss(self):
         """
