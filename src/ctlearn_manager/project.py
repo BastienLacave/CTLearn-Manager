@@ -62,18 +62,19 @@ class CTLearnManagerProject:
         assert direction_reco in ["cameradirection", "skydirection"], (
             f"direction_reco must be one of ['cameradirection', 'skydirection']: {direction_reco}"
         )
-        recos = ['type', 'energy', direction_reco]
+        recos = tri_model_parameters.get("training_samples").keys()
         if isinstance(tri_model_parameters.get("training_samples"), dict):
-            training_samples = [
-                tri_model_parameters.get("training_samples")['type'],
-                tri_model_parameters.get("training_samples")['energy'],
-                tri_model_parameters.get("training_samples")[direction_reco],
-            ]
+            training_samples = []
+            for reco in recos:
+                training_samples.append(tri_model_parameters.get("training_samples").get(reco))
+                
         else: # isinstance(tri_model_parameters.get("training_samples"), list[DataSample]):
-            training_samples = [tri_model_parameters.get("training_samples")]*3
+            raise ValueError("training_samples must be a dict with keys 'type', 'energy', and 'cameradirection' or 'skydirection'.")
+            # training_samples = [tri_model_parameters.get("training_samples")]*3
         # else:
         #     raise ValueError("training_samples must be a dict or a list of DataSample instances.")
-
+        # recos = ['type', 'energy', direction_reco]
+        
         for reco, training_sample in zip(recos, training_samples):
             match reco:
                 case "type":
