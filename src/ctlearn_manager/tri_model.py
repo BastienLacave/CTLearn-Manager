@@ -395,9 +395,7 @@ class CTLearnTriModelManager:
                 )
             else:
                 print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)")
-                
-        return coords
-    
+
     def get_available_MC_directions(self, verbose=True):
         """
         Retrieve and display available Monte Carlo (MC) directions.
@@ -1542,8 +1540,7 @@ class CTLearnTriModelManager:
 {proton_string} \
 {electron_string} \
 --output {output_cuts_file} \
---overwrite True \
---Tool.log_level DEBUG"
+--overwrite True"
         print(cmd)
         result_cuts = os.system(cmd)
         if result_cuts != 0:
@@ -1753,7 +1750,6 @@ class CTLearnTriModelManager:
                 convert_irf_format(output_irf_file, cuts_file, compatible_output_irf_file)
 
 
-
     def plot_sensitivity_benchmark(
         self,
         zenith: float,
@@ -1770,12 +1766,17 @@ class CTLearnTriModelManager:
             fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
+        
+        sensitivity_dict = {}
+        energy_centers_dict = {}
         for cut in cuts:
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             with fits.open(irf_file) as hudl:
                 energy_center = hudl["SENSITIVITY"].data["ENERG_LO"] + 0.5 * (
                     hudl["SENSITIVITY"].data["ENERG_HI"] - hudl["SENSITIVITY"].data["ENERG_LO"]
                 )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
+                sensitivity_dict[cut.get_directory_name()] = hudl["SENSITIVITY"].data["ENERGY_FLUX_SENSITIVITY"][0, 0, :]
                 if len(cuts) > 1:
                     ax.plot(
                         energy_center[0],
@@ -1797,6 +1798,123 @@ class CTLearnTriModelManager:
             ax.set_title(title)
         if ax is None:
             plt.show()
+    
+        return sensitivity_dict, energy_centers_dict
+
+    def plot_effective_area_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        particle_type: ParticleType = ParticleType.GAMMA_POINT,
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+
+        #
+        particle_type_mapping = {
+            ParticleType.GAMMA_POINT.value: "EFFECTIVE AREA",
+            ParticleType.GAMMA_DIFFUSE.value: "EFFECTIVE AREA",
+            ParticleType.ELECTRON.value: "EFFECTIVE AREA ELECTRONS",
+            ParticleType.PROTON.value: "GAMMA EFFECTIVE AREA PROTONS",
+        }
+
+        eff_area_dict = {}
+        energy_centers_dict = {}
+        for cut in cuts:
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["gammapy_irf_file"]
+            with fits.open(irf_file) as hudl:
+                
+                energy_center = hudl[particle_type_mapping[particle_type.value]].data["ENERG_LO"] + 0.5 * (
+                    hudl[particle_type_mapping[particle_type.value]].data["ENERG_HI"] - hudl[particle_type_mapping[particle_type.value]].data["ENERG_LO"]
+                )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
+                eff_area_dict[cut.get_directory_name()] = hudl[particle_type_mapping[particle_type.value]].data["EFFAREA"][0, 0, :]
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl[particle_type_mapping[particle_type.value]].data["EFFAREA"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl[particle_type_mapping[particle_type.value]].data["EFFAREA"][0, 0, :],
+                    )
+
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("True Energy [TeV]")
+        ax.set_ylabel(f"Effective Area {particle_type.value} [m$^2$]")
+        if len(cuts) > 1:
+            ax.legend()
+        if title is not None:
+            ax.set_title(title)
+        if ax is None:
+            plt.show()
+
+        return eff_area_dict, energy_centers_dict
+
+
+    def plot_background_rate_benchmark(
+        self,
+        zenith: float,
+        azimuth: float,
+        cuts: list[Cuts] = [DefaultCuts.EFF_70.value],
+        title: str = None,
+        ax=None,
+        label=None,
+    ):
+        import matplotlib.pyplot as plt
+        from astropy.io import fits
+
+        if ax is None:
+            fig, ax = plt.subplots()
+        if len(cuts) == 1:
+            cuts[0].plot_cuts_info_plt(ax)
+
+        background_rate_dict = {}
+        energy_centers_dict = {}
+        for cut in cuts:
+            #print(self.get_IRF_data(zenith, azimuth, cut))
+            irf_file = self.get_IRF_data(zenith, azimuth, cut)["gammapy_irf_file"]
+            with fits.open(irf_file) as hudl:
+                energy_center = hudl["BACKGROUND"].data["ENERG_LO"] + 0.5 * (
+                    hudl["BACKGROUND"].data["ENERG_HI"] - hudl["BACKGROUND"].data["ENERG_LO"]
+                )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
+                background_rate_dict[cut.get_directory_name()] = hudl["BACKGROUND"].data["BKG"][0, 0, :]
+                if len(cuts) > 1:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["BACKGROUND"].data["BKG"][0, 0, :],
+                        label=cut.get_label(),
+                    )
+                else:
+                    ax.plot(
+                        energy_center[0],
+                        hudl["BACKGROUND"].data["BKG"][0, 0, :],
+                    )
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_xlabel("Energy [TeV]")
+        ax.set_ylabel("Background rate [Hz]")
+        if len(cuts) > 1:
+            ax.legend()
+        if title is not None:
+            ax.set_title(title)
+        if ax is None:
+            plt.show()
+
+        return background_rate_dict, energy_centers_dict
 
     def plot_angular_resolution_benchmark(
         self,
@@ -1817,6 +1935,9 @@ class CTLearnTriModelManager:
             cuts[0].plot_cuts_info_plt(ax)
         default_colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
         line_styles = ["-", "--", "-.", ":"]
+
+        angular_resolution_dict = {}
+        energy_centers_dict = {}
         for cut, color in zip(cuts, default_colors[: len(cuts)]):
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             with fits.open(irf_file) as hudl:
@@ -1824,10 +1945,12 @@ class CTLearnTriModelManager:
                     hudl["ANGULAR RESOLUTION "].data["ENERG_HI"]
                     - hudl["ANGULAR RESOLUTION "].data["ENERG_LO"]
                 )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
                 for containment, line_style in zip(containments, line_styles):
+                    angular_resolution_dict[f"{cut.get_directory_name()}_{containment}"] = hudl["ANGULAR RESOLUTION "].data[f"ANGULAR_RESOLUTION_{containment}"][0, 0, :]
                     ax.plot(
                         energy_center[0],
-                        hudl["ANGULAR RESOLUTION"].data[f"ANGULAR_RESOLUTION_{containment}"][0, 0, :],
+                        hudl["ANGULAR RESOLUTION "].data[f"ANGULAR_RESOLUTION_{containment}"][0, 0, :],
                         color=color,
                         ls=line_style,
                     )
@@ -1853,6 +1976,9 @@ class CTLearnTriModelManager:
             ax.set_title(title)
         if ax is None:
             plt.show()
+        
+        return angular_resolution_dict, energy_centers_dict
+
 
     def plot_energy_resolution_benchmark(
         self,
@@ -1870,6 +1996,9 @@ class CTLearnTriModelManager:
             fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
+        
+        energy_resolution_dict = {}
+        energy_centers_dict = {}
         for cut in cuts:
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             with fits.open(irf_file) as hudl:
@@ -1877,6 +2006,8 @@ class CTLearnTriModelManager:
                     hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
                     - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
+                energy_resolution_dict[cut.get_directory_name()] = hudl["ENERGY BIAS RESOLUTION"].data["RESOLUTION"][0, 0, :]
                 if len(cuts) > 1:
                     ax.plot(
                         energy_center[0],
@@ -1898,6 +2029,9 @@ class CTLearnTriModelManager:
         if ax is None:
             plt.show()
 
+        return energy_resolution_dict, energy_centers_dict
+
+
     def plot_energy_bias_benchmark(
         self,
         zenith: float,
@@ -1914,6 +2048,9 @@ class CTLearnTriModelManager:
             fig, ax = plt.subplots()
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
+        
+        energy_bias_dict = {}
+        energy_centers_dict = {}
         for cut in cuts:
             irf_file = self.get_IRF_data(zenith, azimuth, cut)["benchmark_file"]
             with fits.open(irf_file) as hudl:
@@ -1921,6 +2058,8 @@ class CTLearnTriModelManager:
                     hudl["ENERGY BIAS RESOLUTION"].data["ENERG_HI"]
                     - hudl["ENERGY BIAS RESOLUTION"].data["ENERG_LO"]
                 )
+                energy_centers_dict[cut.get_directory_name()] = energy_center[0]
+                energy_bias_dict[cut.get_directory_name()] = hudl["ENERGY BIAS RESOLUTION"].data["BIAS"][0, 0, :]
                 if len(cuts) > 1:
                     ax.plot(
                         energy_center[0],
@@ -1942,6 +2081,9 @@ class CTLearnTriModelManager:
             ax.set_title(title)
         if ax is None:
             plt.show()
+
+        return energy_bias_dict, energy_centers_dict
+
 
     # @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     # def plot_benchmark(
@@ -2454,7 +2596,8 @@ class CTLearnTriModelManager:
 
         if ax is None:
             if figsize is not None:
-                fig, ax = plt.subplots(figsize=figsize)
+                fig, ax = plt.subplots(figsize=(6, 4))
+                #fig, ax = plt.subplots(figsize=figsize)
             else:
                 fig, ax = plt.subplots()
 
@@ -2465,6 +2608,15 @@ class CTLearnTriModelManager:
                 cuts[0].efficiency_theta = stored_efficiency_theta
             if len(coords) == 1:
                 plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
+
+        import uproot
+        root_irf_file = "/users/tmiener/software/CTLearn-Manager/Prod5-North-20deg-SouthAz-4LSTs.180000s-v0.1.root"
+        ile = uproot.open(root_irf_file)
+        # Get energy bin edges and calculate bin centers
+        energy_edges = 10**(ile["AngResEtrue"].axis().edges())
+        # Calculate bin centers as the geometric mean of consecutive edges (appropriate for log-scale data)
+        energy_centers = (energy_edges[:-1] + energy_edges[1:]) / 2.0
+        ax.plot(energy_centers[1:], ile["AngResEtrue"].values()[1:], color='black', ls='--')
 
         for i, coord in enumerate(coords):
             for cut in cuts:
@@ -2495,7 +2647,7 @@ class CTLearnTriModelManager:
                             e,
                             ang_res,
                             yerr=[ang_res_minus, ang_res_plus],
-                            label=l,
+                            #label=l,
                             markersize=8,
                             marker="o",
                             ls="--",
@@ -2511,7 +2663,7 @@ class CTLearnTriModelManager:
                             e,
                             ang_res,
                             yerr=[ang_res_minus, ang_res_plus],
-                            label=l,
+                            #label=l,
                             markersize=8,
                             marker="o",
                             ls="--",
@@ -2530,7 +2682,7 @@ class CTLearnTriModelManager:
                         e,
                         ang_res,
                         yerr=[ang_res_minus, ang_res_plus],
-                        label=l,
+                        #label=l,
                         markersize=8,
                         marker="o",
                         ls="--",
@@ -2552,10 +2704,12 @@ class CTLearnTriModelManager:
             import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
+        ax.set_xlim(1e-2, 2e1)
+
         ax.set_xscale("log")
         ax.set_xlabel("True Energy [TeV]")
         ax.set_ylabel("Angular resolution [deg]")
-        ax.legend()
+        #ax.legend()
         ax.grid(False, which="both")
         if ax is None:
             plt.show()
@@ -2805,12 +2959,23 @@ class CTLearnTriModelManager:
             if figsize is not None:
                 fig, ax = plt.subplots(figsize=figsize)
             else:
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(figsize=(6, 4))
+                #fig, ax = plt.subplots()
 
             if len(cuts) == 1 and (import_from_h5 is None):
                 cuts[0].plot_cuts_info_plt(ax)
             if len(coords) == 1:
                 plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
+
+        import uproot
+        root_irf_file = "/users/tmiener/software/CTLearn-Manager/Prod5-North-20deg-SouthAz-4LSTs.180000s-v0.1.root"
+        ile = uproot.open(root_irf_file)
+        # Get energy bin edges and calculate bin centers
+        energy_edges = 10**(ile["ERes"].axis().edges())
+        # Calculate bin centers as the geometric mean of consecutive edges (appropriate for log-scale data)
+        energy_centers = (energy_edges[:-1] + energy_edges[1:]) / 2.0
+        #ax.plot(energy_centers[1:], ile["ERes"].values()[1:], label='4LSTs - CTAO Prod5 reference', color='black', ls='--')
+        ax.plot(energy_centers[1:], ile["ERes"].values()[1:], color='black', ls='--')
 
         for i, coord in enumerate(coords):
             for cut in cuts:
@@ -2844,7 +3009,7 @@ class CTLearnTriModelManager:
                             e,
                             e_res,
                             yerr=[e_res_minus, e_res_plus],
-                            label=l,
+                            #label=l,
                             markersize=8,
                             marker="o",
                             ls="--",
@@ -2859,7 +3024,7 @@ class CTLearnTriModelManager:
                             e,
                             e_res,
                             yerr=[e_res_minus, e_res_plus],
-                            label=l,
+                            #label=l,
                             alpha=0.5,
                             marker="v",
                             ls="--",
@@ -2874,7 +3039,7 @@ class CTLearnTriModelManager:
                         e,
                         e_res,
                         yerr=[e_res_minus, e_res_plus],
-                        label=l,
+                        #label=l,
                         markersize=8,
                         marker="o",
                         ls="--",
@@ -2892,10 +3057,11 @@ class CTLearnTriModelManager:
             import_curves.plot_curves(axs = [ax] * int(len(import_curves.x_values)))
         if ylim is not None:
             ax.set_ylim(ylim[0], ylim[1])
+        ax.set_xlim(1e-2, 2e1)
         ax.set_xscale("log")
         ax.set_xlabel("True Energy [TeV]")
         ax.set_ylabel("Energy resolution")
-        ax.legend()
+        #ax.legend()
         ax.grid(False, which="both")
         if ax is None:
             plt.show()
