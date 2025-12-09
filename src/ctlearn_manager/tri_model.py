@@ -396,6 +396,9 @@ class CTLearnTriModelManager:
             else:
                 print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)")
 
+            return coords
+
+
     def get_available_MC_directions(self, verbose=True):
         """
         Retrieve and display available Monte Carlo (MC) directions.
@@ -1819,12 +1822,12 @@ class CTLearnTriModelManager:
         if len(cuts) == 1:
             cuts[0].plot_cuts_info_plt(ax)
 
-        #
+        # Mapping from ParticleType to FITS extension names
         particle_type_mapping = {
             ParticleType.GAMMA_POINT.value: "EFFECTIVE AREA",
             ParticleType.GAMMA_DIFFUSE.value: "EFFECTIVE AREA",
             ParticleType.ELECTRON.value: "EFFECTIVE AREA ELECTRONS",
-            ParticleType.PROTON.value: "GAMMA EFFECTIVE AREA PROTONS",
+            ParticleType.PROTON.value: "EFFECTIVE AREA PROTONS",
         }
 
         eff_area_dict = {}
