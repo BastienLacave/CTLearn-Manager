@@ -758,12 +758,12 @@ class DL2DataProcessor:
 
 
 
-    def plot_theta2_distribution(self, bins=25, n_off=5, output_file=None, cuts_index=0):
+    def plot_theta2_distribution(self, bins=25, n_off=5, output_file=None, cuts_index=0, t2_max=0.4):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
 
-        angle2_bins = np.linspace(0, 0.4, bins)
+        angle2_bins = np.linspace(0, t2_max, bins)
         angle2_center = (angle2_bins[:-1] + angle2_bins[1:]) / 2
         h_on = np.zeros(bins - 1)
         h_off = np.zeros(bins - 1)
@@ -839,29 +839,29 @@ class DL2DataProcessor:
             color=get_color("on_surface"),
         )
         # plt.plot(angle2_center, h_off, label="off source", zorder=0, color=get_color("ctlearn_1"))
-        # plt.errorbar(
-        #     angle2_center,
-        #     h_on,
-        #     yerr=np.sqrt(h_on),
-        #     label="On source",
-        #     zorder=0,
-        #     color=get_color("ctlearn_accent_1"),
-        #     marker="o",
-        #     ls="none",)
-        # plt.errorbar(
-        #     angle2_center,
-        #     h_off,
-        #     yerr=np.sqrt(h_off),
-        #     label="Off source",
-        #     zorder=0,
-        #     color=get_color("ctlearn_1")
-        #     , marker="o", ls="none")
+        plt.errorbar(
+            angle2_center,
+            h_on,
+            yerr=np.sqrt(h_on),
+            label="On source",
+            zorder=0,
+            color=get_color("ctlearn_accent_1"),
+            marker="o",
+            ls="none",)
+        plt.errorbar(
+            angle2_center,
+            h_off,
+            yerr=np.sqrt(h_off),
+            label="Off source",
+            zorder=0,
+            color=get_color("ctlearn_1")
+            , marker="o", ls="none")
         if h_on.sum() == 0:
             raise ValueError("No on events found. Check source position : ", self.source_name,  self.source_position)
         plt.scatter(
             angle2_center,
             h_on,
-            label="On source",
+            # label="On source",
             zorder=3,
             color=get_color("ctlearn_accent_1"),
             marker="o",
@@ -882,7 +882,7 @@ class DL2DataProcessor:
         plt.scatter(
             angle2_center,
             h_off,
-            label="Off source",
+            # label="Off source",
             zorder=2,
             color=get_color("ctlearn_1"),
             marker="o",
@@ -902,7 +902,8 @@ class DL2DataProcessor:
         
         
         # plt.plot(angle2_center, h_on, label="on source", color=get_color("ctlearn_accent_1"))
-        plt.xlim(0, 0.4)
+        plt.xlim(0, t2_max)
+        # plt.ylim(bottom=0)
         plt.axvline(0.04, color=get_color('on_background'), linestyle="--")
         plt.legend()
         plt.xlabel(r"Separation [deg$^2$]")
