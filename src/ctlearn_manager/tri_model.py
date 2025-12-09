@@ -396,7 +396,7 @@ class CTLearnTriModelManager:
             else:
                 print(f"(ZD, Az): ({zenith.value} * u.deg, {azimuth.value} * u.deg)")
 
-            return coords
+        return coords
 
 
     def get_available_MC_directions(self, verbose=True):
