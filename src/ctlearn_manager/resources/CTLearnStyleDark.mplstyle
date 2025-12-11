@@ -39,6 +39,8 @@ lines.dash_capstyle : round
 image.cmap : magma
 # SCATTER PLOT
 scatter.marker : o
+lines.markeredgecolor : "black"
+lines.markeredgewidth : 1.5
 
 # TICKS
 xtick.labelsize : 13

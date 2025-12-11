@@ -7,6 +7,7 @@ This class is designed to manage CTLearn models, providing functionalities for i
 import ast
 from pathlib import Path
 
+
 import astropy.units as u
 import numpy as np
 from astropy.table import QTable
@@ -776,6 +777,75 @@ class CTLearnModelManager:
         # print(
         #     f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) : {testing_dir}/{testing_pattern} updated"
         # )
+        
+    def update_model_manager_training_data(self, training_data_sample: DataSample):
+        """
+        Update the training data for the model manager with a new data sample.
+
+        Parameters
+        ----------
+        training_data_sample : DataSample
+            The data sample containing training information to be added or updated.
+            It includes the directory, zenith distance, azimuth, pattern, and particle type.
+
+        Raises
+        ------
+        Exception
+            If there is an issue reading or writing the HDF5 file.
+
+        Notes
+        -----
+        - If the training data for the given zenith distance and azimuth already exists,
+          it updates the directory and pattern for that entry.
+        - If no matching entry exists, it adds a new row to the training data table.
+        - The updated table is saved back to the HDF5 file.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+        training_dir = training_data_sample.directory
+        training_zenith_distance = training_data_sample.zenith_distance
+        training_azimuth = training_data_sample.azimuth
+        training_pattern = training_data_sample.pattern
+        particle_type = training_data_sample.particle_type
+
+        training_index_table = IndexTables(self, particle_type).TRAINING
+        try:
+            training_table = read_table_hdf5(
+                self.project_directories.model_index_file,
+                path=training_index_table.table_path,
+            )
+        except:
+            training_table = training_index_table.default_table
+
+        match = np.where(
+            (
+                training_table[f"training_{particle_type.value}_zenith_distances"]
+                == training_zenith_distance
+            )
+            & (
+                training_table[f"training_{particle_type.value}_azimuths"]
+                == training_azimuth
+            )
+        )[0]
+        if len(match) > 0:
+            training_table[f"training_{particle_type.value}_dirs"][match[0]] = (
+                training_dir
+            )
+            training_table[f"training_{particle_type.value}_patterns"][
+                match[0]
+            ] = training_pattern
+        else:
+            training_table.add_row(
+                [training_dir, training_pattern, training_zenith_distance, training_azimuth]
+            )
+        write_table_hdf5(
+            training_table,
+            self.project_directories.model_index_file,
+            path=training_index_table.table_path,
+            append=True,
+            overwrite=True,
+            serialize_meta=True,
+        )
 
 
     def plot_zenith_azimuth_ranges(self, ax=None, plot_testing_nodes=True):
@@ -953,48 +1023,53 @@ class CTLearnModelManager:
                         label="Training",
                     )
 
-        try:
-            testing_dl1_table = read_table_hdf5(
-                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).TESTING.table_path
-            )
-            zeniths = testing_dl1_table["testing_gamma_point_zenith_distances"]
-            azimuths = testing_dl1_table["testing_gamma_point_azimuths"].to(u.rad)
-            for zenith, azimuth in zip(zeniths, azimuths):
-                if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
-                    continue
-                else:
-                    ax.scatter(
-                        azimuth,
-                        zenith,
-                        s=50,
-                        facecolors="none",
-                        edgecolors=get_color("ctlearn_accent_1"),
-                        label="Testing DL1",
-                        zorder=3,
-                    )
-        except:
-            a = 1
+        for particle_type, s, color in zip(
+            (ParticleType.GAMMA_POINT, ParticleType.PROTON),
+            (90, 50),
+            (get_color("ctlearn_accent_1"), get_color("ctlearn_accent_2")),
+        ):
+            try:
+                testing_dl1_table = read_table_hdf5(
+                    self.project_directories.model_index_file, path=IndexTables(self, particle_type).TESTING.table_path
+                )
+                zeniths = testing_dl1_table[f"testing_{particle_type.value}_zenith_distances"]
+                azimuths = testing_dl1_table[f"testing_{particle_type.value}_azimuths"].to(u.rad)
+                for zenith, azimuth in zip(zeniths, azimuths):
+                    if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
+                        continue
+                    else:
+                        ax.scatter(
+                            azimuth,
+                            zenith,
+                            s=s,
+                            facecolors="none",
+                            edgecolors=color,
+                            label=f"Testing {particle_type.value} DL1",
+                            zorder=3,
+                        )
+            except:
+                a = 1
 
-        try:
-            mc_dl2_table = read_table_hdf5(
-                self.project_directories.model_index_file, path=IndexTables(self, ParticleType.GAMMA_POINT).DL2_MC.table_path
-            )
-            zeniths = mc_dl2_table["testing_DL2_gamma_point_zenith_distances"]
-            azimuths = mc_dl2_table["testing_DL2_gamma_point_azimuths"].to(u.rad)
-            for zenith, azimuth in zip(zeniths, azimuths):
-                if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
-                    continue
-                else:
-                    ax.scatter(
-                        azimuth,
-                        zenith,
-                        s=50,
-                        color=get_color("ctlearn_accent_2"),
-                        label="Testing DL2",
-                        zorder=2,
-                    )
-        except:
-            a = 1
+            try:
+                mc_dl2_table = read_table_hdf5(
+                    self.project_directories.model_index_file, path=IndexTables(self, particle_type).DL2_MC.table_path
+                )
+                zeniths = mc_dl2_table[f"testing_DL2_{particle_type.value}_zenith_distances"]
+                azimuths = mc_dl2_table[f"testing_DL2_{particle_type.value}_azimuths"].to(u.rad)
+                for zenith, azimuth in zip(zeniths, azimuths):
+                    if (zenith == np.nan) or (azimuth == np.nan) or not plot_testing_nodes:
+                        continue
+                    else:
+                        ax.scatter(
+                            azimuth,
+                            zenith,
+                            s=s,
+                            color=color,
+                            label=f"Testing {particle_type.value} DL2",
+                            zorder=2,
+                        )
+            except:
+                a = 1
         handles, labels = ax.get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         ax.legend(by_label.values(), by_label.keys())
@@ -1103,7 +1178,7 @@ class CTLearnModelManager:
         ax.set_theta_zero_location("E")
         ax.set_theta_direction(-1)
         ax.set_rlabel_position(-30)
-        ax.set_ylim(0, 60)
+        # ax.set_ylim(0, 60)
         ax.set_yticks(np.arange(10, 61, 10))
         ax.set_yticklabels(["", "", "30°", "", "", "60°"], fontsize=10)
         ax.set_xlabel("Azimuth [deg]", fontsize=10)

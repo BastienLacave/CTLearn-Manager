@@ -25,6 +25,7 @@ class WhoIsBetter:
     def plot_sensitivity(self, output_file=None,
         import_from_h5: str = None,
         import_label: str = None,
+        export_to_h5_out: str = None
         ):
         fig, ax = plt.subplots()
         if len(self.cuts) == 1:
@@ -33,7 +34,7 @@ class WhoIsBetter:
             if i < len(self.labels) - 1:
                 dl2_processor.plot_sensitivity(ax=ax, label=label)
             else:
-                dl2_processor.plot_sensitivity(ax=ax, label=label, import_from_h5=import_from_h5, import_label=import_label)
+                dl2_processor.plot_sensitivity(ax=ax, label=label, import_from_h5=import_from_h5, import_label=import_label, export_to_h5=export_to_h5_out)
                 
         if output_file:
             plt.savefig(output_file)

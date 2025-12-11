@@ -15,7 +15,6 @@ requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "ctapipe==0.26.0",
-    "gammapy",
     "pyirf==0.13.0",
     "ctaplot==0.6.3",
     "h5py",
@@ -23,6 +22,7 @@ dependencies = [
     "ctlearn",
     "astropy",
     "matplotlib==3.10.0",
+    "tables<3.9",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
