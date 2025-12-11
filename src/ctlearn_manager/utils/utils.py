@@ -844,6 +844,7 @@ class DataSample:
         azimuth=np.nan * u.deg,
         energy_range=[np.nan, np.nan] * u.TeV,
         nsb_range=[np.nan, np.nan] * u.Hz,
+        allow_none = False,
     ):
         """
         Initialize the ModelManager.
@@ -865,14 +866,14 @@ class DataSample:
         import astropy.units as u
         from ctapipe.io import read_table
         from tqdm import tqdm
-
+        self.allow_none = allow_none
         self.directory = directory
         self.pattern = pattern
         self.energy_range = energy_range
         self.nsb_range = nsb_range
 
         files = np.sort(glob.glob(f"{directory}/{pattern}"))
-        if len(files) == 0:
+        if (len(files) == 0) and (not allow_none):
             raise ValueError(f"No files found matching {directory}/{pattern}")
 
         i = 0
@@ -914,29 +915,35 @@ class DataSample:
                 )
             i += 1
 
-        self.zenith_distance = (
-            np.round(first_zenith_distance.to(u.deg).value, 4) * u.deg
-        )
-        self.azimuth = np.round(first_azimuth.to(u.deg).value, 4) * u.deg
+        if not allow_none:
+            self.zenith_distance = (
+                np.round(first_zenith_distance.to(u.deg).value, 4) * u.deg
+            )
+            self.azimuth = np.round(first_azimuth.to(u.deg).value, 4) * u.deg
 
-        match particle_id[0]:
-            case 0:
-                run = read_table(file, "configuration/simulation/run")
-                max_viewcone = np.unique(run["max_viewcone_radius"])
-                if max_viewcone > 0.5 * u.deg:
-                    self.particle_type = ParticleType.GAMMA_DIFFUSE
-                else:
-                    self.particle_type = ParticleType.GAMMA_POINT
-            case 1:
-                self.particle_type = ParticleType.ELECTRON
-            case 101:
-                self.particle_type = ParticleType.PROTON
-            case _:
-                raise ValueError(f"Unknown particle ID: {particle_id}")
+            match particle_id[0]:
+                case 0:
+                    run = read_table(file, "configuration/simulation/run")
+                    max_viewcone = np.unique(run["max_viewcone_radius"])
+                    if max_viewcone > 0.5 * u.deg:
+                        self.particle_type = ParticleType.GAMMA_DIFFUSE
+                    else:
+                        self.particle_type = ParticleType.GAMMA_POINT
+                case 1:
+                    self.particle_type = ParticleType.ELECTRON
+                case 101:
+                    self.particle_type = ParticleType.PROTON
+                case _:
+                    raise ValueError(f"Unknown particle ID: {particle_id}")
 
+            
+        else:
+            self.particle_type = ParticleType.GAMMA_DIFFUSE
+            self.zenith_distance = 0 * u.deg
+            self.azimuth = 0 * u.deg
         print(
-            f"\t -> {self.particle_type.value} @ ({self.zenith_distance}, {self.azimuth})"
-        )
+                f"\t -> {self.particle_type.value} @ ({self.zenith_distance}, {self.azimuth})"
+            )
 
 
 class CutType(Enum):

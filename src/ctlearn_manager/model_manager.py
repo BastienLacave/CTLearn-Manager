@@ -326,7 +326,7 @@ class CTLearnModelManager:
             )
 
             training_samples = model_parameters.get("training_samples", [])
-
+            
             for training_sample in training_samples:
                 particle_type = training_sample.particle_type
 

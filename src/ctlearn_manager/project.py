@@ -153,4 +153,80 @@ class CTLearnManagerProject:
         )
         return tri_model
 
+    def create_dummy_tri_model(
+        self,
+        tri_model_nickname: str,
+    ):
+        from ctlearn_manager import DataSample
+        tri_model_parameters = {
+            "tri_model_nickname": tri_model_nickname,
+            "direction_reco": "cameradirection",  # ['energy', 'type', 'cameradirection', 'skydirection']
+            "telescope_names": ["LST-1"],  # List of telescope names
+            "telescope_ids": [1],  # List of telescope ids
+            "max_training_epochs": 10,  # Maximum number of training epochs
+            "training_samples": [DataSample(directory="~/", pattern='',allow_none=True)], #tri_model_parameters.get("training_samples"),  # Training data
+            "stereo": False,  # If True, model will be trained on stereo events
+        }
+        tri_model_nickname = tri_model_parameters.get("tri_model_nickname")
+        tri_models_directory = f"{self.project_directory}/models/{tri_model_nickname}"
+        if Path(tri_models_directory).exists():
+            # get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
+            os.system(f"rm -rf {tri_models_directory}")
+        project_directories = CTLMDirectories(self.project_directory, tri_model_nickname)
 
+        project_directories = CTLMDirectories(self.project_directory, tri_model_nickname)
+        
+
+        direction_reco = tri_model_parameters.get("direction_reco", "cameradirection")
+        assert direction_reco in ["cameradirection", "skydirection"], (
+            f"direction_reco must be one of ['cameradirection', 'skydirection']: {direction_reco}"
+        )
+        recos = ['type', 'energy', direction_reco]
+        if isinstance(tri_model_parameters.get("training_samples"), dict):
+            training_samples = [
+                tri_model_parameters.get("training_samples")['type'],
+                tri_model_parameters.get("training_samples")['energy'],
+                tri_model_parameters.get("training_samples")[direction_reco],
+            ]
+        else: # isinstance(tri_model_parameters.get("training_samples"), list[DataSample]):
+            training_samples = [tri_model_parameters.get("training_samples")]*3
+        # else:
+        #     raise ValueError("training_samples must be a dict or a list of DataSample instances.")
+
+        for reco, training_sample in zip(recos, training_samples):
+            match reco:
+                case "type":
+                    os.makedirs(project_directories.type_model_directory, exist_ok=True)
+                    model_dir = project_directories.type_model_directory
+                    reco_siffix = 'type'
+                case "energy":
+                    os.makedirs(project_directories.energy_model_directory, exist_ok=True)
+                    model_dir = project_directories.energy_model_directory
+                    reco_siffix = 'energy'
+                case "cameradirection" | "skydirection":
+                    os.makedirs(project_directories.direction_model_directory, exist_ok=True)
+                    model_dir = project_directories.direction_model_directory
+                    reco_siffix = 'direction'
+                case _:
+                    raise ValueError(f"Unknown reco type: {reco}")
+
+            model_parameters = {
+                "model_nickname": f"{tri_model_nickname}_{reco_siffix}",
+                "model_dir": model_dir,  # Main directory, will contain a nw directory with you model, named after the model_nickname, will be created for you.
+
+                "reco": reco,  # ['energy', 'type', 'cameradirection', 'skydirection']
+                "telescope_names": tri_model_parameters.get("telescope_names"),  # List of telescope names
+                "telescope_ids": tri_model_parameters.get("telescope_ids"),  # List of telescope ids
+                "max_training_epochs": tri_model_parameters.get("max_training_epochs"),  # Maximum number of training epochs
+                "training_samples": training_sample, #tri_model_parameters.get("training_samples"),  # Training data
+                "stereo": tri_model_parameters.get("stereo"),  # If True, model will be trained on stereo events
+                #### OPTIONAL PARAMETERS
+                'channels' : tri_model_parameters.get('channels', ['cleaned_image', 'cleaned_relative_peak_time']), # Order matters. # Default is ['cleaned_image', 'cleaned_relative_peak_time']
+                'min_telescopes' : tri_model_parameters.get('min_telescopes', 1), # Minimum number of triggered telescopes for each events to be used in the model, if >=2, model will be stereo.
+                'notes' : tri_model_parameters.get('notes', ''),  # Notes about the model
+            }
+
+            model = CTLearnModelManager(
+                model_parameters,
+                project_directories
+            )
