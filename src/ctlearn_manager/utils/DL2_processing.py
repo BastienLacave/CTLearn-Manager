@@ -304,7 +304,7 @@ class DL2DataProcessor:
         Initializes the DL2DataProcessor with the given parameters and processes the DL2 data.
     process_DL2_data(self):
         Processes the DL2 data files, applying cuts and computing sky positions.
-    plot_theta2_distribution(self, bins, n_off=5):
+    plot_theta2_distribution(self, bins, n_off=3):
         Plots the theta^2 distribution for the processed DL2 data.
     compute_off_regions(self, pointing, n_off):
         Computes the off-source regions for background estimation.
@@ -332,6 +332,7 @@ class DL2DataProcessor:
         # max_theta2: float=0.2,
         workers=None,
         reco_field_suffix = None,
+        fit_src_position: bool = True,
         reconstruction_method = "CTLearn"
     ):
         self.workers = workers
@@ -402,7 +403,6 @@ class DL2DataProcessor:
         self.process_DL2_data()
         self.load_processed_data()
 
-
         self.cut_file_theta_cuts = []
         self.cut_file_gammaness_cuts = []
 
@@ -426,6 +426,11 @@ class DL2DataProcessor:
                     file_gammaness_cuts.append(gammaness_cut)
                 self.cut_file_theta_cuts.append(file_theta_cuts)
                 self.cut_file_gammaness_cuts.append(file_gammaness_cuts)
+
+        if fit_src_position:
+            center_ra, center_dec = self.find_gaussian_center(0)
+            self.source_position = SkyCoord(ra=center_ra * u.deg, dec=center_dec * u.deg, frame=self.source_position)
+
 
 
         # self.cut_file_theta_cuts = []
@@ -505,6 +510,54 @@ class DL2DataProcessor:
         # self.Theta_cuts = Theta_cuts_tot
         
         # set_mpl_style()
+
+    def find_gaussian_center(self, cuts_index):
+        import concurrent.futures
+        from scipy.optimize import curve_fit
+        # Prepare arguments for parallel processing
+        file_args = list(
+            zip(
+                self.reco_directions,
+                self.cuts_masks_gammaness_only,
+                self.dl2s,
+                self.pointings,
+            )
+        )
+
+        def extract_coords(args):
+            reco, cuts_mask, dl2, pointing = args
+            cuts_mask = cuts_mask[cuts_index]
+            ra = reco[cuts_mask].ra.deg
+            dec = reco[cuts_mask].dec.deg
+            pointing_ra = pointing[cuts_mask].ra.deg
+            pointing_dec = pointing[cuts_mask].dec.deg
+            return ra, dec, pointing_ra, pointing_dec
+
+        # Parallel extraction of coordinates
+        ra_values = []
+        dec_values = []
+        pointings_ra = []
+        pointings_dec = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for ra, dec, pra, pdec in executor.map(extract_coords, file_args):
+                ra_values.append(ra)
+                dec_values.append(dec)
+                pointings_ra.append(pra)
+                pointings_dec.append(pdec)
+
+        # Flatten arrays for plotting
+        ra_values = np.concatenate(ra_values)
+        dec_values = np.concatenate(dec_values)
+        pointings_ra = np.concatenate(pointings_ra)
+        pointings_dec = np.concatenate(pointings_dec)
+
+        histogram, xedges, yedges = np.histogram2d(ra_values, dec_values, bins=300)
+        # Find the position of the maximum pixel
+        max_idx = np.unravel_index(np.argmax(histogram), histogram.shape)
+        center_ra = (xedges[max_idx[0]] + xedges[max_idx[0] + 1]) / 2
+        center_dec = (yedges[max_idx[1]] + yedges[max_idx[1] + 1]) / 2
+        print(f"Maximum pixel center: RA={center_ra:.4f}°, DEC={center_dec:.4f}°")
+        return center_ra, center_dec
 
     def set_keys(self):
         self.gammaness_key = (
@@ -707,7 +760,6 @@ class DL2DataProcessor:
             )
             for i, DL2_file in enumerate(self.DL2_files)
         ]
-
         with ProcessPoolExecutor(self.workers) as executor:
             for result in tqdm(executor.map(load_one_worker, args_list), total=n_files, desc="Loading processed data"):
                 results.append(result)
@@ -737,7 +789,8 @@ class DL2DataProcessor:
                 self.I_g_off_counts[i] = I_g_off_counts
                 self.corresponding_models[i] = corresponding_model
                 self.effective_times[i] = eff_time
-
+        if n_tot == 0:
+            raise ValueError("No events. Maybe wait for processing.")
         print(f"Cut {n_saved_tot} ({(n_saved_tot/n_tot * 100):.2f}%) events in total from intensity cut {self.intensity_cut}p.e. and global gammaness cut {self.global_gammaness_cut}.")
         print(f"Remaining {n_tot - n_saved_tot} ({((n_tot - n_saved_tot)/n_tot * 100):.2f}%) events in total after cuts.")
         # Filter arrays
@@ -758,7 +811,7 @@ class DL2DataProcessor:
 
 
 
-    def plot_theta2_distribution(self, bins=25, n_off=5, output_file=None, cuts_index=0, t2_max=0.4):
+    def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0, t2_max=0.4):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
@@ -1123,7 +1176,7 @@ class DL2DataProcessor:
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
 
-    def plot_skymap(self, output_file=None, cuts_index=0, n_off=5):
+    def plot_skymap(self, output_file=None, cuts_index=0, n_off=3):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
@@ -1231,7 +1284,7 @@ class DL2DataProcessor:
         else:
             plt.show()
     
-    def optimize_cuts_on_crab(self, n_off=5, output_suffix="", max_gammaness_cut=1.0, max_theta2_cut=0.2, gcut_step=0.01, theta2_cut_step=0.001, E_bins=None):
+    def optimize_cuts_on_crab(self, n_off=3, output_suffix="", max_gammaness_cut=1.0, max_theta2_cut=0.2, gcut_step=0.01, theta2_cut_step=0.001, E_bins=None):
         """
         Compute and store optimal gammaness/theta2 cuts for even and odd events for each energy bin.
         """
@@ -1714,7 +1767,7 @@ class DL2DataProcessor:
         plt.tight_layout()
         plt.show()
 
-    def plot_sensitivity(self, n_off=5, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
+    def plot_sensitivity(self, n_off=3, ax=None, label="CTLearn", output_file=None, export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None,
         optimized_on_crab: bool = False, output_suffix: str=''):
@@ -2099,6 +2152,7 @@ class DL2DataProcessor:
                 import importlib.resources as pkg_resources
 
                 from .. import resources
+
                 with pkg_resources.path(resources, "sensitivity_src_indep_without_5percentbg.txt") as text_path:
                     data = np.loadtxt(text_path)
 
@@ -2157,7 +2211,7 @@ class DL2DataProcessor:
             if ax is None:
                 plt.show()
 
-    def plot_PSF(self, n_off=5, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[], export_to_h5: str=None,
+    def plot_PSF(self, n_off=3, ax=None, label="CTLearn", output_file=None, plot_MC: list[str]=[], export_to_h5: str=None,
         import_from_h5: str = None,
         import_label: str = None, ylim=(0, 0.6)):
         import concurrent.futures
@@ -2375,7 +2429,7 @@ class DL2DataProcessor:
         return efficiencies
 
     def plot_bkg_discrimination_capability(
-        self, n_off=5, axs=None, label="CTLearn", output_file=None
+        self, n_off=3, axs=None, label="CTLearn", output_file=None
     ):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
@@ -2467,7 +2521,7 @@ class DL2DataProcessor:
             if axs is None:
                 plt.show()
 
-    def plot_excess_vs_background_rates(self, n_off=5, output_file=None):
+    def plot_excess_vs_background_rates(self, n_off=3, output_file=None):
         gammaness_cuts = np.arange(0, 1.05, 0.05)
         import matplotlib.pyplot as plt
 
@@ -2534,7 +2588,7 @@ class DL2DataProcessor:
             plt.show()
 
     def plot_excess_and_background_rates_vs_energy(
-        self, n_off=5, output_file=None, cuts_index=0
+        self, n_off=3, output_file=None, cuts_index=0
     ):
         import matplotlib.pyplot as plt
 
