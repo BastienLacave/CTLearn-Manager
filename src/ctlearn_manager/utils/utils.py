@@ -886,16 +886,15 @@ class DataSample:
                 )
             shower_parameters = read_table(file, "simulation/event/subarray/shower")
             
-            pointing = read_table(file, "configuration/subarray/pointing")
+            pointing = read_table(file, "/configuration/telescope/pointing/tel_001")
             # pointing = read_table(file, "dl1/monitoring/subarray/pointing")
             # print(pointing.colnames)
             particle_id = np.unique(shower_parameters["true_shower_primary_id"])
-
+            
             zenith_distance = np.unique(
-                90 * u.deg - pointing["array_altitude"].to(u.deg)
+                90 * u.deg - pointing["telescope_pointing_altitude"].to(u.deg)
             )
-            azimuth = np.unique(pointing["array_azimuth"].to(u.deg))
-
+            azimuth = np.unique(pointing["telescope_pointing_azimuth"].to(u.deg))
             assert len(zenith_distance) == 1, (
                 f"More than one zenith distance found in {file}"
             )

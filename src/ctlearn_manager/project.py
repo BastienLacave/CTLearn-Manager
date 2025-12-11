@@ -51,7 +51,7 @@ class CTLearnManagerProject:
                 )
             else:
                 get_user_confirmation(prompt=f"TriModel {tri_model_nickname} already exists. Do you want to overwrite it?\n This will delete the existing model and all its data.")
-                os.system(f"rm -rf {tri_models_directory}")
+                # os.system(f"rm -rf {tri_models_directory}")
                 remove_model_from_index(f"{tri_model_nickname}_type", f"{self.project_directory}model_index.h5")
                 remove_model_from_index(f"{tri_model_nickname}_energy", f"{self.project_directory}model_index.h5")
                 remove_model_from_index(f"{tri_model_nickname}_direction", f"{self.project_directory}model_index.h5")
@@ -62,7 +62,8 @@ class CTLearnManagerProject:
         assert direction_reco in ["cameradirection", "skydirection"], (
             f"direction_reco must be one of ['cameradirection', 'skydirection']: {direction_reco}"
         )
-        recos = tri_model_parameters.get("training_samples").keys()
+        # recos = tri_model_parameters.get("training_samples").keys()
+        recos = ['type', 'energy', direction_reco]
         if isinstance(tri_model_parameters.get("training_samples"), dict):
             training_samples = []
             for reco in recos:
@@ -73,7 +74,7 @@ class CTLearnManagerProject:
             # training_samples = [tri_model_parameters.get("training_samples")]*3
         # else:
         #     raise ValueError("training_samples must be a dict or a list of DataSample instances.")
-        # recos = ['type', 'energy', direction_reco]
+        
         
         for reco, training_sample in zip(recos, training_samples):
             match reco:
@@ -138,7 +139,6 @@ class CTLearnManagerProject:
             del f[f"{tri_model_nickname}_type"]
             del f[f"{tri_model_nickname}_energy"]
             del f[f"{tri_model_nickname}_direction"]
-
 
     def open_tri_model(
         self,
