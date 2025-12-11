@@ -333,6 +333,7 @@ class DL2DataProcessor:
         workers=None,
         reco_field_suffix = None,
         fit_src_position: bool = True,
+        reconstruction_method = "CTLearn"
     ):
         self.workers = workers
         mp.set_start_method("fork", force=True)
@@ -361,7 +362,7 @@ class DL2DataProcessor:
         self.cuts = cuts
         # self.gammaness_cut = gammaness_cut
         self.pointing_table = pointing_table
-        self.reconstruction_method = "CTLearn"
+        self.reconstruction_method = reconstruction_method
         if reco_field_suffix is None:
             self.reco_field_suffix = (
                 self.reconstruction_method
