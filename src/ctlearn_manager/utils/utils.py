@@ -940,7 +940,7 @@ class DataSample:
 
             
         else:
-            self.particle_type = ParticleType.GAMMA_DIFFUSE
+            self.particle_type = particle_type
             self.zenith_distance = 0 * u.deg
             self.azimuth = 0 * u.deg
         print(

@@ -190,13 +190,17 @@ class CTLearnManagerProject:
         tri_model_nickname: str,
     ):
         from ctlearn_manager import DataSample
+        from ctlearn_manager.utils import ParticleType
         tri_model_parameters = {
             "tri_model_nickname": tri_model_nickname,
             "direction_reco": "cameradirection",  # ['energy', 'type', 'cameradirection', 'skydirection']
             "telescope_names": ["LST-1"],  # List of telescope names
             "telescope_ids": [1],  # List of telescope ids
             "max_training_epochs": 10,  # Maximum number of training epochs
-            "training_samples": [DataSample(directory="~/", pattern='',allow_none=True)], #tri_model_parameters.get("training_samples"),  # Training data
+            "training_samples": [
+                DataSample(directory="~/", pattern='',allow_none=True, particle_type=ParticleType.GAMMA_DIFFUSE),
+                DataSample(directory="~/", pattern='',allow_none=True, particle_type=ParticleType.PROTON)
+                                 ], #tri_model_parameters.get("training_samples"),  # Training data
             "stereo": False,  # If True, model will be trained on stereo events
         }
         tri_model_nickname = tri_model_parameters.get("tri_model_nickname")
