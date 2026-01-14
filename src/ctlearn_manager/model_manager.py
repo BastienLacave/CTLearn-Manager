@@ -7,6 +7,7 @@ This class is designed to manage CTLearn models, providing functionalities for i
 import ast
 from pathlib import Path
 
+
 import astropy.units as u
 import numpy as np
 from astropy.table import QTable
@@ -776,6 +777,75 @@ class CTLearnModelManager:
         # print(
         #     f"Testing {particle_type.value} at ({testing_zenith_distance}, {testing_azimuth}) : {testing_dir}/{testing_pattern} updated"
         # )
+        
+    def update_model_manager_training_data(self, training_data_sample: DataSample):
+        """
+        Update the training data for the model manager with a new data sample.
+
+        Parameters
+        ----------
+        training_data_sample : DataSample
+            The data sample containing training information to be added or updated.
+            It includes the directory, zenith distance, azimuth, pattern, and particle type.
+
+        Raises
+        ------
+        Exception
+            If there is an issue reading or writing the HDF5 file.
+
+        Notes
+        -----
+        - If the training data for the given zenith distance and azimuth already exists,
+          it updates the directory and pattern for that entry.
+        - If no matching entry exists, it adds a new row to the training data table.
+        - The updated table is saved back to the HDF5 file.
+        """
+        from astropy.io.misc.hdf5 import read_table_hdf5, write_table_hdf5
+
+        training_dir = training_data_sample.directory
+        training_zenith_distance = training_data_sample.zenith_distance
+        training_azimuth = training_data_sample.azimuth
+        training_pattern = training_data_sample.pattern
+        particle_type = training_data_sample.particle_type
+
+        training_index_table = IndexTables(self, particle_type).TRAINING
+        try:
+            training_table = read_table_hdf5(
+                self.project_directories.model_index_file,
+                path=training_index_table.table_path,
+            )
+        except:
+            training_table = training_index_table.default_table
+
+        match = np.where(
+            (
+                training_table[f"training_{particle_type.value}_zenith_distances"]
+                == training_zenith_distance
+            )
+            & (
+                training_table[f"training_{particle_type.value}_azimuths"]
+                == training_azimuth
+            )
+        )[0]
+        if len(match) > 0:
+            training_table[f"training_{particle_type.value}_dirs"][match[0]] = (
+                training_dir
+            )
+            training_table[f"training_{particle_type.value}_patterns"][
+                match[0]
+            ] = training_pattern
+        else:
+            training_table.add_row(
+                [training_dir, training_pattern, training_zenith_distance, training_azimuth]
+            )
+        write_table_hdf5(
+            training_table,
+            self.project_directories.model_index_file,
+            path=training_index_table.table_path,
+            append=True,
+            overwrite=True,
+            serialize_meta=True,
+        )
 
 
     def plot_zenith_azimuth_ranges(self, ax=None, plot_testing_nodes=True):
