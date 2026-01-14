@@ -142,6 +142,7 @@ class TriModelCollection:
         overwrite=False,
         plot=False,
         batch_size=64,
+        subruns=None,
     ):
         """
         Predict DL2 data for a given LST run using the specified cluster configuration.
@@ -183,7 +184,9 @@ class TriModelCollection:
             scratch_dl1_dir = f"{scratch_dir}/ctlearn_manager_dl1_from_dcache/{run:05d}/{v}/tailcut84/"
             os.system(f"mkdir -p {scratch_dl1_dir}")
             current_directory = os.getcwd()
-            print(f"DL1 files will be copied to {scratch_dl1_dir}\n")
+            print(f"DL1 files will be copied to {scratch_dl1_dir}")
+            if subruns is not None:
+                input_files = [f for f in input_files if int(f.split('.')[-2]) in subruns]
             for dcache_file in input_files:
                 input_file = f"{scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
                 subrun = int(input_file.split(".")[-2])
@@ -193,13 +196,20 @@ class TriModelCollection:
                         f"⚠️ Output file already exists and overwrite is set to False : {output_file}"
                     )
                     continue
-                if not os.path.exists(input_file):
+                if not os.path.exists(input_file) or overwrite:
                     print(f"⌛ Copying {dcache_file} to {scratch_dl1_dir}")
                     ctadata.fetch_and_save_file_or_dir(dcache_file)
-                    os.system(
+                    result = os.system(
                         f"mv {current_directory}/{dcache_file.split('/')[-1]} {scratch_dl1_dir}/{dcache_file.split('/')[-1]}"
                     )
-                # print(f"Predicting {input_file}")
+                    if result != 0:
+                        print(result)
+                        raise RuntimeError()
+                # else:
+                #     print(f"✅ \nInput file exists: {os.path.exists(input_file)}\n Output file exists: {os.path.exists(output_file)}")
+
+
+                print(f"Predicting {input_file}")
                 self.predict_lstchain_data(
                     input_file,
                     output_file,
