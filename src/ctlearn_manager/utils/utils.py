@@ -1004,18 +1004,6 @@ class Cuts:
                 self.irf_type = IRFType.EFFICIENCY_OPTIMIZED
 
             case CutType.SENSITIVITY_OPTIMIZED:
-                if any(
-                    param is not None
-                    for param in [
-                        gammaness_cut,
-                        theta_cut,
-                        efficiency_gammaness,
-                        efficiency_theta,
-                    ]
-                ):
-                    raise ValueError(
-                        "For SENSITIVITY_OPTIMIZED cuts, no additional parameters should be provided."
-                    )
                 self.gammaness_cut = None
                 self.theta_cut = None
                 self.efficiency_gammaness = None
