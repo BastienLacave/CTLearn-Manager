@@ -1175,7 +1175,7 @@ class DL2DataProcessor:
 
         return on_count, off_count, on_separation, all_off_separation, significance_lima
 
-    def plot_skymap(self, output_file=None, cuts_index=0, n_off=3):
+    def plot_skymap(self, output_file=None, cuts_index=0, n_off=3, plot_off_regions_and_pointings=True):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
@@ -1241,40 +1241,41 @@ class DL2DataProcessor:
         cbar.set_label("Counts")
 
         # Plot pointings and off regions (not parallelized, usually fast)
-        for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
-            cuts_mask = cuts_mask[cuts_index]
-            pointing = pointing[cuts_mask]
-            if len(pointing) == 0:
-                print("No pointings available for this cuts index, skipping plotting.")
-                continue
-            off_regions = self.compute_off_regions(pointing[0], n_off=n_off)
-            ax.scatter(
-                pointing.ra.deg,
-                pointing.dec.deg,
-                label="pointing",
-                color=get_color("ctlearn_accent_1"),
-                marker="x",
-            )
-            for off_region in off_regions:
-                off_circle = plt.Circle(
-                    (off_region.ra.deg, off_region.dec.deg),
-                    radius=0.2,
-                    color="w",
-                    fill=False,
-                    lw=1,
-                    ls="--",
-                    alpha=0.9,
+        if plot_off_regions_and_pointings:
+            for pointing, cuts_mask in zip(self.pointings, self.cuts_masks):
+                cuts_mask = cuts_mask[cuts_index]
+                pointing = pointing[cuts_mask]
+                if len(pointing) == 0:
+                    print("No pointings available for this cuts index, skipping plotting.")
+                    continue
+                off_regions = self.compute_off_regions(pointing[0], n_off=n_off)
+                ax.scatter(
+                    pointing.ra.deg,
+                    pointing.dec.deg,
+                    label="pointing",
+                    color=get_color("ctlearn_accent_1"),
+                    marker="x",
                 )
-                ax.add_artist(off_circle)
+                for off_region in off_regions:
+                    off_circle = plt.Circle(
+                        (off_region.ra.deg, off_region.dec.deg),
+                        radius=0.2,
+                        color="w",
+                        fill=False,
+                        lw=1,
+                        ls="--",
+                        alpha=0.9,
+                    )
+                    ax.add_artist(off_circle)
 
-        on_circle = plt.Circle(
-            (self.source_position.ra.deg, self.source_position.dec.deg),
-            radius=0.2,
-            color="w",
-            fill=False,
-            lw=1,
-        )
-        ax.add_artist(on_circle)
+            on_circle = plt.Circle(
+                (self.source_position.ra.deg, self.source_position.dec.deg),
+                radius=0.2,
+                color="w",
+                fill=False,
+                lw=1,
+            )
+            ax.add_artist(on_circle)
         ax.set_aspect("equal", adjustable="box")
 
         if output_file is not None:

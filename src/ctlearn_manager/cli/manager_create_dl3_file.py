@@ -284,13 +284,21 @@ def load_DL2_data(input_file, path = 'subarray'):
     n_tot = len(loader)
 
 
-    dl2 = loader.read_subarray_events(
+    # dl2 = loader.read_subarray_events(
+    #     start=None,
+    #     stop=None,
+    #     dl2=True,
+    #     simulated=False,
+    #     observation_info=True,
+    # )
+    dl2 = loader.read_telescope_events(
         start=None,
         stop=None,
         dl2=True,
         simulated=False,
         observation_info=True,
     )
+    print(dl2.colnames)
     present_columns = [col for col in REQUIRED_COLUMNS if col in dl2.colnames]
 
     # chunk_size = 100000
