@@ -552,11 +552,45 @@ class DL2DataProcessor:
         pointings_dec = np.concatenate(pointings_dec)
 
         histogram, xedges, yedges = np.histogram2d(ra_values, dec_values, bins=300)
-        # Find the position of the maximum pixel
+
+        # Create meshgrid
+        x_centers = (xedges[:-1] + xedges[1:]) / 2
+        y_centers = (yedges[:-1] + yedges[1:]) / 2
+        X, Y = np.meshgrid(x_centers, y_centers, indexing='ij')
+
+        def gaussian_2d(xy, amplitude, x0, y0, sigma_x, sigma_y, theta, offset):
+            x, y = xy
+            a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+            b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+            c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+            g = offset + amplitude*np.exp( - (a*((x-x0)**2) + 2*b*(x-x0)*(y-y0) + c*((y-y0)**2)))
+            return g.ravel()
+
+        # Initial guess
         max_idx = np.unravel_index(np.argmax(histogram), histogram.shape)
-        center_ra = (xedges[max_idx[0]] + xedges[max_idx[0] + 1]) / 2
-        center_dec = (yedges[max_idx[1]] + yedges[max_idx[1] + 1]) / 2
-        print(f"Maximum pixel center: RA={center_ra:.4f}°, DEC={center_dec:.4f}°")
+        guess_amplitude = histogram[max_idx]
+        guess_x0 = x_centers[max_idx[0]]
+        guess_y0 = y_centers[max_idx[1]]
+        guess_sigma_x = 0.1
+        guess_sigma_y = 0.1
+        guess_theta = 0
+        guess_offset = np.median(histogram)
+        
+        p0 = [guess_amplitude, guess_x0, guess_y0, guess_sigma_x, guess_sigma_y, guess_theta, guess_offset]
+        
+        xdata = np.vstack((X.ravel(), Y.ravel()))
+        ydata = histogram.ravel()
+
+        try:
+            popt, pcov = curve_fit(gaussian_2d, xdata, ydata, p0=p0)
+            center_ra, center_dec = popt[1], popt[2]
+            print(f"Gaussian center: RA={center_ra:.4f}°, DEC={center_dec:.4f}°")
+        except Exception as e:
+            print(f"Gaussian fit failed: {e}. Falling back to max pixel.")
+            center_ra = guess_x0
+            center_dec = guess_y0
+            print(f"Maximum pixel center: RA={center_ra:.4f}°, DEC={center_dec:.4f}°")
+        
         return center_ra, center_dec
 
     def set_keys(self):
@@ -2651,7 +2685,7 @@ class DL2DataProcessor:
         else:
             plt.show()
 
-    def plot_gammaness_distribution(self, output_file=None):
+    def plot_gammaness_distribution(self, output_file=None, density=True):
         import matplotlib.pyplot as plt
 
         gammaness_values = []
@@ -2665,12 +2699,12 @@ class DL2DataProcessor:
             bins=100,
             range=(0, 1),
             histtype="step",
-            density=False,
+            density=density,
             lw=2,
             label="Real data",
         )
         plt.xlabel("Gammaness")
-        plt.ylabel("Counts")
+        plt.ylabel("Density" if density else "Count")
         plt.legend()
 
         plt.tight_layout()

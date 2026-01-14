@@ -1076,6 +1076,7 @@ class CTLearnTriModelManager:
             ParticleType.GAMMA_POINT,
             ParticleType.PROTON,
         ],
+        density: bool = True,
     ):
         """
         Plot the DL2 classification results for given zenith and azimuth angles.
@@ -1089,6 +1090,8 @@ class CTLearnTriModelManager:
         particle_types : list of ParticleType, optional
             A list of particle types to include in the plot. Defaults to
             [ParticleType.GAMMA_POINT, ParticleType.PROTON].
+        density : bool, optional
+            Whether to normalize the histograms to represent densities. Defaults to True.
 
         Notes
         -----
@@ -1125,11 +1128,11 @@ class CTLearnTriModelManager:
                 bins=100,
                 range=(0, 1),
                 histtype="step",
-                density=True,
+                density=density,
                 label=particle_type.value,
             )
         plt.xlabel("Gammaness")
-        plt.ylabel("Density")
+        plt.ylabel("Density" if density else "Count")
         plt.legend()
         plt.show()
 
