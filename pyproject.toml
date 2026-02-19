@@ -11,18 +11,15 @@ authors = [
     {name = "Bastien Lacave", email = "bastien.lacave@unige.ch"},
 ]
 
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "numpy",
-    "ctapipe==0.26.0",
-    "pyirf==0.13.0",
-    "ctaplot==0.6.3",
+    "ctapipe~=0.26.0",
+    "pyirf~=0.13.0",
+    "ctaplot~=0.6.3",
     "h5py",
     "ctadata",
-    "ctlearn",
-    "astropy",
-    "matplotlib==3.10.0",
-    "tables<3.9",
+    "gammapy",
 ]
 
 # needed for setuptools_scm, we don"t define a static version
