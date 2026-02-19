@@ -517,45 +517,45 @@ class CTLearnModelManager:
         stack_telescope_images = True if self.stereo else False
         allowed_tels = ast.literal_eval(self.model_parameters_table["telescope_ids"][0])
 
-        if config_file is None:
-            config = {}
-            config["TrainCTLearnModel"] = {}
-            config["TrainCTLearnModel"]["save_best_validation_only"] = (
-                _save_best_validation_only
-            )
-            config["TrainCTLearnModel"]["n_epochs"] = int(n_epochs)
-            config["TrainCTLearnModel"]["stack_telescope_images"] = (
-                stack_telescope_images
-            )
-            config["TrainCTLearnModel"]["reco_tasks"] = [
-                self.model_parameters_table["reco"][0]
-            ]
-            config["TrainCTLearnModel"]["output_dir"] = model_dir
+        config = {}
+        config["TrainCTLearnModel"] = {}
+        config["TrainCTLearnModel"]["save_best_validation_only"] = (
+            _save_best_validation_only
+        )
+        config["TrainCTLearnModel"]["n_epochs"] = int(n_epochs)
+        config["TrainCTLearnModel"]["stack_telescope_images"] = (
+            stack_telescope_images
+        )
+        config["TrainCTLearnModel"]["reco_tasks"] = [
+            self.model_parameters_table["reco"][0]
+        ]
+        config["TrainCTLearnModel"]["output_dir"] = model_dir
 
-            config["TrainCTLearnModel"]["DLImageReader"] = {}
-            config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
-            config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
-                self.min_telescopes
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
-                force_dl1_lookup
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
-            config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
+        config["TrainCTLearnModel"]["DLImageReader"] = {}
+        config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
+        config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
+            self.min_telescopes
+        )
+        config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
+            force_dl1_lookup
+        )
+        config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
+        config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
 
-            config["LoadedModel"] = {}
-            config["LoadedModel"]["trainable_backbone"] = trainable_backbone
+        config["LoadedModel"] = {}
+        config["LoadedModel"]["trainable_backbone"] = trainable_backbone
 
-            config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
-            with open(config_file, "w") as file:
-                json.dump(config, file)
-            print(f"Configuration saved to {config_file}")
+        created_config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
+        with open(created_config_file, "w") as file:
+            json.dump(config, file)
+        print(f"Configuration saved to {created_config_file}")
 
         cmd = f"ctlearn-train-model {load_model_string} \
 --TrainCTLearnModel.batch_size={batch_size} \
 --signal {training_gamma_table['training_gamma_diffuse_dir'][0]} {signal_patterns}\
 {background_string} {background_patterns}\
 --output {model_dir} \
+--config {created_config_file} \
 --config {config_file} \
 --overwrite \
 --verbose"
