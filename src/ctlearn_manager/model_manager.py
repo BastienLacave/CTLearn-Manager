@@ -372,6 +372,7 @@ class CTLearnModelManager:
         force_dl1_lookup=False,
         config_file=None,
         batch_size=64,
+        keras3=True,
     ):
         """
         Launch the training process for the model.
@@ -411,6 +412,11 @@ class CTLearnModelManager:
 
         import numpy as np
         from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if keras3:
+            model_suffix = "keras"
+        else:
+            model_suffix = "cpk"
 
         self.cluster_configuration.info()
         if n_epochs == 0:
@@ -461,13 +467,13 @@ class CTLearnModelManager:
                     f"➡️ Model already exists: will continue training and create {model_dir}"
                 )
                 _save_best_validation_only = True
-                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.{model_suffix}"
                 load_model = True
                 # os.system(f"mkdir -p {model_dir}")
             else:
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.{model_suffix}"
                     load_model = True
                     print(
                         f"➡️ Model already exists: will continue training and create {model_dir}"
@@ -517,48 +523,49 @@ class CTLearnModelManager:
         stack_telescope_images = True if self.stereo else False
         allowed_tels = ast.literal_eval(self.model_parameters_table["telescope_ids"][0])
 
-        if config_file is None:
-            config = {}
-            config["TrainCTLearnModel"] = {}
-            config["TrainCTLearnModel"]["save_best_validation_only"] = (
-                _save_best_validation_only
-            )
-            config["TrainCTLearnModel"]["n_epochs"] = int(n_epochs)
-            config["TrainCTLearnModel"]["stack_telescope_images"] = (
-                stack_telescope_images
-            )
-            config["TrainCTLearnModel"]["reco_tasks"] = [
-                self.model_parameters_table["reco"][0]
-            ]
-            config["TrainCTLearnModel"]["output_dir"] = model_dir
+        config = {}
+        config["TrainCTLearnModel"] = {}
+        config["TrainCTLearnModel"]["save_best_validation_only"] = (
+            _save_best_validation_only
+        )
+        config["TrainCTLearnModel"]["n_epochs"] = int(n_epochs)
+        config["TrainCTLearnModel"]["stack_telescope_images"] = (
+            stack_telescope_images
+        )
+        config["TrainCTLearnModel"]["reco_tasks"] = [
+            self.model_parameters_table["reco"][0]
+        ]
+        config["TrainCTLearnModel"]["output_dir"] = model_dir
 
-            config["TrainCTLearnModel"]["DLImageReader"] = {}
-            config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
-            config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
-                self.min_telescopes
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
-                force_dl1_lookup
-            )
-            config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
-            config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
+        config["TrainCTLearnModel"]["DLImageReader"] = {}
+        config["TrainCTLearnModel"]["DLImageReader"]["allowed_tels"] = allowed_tels
+        config["TrainCTLearnModel"]["DLImageReader"]["min_telescopes"] = int(
+            self.min_telescopes
+        )
+        config["TrainCTLearnModel"]["DLImageReader"]["force_dl1_lookup"] = (
+            force_dl1_lookup
+        )
+        config["TrainCTLearnModel"]["DLImageReader"]["mode"] = stereo_mode
+        config["TrainCTLearnModel"]["DLImageReader"]["channels"] = channels
 
-            config["LoadedModel"] = {}
-            config["LoadedModel"]["trainable_backbone"] = trainable_backbone
+        config["LoadedModel"] = {}
+        config["LoadedModel"]["trainable_backbone"] = trainable_backbone
 
-            config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
-            with open(config_file, "w") as file:
-                json.dump(config, file)
-            print(f"Configuration saved to {config_file}")
+        created_config_file = f"{base_model_dir}/train_config{self.model_nickname}_v{model_version}.json"
+        with open(created_config_file, "w") as file:
+            json.dump(config, file)
+        print(f"Configuration saved to {created_config_file}")
 
         cmd = f"ctlearn-train-model {load_model_string} \
 --TrainCTLearnModel.batch_size={batch_size} \
 --signal {training_gamma_table['training_gamma_diffuse_dir'][0]} {signal_patterns}\
 {background_string} {background_patterns}\
 --output {model_dir} \
---config {config_file} \
+--config {created_config_file} \
 --overwrite \
 --verbose"
+        if config_file is not None:
+            cmd += f" --config {config_file}"
 
         if self.cluster_configuration.use_cluster:
             sbatch_file = self.cluster_configuration.write_sbatch_script(
@@ -593,7 +600,10 @@ class CTLearnModelManager:
         )
         n_epochs = 0
         for training_log in training_logs:
-            df = pd.read_csv(training_log)
+            try:
+                df = pd.read_csv(training_log)
+            except (pd.errors.EmptyDataError, pd.errors.ParserError, FileNotFoundError):
+                continue
             n_epochs += len(df)
         return n_epochs
 
@@ -632,8 +642,14 @@ class CTLearnModelManager:
         )
         losses_train = []
         losses_val = []
+        required_columns = {"loss", "val_loss"}
         for training_log in training_logs:
-            df = pd.read_csv(training_log)
+            try:
+                df = pd.read_csv(training_log)
+            except (pd.errors.EmptyDataError, pd.errors.ParserError, FileNotFoundError):
+                continue
+            if not required_columns.issubset(df.columns):
+                continue
             losses_train = np.concatenate((losses_train, df["loss"].to_numpy()))
             losses_val = np.concatenate((losses_val, df["val_loss"].to_numpy()))
         epochs = np.arange(1, len(losses_train) + 1)

@@ -2351,10 +2351,31 @@ class CTLearnTriModelManager:
             # print(training_logs)
             losses_train = []
             losses_val = []
+            required_columns = {"loss", "val_loss"}
             for training_log in training_logs:
-                df = pd.read_csv(training_log)
+                try:
+                    df = pd.read_csv(training_log)
+                except (pd.errors.EmptyDataError, pd.errors.ParserError, FileNotFoundError):
+                    continue
+                if not required_columns.issubset(df.columns):
+                    continue
                 losses_train = np.concatenate((losses_train, df["loss"].to_numpy()))
                 losses_val = np.concatenate((losses_val, df["val_loss"].to_numpy()))
+
+            if len(losses_train) == 0 or len(losses_val) == 0:
+                ax.set_title(f"{model.model_parameters_table['reco'][0]} training".title())
+                ax.set_xlabel("Epoch")
+                ax.set_ylabel("Loss")
+                ax.text(
+                    0.5,
+                    0.5,
+                    "No valid training log found",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                continue
+
             epochs = np.arange(1, len(losses_train) + 1)
             if len(epochs) > 1:
                 ax.plot(epochs, losses_train, label="Training", lw=2)
