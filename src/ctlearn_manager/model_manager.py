@@ -600,7 +600,10 @@ class CTLearnModelManager:
         )
         n_epochs = 0
         for training_log in training_logs:
-            df = pd.read_csv(training_log)
+            try:
+                df = pd.read_csv(training_log)
+            except (pd.errors.EmptyDataError, pd.errors.ParserError, FileNotFoundError):
+                continue
             n_epochs += len(df)
         return n_epochs
 
@@ -639,8 +642,14 @@ class CTLearnModelManager:
         )
         losses_train = []
         losses_val = []
+        required_columns = {"loss", "val_loss"}
         for training_log in training_logs:
-            df = pd.read_csv(training_log)
+            try:
+                df = pd.read_csv(training_log)
+            except (pd.errors.EmptyDataError, pd.errors.ParserError, FileNotFoundError):
+                continue
+            if not required_columns.issubset(df.columns):
+                continue
             losses_train = np.concatenate((losses_train, df["loss"].to_numpy()))
             losses_val = np.concatenate((losses_val, df["val_loss"].to_numpy()))
         epochs = np.arange(1, len(losses_train) + 1)
