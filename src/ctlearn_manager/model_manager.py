@@ -372,6 +372,7 @@ class CTLearnModelManager:
         force_dl1_lookup=False,
         config_file=None,
         batch_size=64,
+        keras3=True,
     ):
         """
         Launch the training process for the model.
@@ -411,6 +412,11 @@ class CTLearnModelManager:
 
         import numpy as np
         from astropy.io.misc.hdf5 import read_table_hdf5
+
+        if keras3:
+            model_suffix = "keras"
+        else:
+            model_suffix = "cpk"
 
         self.cluster_configuration.info()
         if n_epochs == 0:
@@ -461,13 +467,13 @@ class CTLearnModelManager:
                     f"➡️ Model already exists: will continue training and create {model_dir}"
                 )
                 _save_best_validation_only = True
-                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.{model_suffix}"
                 load_model = True
                 # os.system(f"mkdir -p {model_dir}")
             else:
                 model_dir = f"{base_model_dir}/{self.model_nickname}_v{model_version}/"
                 if model_version > 0:
-                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.cpk"
+                    model_to_load = f"{base_model_dir}/{self.model_nickname}_v{model_version - 1}/ctlearn_model.{model_suffix}"
                     load_model = True
                     print(
                         f"➡️ Model already exists: will continue training and create {model_dir}"
@@ -556,9 +562,10 @@ class CTLearnModelManager:
 {background_string} {background_patterns}\
 --output {model_dir} \
 --config {created_config_file} \
---config {config_file} \
 --overwrite \
 --verbose"
+        if config_file is not None:
+            cmd += f" --config {config_file}"
 
         if self.cluster_configuration.use_cluster:
             sbatch_file = self.cluster_configuration.write_sbatch_script(
