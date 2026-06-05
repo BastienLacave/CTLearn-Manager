@@ -93,6 +93,9 @@ REQUIRED_COLUMNS = [
     "delta_t",
     "obs_id",
     "event_id",
+    "hillas_intensity",
+    "hillas_width",
+    "hillas_length",
     
     # Pointing information
     "altitude",
@@ -670,8 +673,7 @@ class DataReductionFITSWriter(Tool):
         self.provenance_log = self.output_dl3_path / (self.name + ".provenance.log")
 
         Provenance().add_input_file(self.input_dl2)
-
-        self.event_sel = EventSelector(parent=self, filters = {})
+        self.event_sel = EventSelector(parent=self)#, filters = {})
         self.cuts = DL3Cuts(parent=self)
 
         self.output_file = self.output_dl3_path.absolute() / self.filename_dl3
@@ -780,6 +782,7 @@ class DataReductionFITSWriter(Tool):
         # for col in ['CTLearn_telescopes_1', 'CTLearn_telescopes_2', 'CTLearn_telescopes']:
         #     if col in self.data.colnames:
         #         self.data.remove_column(col)
+        print(self.event_sel.filters)
         self.data = self.event_sel.filter_cut(self.data)
 
         if self.use_energy_dependent_gh_cuts:

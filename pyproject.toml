@@ -22,7 +22,7 @@ dependencies = [
     "ctlearn",
     "astropy",
     "matplotlib==3.10.0",
-    "tables<3.9",
+    "tables>=3.8",
 ]
 
 # needed for setuptools_scm, we don"t define a static version

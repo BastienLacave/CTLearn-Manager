@@ -1391,17 +1391,50 @@ class CTLMDirectories:
         return f"{self.irf_directory}/{zenith.value:.3f}_{azimuth.value:.3f}/{cuts.get_directory_name()}"
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
-    def get_irf_files(self, zenith:float, azimuth:float, cuts:Cuts):
+    def get_irf_files(self, zenith:float, azimuth:float, cuts:Cuts, ctlearn):
         from pathlib import Path
+        
+        if not ctlearn:
+            # Load from resources for RF
+            import importlib.resources as pkg_resources
+            from .. import resources
+            
+            assert cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED, "RF IRFs are only available for EFFICIENCY_OPTIMIZED cuts."
+            efficiency = cuts.efficiency_gammaness
+            
+            # Construct the file name based on the convention
+            # irfs_zen_10.00_gh-eff_0.4.fits.gz
+            resource_name = f"irfs_zen_{zenith.value:.2f}_gh-eff_{efficiency}.fits.gz"
+            
+            # Let's try to find it in the installed package location
+            with pkg_resources.path(resources, '__init__.py') as p:
+                resources_dir = p.parent
+                
+            irf_file = resources_dir / f"irfs/LST1/{resource_name}"
+            
+            if not irf_file.exists():
+                 # Fallback to try directly in resources if not in subdir
+                 irf_file = resources_dir / resource_name
+                 
+            if not irf_file.exists():
+                raise FileNotFoundError(f"RF IRF file not found: {resource_name} at {irf_file}")
+                
+            return {
+                "irf_file": str(irf_file),
+                "cuts_file": str(irf_file), # RF files usually contain cuts too
+                "benchmark_file": None,
+                "config_file": None,
+                # "gammapy_irf_file": None,
+            }
 
         irf_dir = self.get_irf_directory(zenith, azimuth, cuts)
         irf_file = f"{irf_dir}/irf_{zenith.value}_{azimuth.value}.fits"
         cuts_file = f"{irf_dir}/cuts_{zenith.value}_{azimuth.value}.fits"
         benchmark_file = f"{irf_dir}/benchmark_{zenith.value}_{azimuth.value}.fits"
-        gammapy_irf_file = f"{irf_dir}/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
+        # gammapy_irf_file = f"{irf_dir}/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
         config_file = f"{irf_dir}/config_{zenith.value}_{azimuth.value}.yaml"
 
-        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file(), Path(gammapy_irf_file).is_file()]
+        exist = [Path(irf_file).is_file(), Path(cuts_file).is_file(), Path(benchmark_file).is_file(), Path(config_file).is_file()] #, Path(gammapy_irf_file).is_file()]
         # print(exist)
 
         if not all(exist):
@@ -1414,10 +1447,10 @@ class CTLMDirectories:
             "cuts_file": cuts_file,
             "benchmark_file": benchmark_file,
             "config_file": config_file,
-            "gammapy_irf_file": gammapy_irf_file,
+            # "gammapy_irf_file": gammapy_irf_file,
         }
     
-    def get_closest_irf_files(self, zenith:float, azimuth:float, cuts:Cuts=None):
+    def get_closest_irf_files(self, zenith:float, azimuth:float, ctlearn:bool, cuts:Cuts=None):
         """
         Get the closest IRF files for the given zenith and azimuth.
         :param zenith: The zenith angle in degrees.
@@ -1431,6 +1464,13 @@ class CTLMDirectories:
         """
         import glob
         from pathlib import Path
+
+        if not ctlearn:
+            available_rf_irf_zeniths = np.array([10, 23.63, 32.06, 43.2])
+            match = np.argmin(np.abs(available_rf_irf_zeniths - zenith))
+            closest_zenith = available_rf_irf_zeniths[match] * u.deg
+            closest_azimuth = 0 * u.deg
+            return self.get_irf_files(closest_zenith, closest_azimuth, cuts, ctlearn)
 
         if cuts is not None:
             available_irf_direction_directories = glob.glob(f"{self.irf_directory}/*/{cuts.get_directory_name()}/")
@@ -1462,7 +1502,7 @@ class CTLMDirectories:
         closest_zenith = zeniths[match] * u.deg
         closest_azimuth = azimuths[match] * u.deg
         
-        return self.get_irf_files(closest_zenith, closest_azimuth, cuts)
+        return self.get_irf_files(closest_zenith, closest_azimuth, cuts, ctlearn)
 
     def get_closest_rf_irf_files(zenith:float, cuts:Cuts=None):
         """
@@ -1506,6 +1546,7 @@ class CTLMDirectories:
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_dl2_mc_directory(self, particle_type: ParticleType, zenith:float, azimuth:float):
         # print(f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}")
+        # print(zenith, azimuth)
         return f"{self.dl2_mc_directory}/{particle_type.value}/{zenith.value:.3f}_{azimuth.value:.3f}"
 
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
@@ -1520,6 +1561,7 @@ class CTLMDirectories:
         ],  merged: bool = None):
 
         dl2_files = {}
+        # print(zenith, azimuth)
 
         for particle_type in particle_types:
             if not merged:
@@ -1826,7 +1868,7 @@ def produce_dl3(
 
     for dl2_file in dl2_files:
         zenith, azimuth = get_avg_pointing(dl2_file, pointing_table, alt_key=pointing_alt_key, az_key=pointing_az_key)
-        irf_file = CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=cuts)['gammapy_irf_file']
+        irf_file = CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=cuts)['irf_file']
         irf_dir = os.path.dirname(irf_file)
         irf_filename = os.path.basename(irf_file)
         cmd = f"manager_create_dl3_file \

@@ -38,7 +38,6 @@ matrix and a different spectrum).
                 
 
 """
-from numba import njit
 from astropy.table import vstack, QTable
 from astropy import table
 from astropy.io import fits
@@ -226,66 +225,58 @@ def read_simu_info_merged_hdf5(filename):
 
     return combined_mcheader
 
-@njit
-def compute_diff(arr):
-    n = len(arr)
-    diff = np.empty(n, dtype=arr.dtype)
-    diff[0] = 0  # Assuming the first difference is 0
-    for i in range(1, n):
-        diff[i] = arr[i] - arr[i - 1]
-    return diff
-
-
 def load_DL2_data_MC(input_file, tel_id=1):
-    from astropy.table import hstack, join
-    from ctapipe.io import read_table
+    from ctapipe.io import TableLoader, read_table
 
     subarray_string = "telescope"
-    tel_id_string = "" if tel_id == None else f"tel_{tel_id:03d}"
+    tel_id_string = f"tel_{tel_id:03d}" if tel_id is not None else ""
+    key_tel = "tel_" if tel_id is not None else ""
+
+    # Read pointing monitoring table.
+    # For MC point-like / ring-wobble simulations the pointing is constant;
+    # use the mean so that the result is independent of monitoring-table row count.
     pointing = read_table(
         input_file, f"dl1/monitoring/{subarray_string}/pointing/{tel_id_string}"
     )
-    key_tel = "" if tel_id == None else "tel_"
+    mean_alt = u.Quantity(pointing["altitude"]).to(u.deg).mean()
+    mean_az  = u.Quantity(pointing["azimuth"]).to(u.deg).mean()
 
-    dl2_tables = []
-
-
-    dl2_classification = read_table(
-        input_file,
-        f"dl2/event/{subarray_string}/classification/CTLearn/{tel_id_string}",
+    # Use TableLoader to load all DL2 telescope predictions (classification,
+    # energy, geometry) in a single call – they are joined automatically on
+    # obs_id + event_id.  For MC we skip observation_info (no dragon_time /
+    # delta_t) and simulated truth (handled separately by
+    # load_true_shower_parameters / read_mc_dl2_to_QTable).
+    telescopes_filter = [tel_id] if tel_id is not None else None
+    loader = TableLoader(input_url=input_file)
+    dl2 = loader.read_telescope_events(
+        telescopes=telescopes_filter,
+        start=None,
+        stop=None,
+        dl2=True,
+        simulated=False,
+        observation_info=False,
     )
-    dl2_classification = hstack([dl2_classification, pointing])
-    dl2_classification = dl2_classification[
-        ~np.isnan(dl2_classification[f"CTLearn_{key_tel}prediction"])
-    ]
-    dl2_tables.append(dl2_classification)
 
+    # Drop multidimensional columns (e.g. tels_with_trigger, CTLearn_telescopes_*)
+    # that TableLoader returns but are incompatible with to_pandas() downstream.
+    dl2 = dl2[[name for name in dl2.colnames if len(dl2[name].shape) <= 1]]
 
+    # Remove events with invalid (NaN) predictions, energy or reconstructed
+    # direction – mirrors the per-table NaN filtering done previously.
+    valid_mask = np.ones(len(dl2), dtype=bool)
+    for col in [
+        f"CTLearn_{key_tel}prediction",
+        f"CTLearn_{key_tel}energy",
+        f"CTLearn_{key_tel}alt",
+    ]:
+        if col in dl2.colnames:
+            valid_mask &= ~np.isnan(np.asarray(dl2[col], dtype=float))
+    dl2 = dl2[valid_mask]
 
-    dl2_energy = read_table(
-        input_file, f"dl2/event/{subarray_string}/energy/CTLearn/{tel_id_string}"
-    )
-    if len(dl2_tables) == 0:
-        dl2_energy = hstack([dl2_energy, pointing])
-    dl2_energy = dl2_energy[~np.isnan(dl2_energy[f"CTLearn_{key_tel}energy"])]
-    dl2_tables.append(dl2_energy)
-
-
-
-    dl2_geometry = read_table(
-        input_file, f"dl2/event/{subarray_string}/geometry/CTLearn/{tel_id_string}"
-    )
-    if len(dl2_tables) == 0:
-        dl2_geometry = hstack([dl2_geometry, pointing])
-    dl2_geometry = dl2_geometry[~np.isnan(dl2_geometry[f"CTLearn_{key_tel}alt"])]
-    dl2_tables.append(dl2_geometry)
-
-    if len(dl2_tables) > 0:
-        dl2 = dl2_tables[0]
-        for table in dl2_tables[1:]:
-            dl2 = join(dl2, table, keys=["obs_id", "event_id"])
-    else:
-        raise ValueError("No DL2 tables found")
+    # Attach mean pointing to every event row (valid for MC simulations).
+    # Using explicit Quantity columns preserves units through all downstream steps.
+    dl2["altitude"] = np.full(len(dl2), mean_alt.value) * mean_alt.unit
+    dl2["azimuth"]  = np.full(len(dl2), mean_az.value)  * mean_az.unit
 
     return dl2
 
@@ -404,32 +395,30 @@ def read_mc_dl2_to_QTable(filename):
 
     print("Column names:", events.colnames)
 
-    # Apply units correctly - ensure we have a QTable and proper Quantity columns
+    # Apply units: convert columns that already carry physical units with .to(),
+    # and only assign units directly when a column is dimensionless / unit-less.
+    # IMPORTANT: never strip existing units and re-assign – that silently produces
+    # wrong values (e.g. 45 deg re-assigned as 45 rad = 2578 deg).
     events = QTable(events)  # Ensure it's a QTable
-    # print('BEFORE')
-    # print(events[f"true_az"],)
-    # print(events[f"true_alt"],)
-    # print(events["pointing_az"],)
-    # print(events["pointing_alt"],)
-    # print('BEFORE')
-    
-    for k, v in unit_mapping.items():
-        if k in events.colnames:
-            # Always create a Quantity object, removing any existing units first
-            if hasattr(events[k], 'value'):
-                # If it's already a Quantity, get the raw value
-                data_values = events[k].value
-            elif hasattr(events[k], 'data'):
-                # If it's a Column, get the data
-                data_values = events[k].data
-            else:
-                # If it's an array, get it directly
-                data_values = np.asarray(events[k])
-            
-            # Create a proper Quantity column in the QTable
-            events[k] = data_values * v
 
-    # Final check - ensure it's a QTable
+    for k, v in unit_mapping.items():
+        if k not in events.colnames:
+            continue
+        col = events[k]
+        try:
+            q = u.Quantity(col)
+            if q.unit.physical_type != "dimensionless" and q.unit.is_equivalent(v):
+                # Column has real, compatible units → convert properly
+                events[k] = q.to(v)
+            else:
+                # Dimensionless or incompatible stored unit → the raw numbers are
+                # already in the target unit; just label them correctly
+                events[k] = q.value * v
+        except Exception:
+            # Fallback for plain numpy arrays without any unit metadata
+            events[k] = np.asarray(col) * v
+
+    # Final check – ensure it's a QTable
     if not isinstance(events, QTable):
         events = QTable(events)
 
@@ -809,22 +798,15 @@ class IRFFITSWriter(Tool):
                     p["simulated_spectrum"],
                 )
                      
-            # print(np.nanmean(p["events"]["pointing_alt"]))
-            # Fix: Handle units properly - don't multiply if already has correct units
-            pointing_alt_deg = p["events"]["pointing_alt"]
-            if hasattr(pointing_alt_deg, 'unit') and pointing_alt_deg.unit == u.deg:
-                pointing_alt_deg = pointing_alt_deg.to_value(u.deg)
-            else:
-                pointing_alt_deg = pointing_alt_deg.to_value(u.rad) * 180 / np.pi
-            
-            pointing_az_deg = p["events"]["pointing_az"]
-            if hasattr(pointing_az_deg, 'unit') and pointing_az_deg.unit == u.deg:
-                pointing_az_deg = pointing_az_deg.to_value(u.deg)
-            else:
-                pointing_az_deg = pointing_az_deg.to_value(u.rad) * 180 / np.pi
-                
-            p["ZEN_PNT"] = round(90 - np.nanmean(pointing_alt_deg), 5)
-            p["AZ_PNT"] = round(np.nanmean(pointing_az_deg), 5)
+            # ZEN_PNT / AZ_PNT: always convert to degrees regardless of stored unit.
+            # .to_value(u.deg) works whether the column is in rad, deg or any
+            # equivalent angle unit – no fragile unit-equality check needed.
+            p["ZEN_PNT"] = round(
+                90 - np.nanmean(u.Quantity(p["events"]["pointing_alt"]).to_value(u.deg)), 5
+            )
+            p["AZ_PNT"] = round(
+                np.nanmean(u.Quantity(p["events"]["pointing_az"]).to_value(u.deg)), 5
+            )
 
             if not self.source_dep:
                 for prefix in ("true", "reco"):
@@ -875,8 +857,20 @@ class IRFFITSWriter(Tool):
 
         # print(gammas['true_source_fov_offset'])
         # print(fov_offset_bins)
+        # Apply EventSelector filters, but skip any whose column is absent from the
+        # CTApipe-format DL2 MC table (e.g. lstchain defaults 'r', 'wl',
+        # 'leakage_intensity_width_2', 'event_type' are DL1 image-quality parameters
+        print(self.event_sel.filters)
+        gammas = self.event_sel.filter_cut(gammas)
+        gammas = self.cuts.allowed_tels_filter(gammas)
+
+        # Restrict to the simulated FoV offset range – events outside the binning
+        # would be silently included in the first/last bin and corrupt the IRFs.
+        gammas = gammas[
+            u.Quantity(gammas["true_source_fov_offset"]) <= np.max(fov_offset_bins)
+        ]
         gammas = filter_events(gammas)
-        # print(len(gammas))
+        self.log.info(f"Gamma events after FoV offset cut: {len(gammas)}")
 
 
         if self.energy_dependent_gh:
@@ -972,7 +966,6 @@ class IRFFITSWriter(Tool):
                 background = self.cuts.apply_global_gh_cut(background)
 
             background = self.event_sel.filter_cut(background)
-            background = self.cuts.allowed_tels_filter(background)
 
             background_offset_bins = self.data_bin.bkg_fov_offset_bins()
 

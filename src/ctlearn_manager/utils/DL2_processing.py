@@ -30,7 +30,7 @@ from ..utils.utils import (
 
 
 def extract_cuts(args):
-    model, file, cut, pointing_table, pointing_alt_key, pointing_az_key = args
+    model, file, cut, pointing_table, pointing_alt_key, pointing_az_key, ctlearn = args
     # zenith, azimuth = model.project_directories.get_available_MC_directions(ParticleType.GAMMA_POINT)
     # file_zenith, file_azimuth = get_avg_pointing(
     #     file,
@@ -47,7 +47,7 @@ def extract_cuts(args):
     #     zenith[closest_idx] * u.deg, azimuth[closest_idx] * u.deg, cut
     # )['cuts_file']
     zenith, azimuth = get_avg_pointing(file, pointing_table, pointing_alt_key, pointing_az_key)
-    cuts_file = model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cut)['cuts_file'] 
+    cuts_file = model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, ctlearn, cut)['cuts_file'] 
     with fits.open(cuts_file, mode="readonly") as hdul:
         theta_cut = hdul["RAD_MAX"].data["cut"]
         gammaness_cut = hdul["GH_CUTS"].data["cut"]
@@ -70,7 +70,7 @@ def get_energy_dependent_mask_data(
     # cuts_file = tri_model.project_directories.get_irf_files(zenith[0], azimuth[0], cuts)['cuts_file'] # FIXME
     if CTLearn:
         zenith, azimuth = get_avg_pointing(DL2_file, pointing_table, pointing_alt_key, pointing_az_key)
-        cuts_file = tri_model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts)['cuts_file'] 
+        cuts_file = tri_model.project_directories.get_closest_irf_files(zenith.value, azimuth.value, CTLearn, cuts)['cuts_file'] 
     else:
         zenith, azimuth = get_avg_pointing(DL2_file, pointing_table, pointing_alt_key, pointing_az_key)
         cuts_file = get_closest_rf_irf_files(zenith.value, cuts)
@@ -109,10 +109,9 @@ def get_energy_dependent_mask_data(
     
 def compute_eff_time(events, CTLearn, time_key):
     # Extract timestamps and delta_t as numpy arrays
-    if CTLearn:
-        # print(events[time_key])
+    try:
         timestamp = np.asarray(events[time_key].to_value("unix"))
-    else:
+    except (AttributeError, ValueError, TypeError, u.UnitConversionError):
         timestamp = np.asarray(events[time_key])
 
     delta_t = np.asarray(events["delta_t"])
@@ -332,7 +331,7 @@ class DL2DataProcessor:
         # max_theta2: float=0.2,
         workers=None,
         reco_field_suffix = None,
-        fit_src_position: bool = True,
+        fit_src_position: bool = False,
         reconstruction_method = "CTLearn"
     ):
         self.workers = workers
@@ -377,7 +376,7 @@ class DL2DataProcessor:
             else self.CTLearnTriModelCollection.tri_models[0].telescope_ids[0]
         )  # FIXME other telescopes ?
         # self.irfs = CTLearnTriModelManager.irfs
-        self.CTLearn = True
+        self.CTLearn = self.reconstruction_method == "CTLearn"
         # self.edep_cuts = edep_cuts
         # print(self.edep_cuts)
         
@@ -396,7 +395,7 @@ class DL2DataProcessor:
             self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_directory
         else:
             self.dl2_processed_dir = self.CTLearnTriModelCollection.tri_models[0].project_directories.dl2_post_processed_data_rf_directory
-
+        print(self.dl2_processed_dir)
         if not os.path.exists(self.dl2_processed_dir):
             os.makedirs(self.dl2_processed_dir, exist_ok=True)
 
@@ -414,7 +413,7 @@ class DL2DataProcessor:
                 or cut.cut_type == CutType.SENSITIVITY_OPTIMIZED
             ):
                 file_args = [
-                    (model, file, cut, self.pointing_table, self.pointing_alt_key, self.pointing_az_key)
+                    (model, file, cut, self.pointing_table, self.pointing_alt_key, self.pointing_az_key, self.CTLearn)
                     for model, file in zip(self.corresponding_models, self.DL2_files)
                 ]
                 file_theta_cuts = []
@@ -491,7 +490,7 @@ class DL2DataProcessor:
 
                 cuts_file = self.CTLearnTriModelCollection.tri_models[
                     0 # FIXME
-                ].direction_model.project_directories.get_irf_files(zenith[0], azimuth[0], cut)['cuts_file']
+                ].direction_model.project_directories.get_irf_files(zenith[0], azimuth[0], cut, ctlearn=self.CTLearn)['cuts_file']
                 with fits.open(cuts_file, mode="readonly") as hdul:
                     E_bins = hdul["GH_CUTS"].data["low"]
                     E_bins = np.append(E_bins, hdul["GH_CUTS"].data["high"][-1]) * u.TeV
@@ -845,7 +844,7 @@ class DL2DataProcessor:
 
 
 
-    def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0, t2_max=0.4):
+    def plot_theta2_distribution(self, bins=25, n_off=3, output_file=None, cuts_index=0, t2_max=0.4, mask_on_region=True):
         import concurrent.futures
 
         import matplotlib.pyplot as plt
@@ -875,6 +874,7 @@ class DL2DataProcessor:
                 E_max=10000,
                 I_min=None,
                 I_max=None,
+                mask_one_region=mask_on_region
             )
             h_on_temp, _ = np.histogram(on_separation_temp.to(u.deg).value ** 2, bins=angle2_bins)
             h_off_temp, _ = np.histogram(all_off_separation_temp.to(u.deg).value ** 2, bins=angle2_bins)
@@ -1157,6 +1157,7 @@ class DL2DataProcessor:
         E_max=100,
         I_min=None,
         I_max=None,
+        mask_one_region=False,
     ):
         if gcut is None:
             gcut = 0
@@ -1197,8 +1198,17 @@ class DL2DataProcessor:
         off_separations = np.array([
             reco_coord.separation(off_region)[mask].value for off_region in off_regions
         ])  # shape (n_off, N_events)
-        off_count = np.count_nonzero(off_separations < np.sqrt(theta2_cut.value))
-        all_off_separation = off_separations.flatten() * u.deg
+        # Mask out events that fall within the ON region (within sqrt(theta2_cut) of the source)
+        if mask_one_region:
+            on_source_sep = on_separation.to(u.deg).value  # (N_events,) - already masked above
+            on_region_veto = on_source_sep >= np.sqrt(theta2_cut.value)  # True = not in ON region
+            off_separations_masked = off_separations[:, on_region_veto]  # (n_off, N_events_filtered)
+            off_count = np.count_nonzero(off_separations_masked < np.sqrt(theta2_cut.value))
+            all_off_separation = off_separations_masked.flatten() * u.deg
+        else:
+            off_count = np.count_nonzero(off_separations < np.sqrt(theta2_cut.value))
+            all_off_separation = off_separations.flatten() * u.deg
+
 
         # alpha = sum_norm_on / sum_norm_off
         alpha = 1 / n_off
@@ -2090,7 +2100,7 @@ class DL2DataProcessor:
                 actual_obs_time = t_eff,
                 cond=True,
             )
-            print(flux_factor)
+            # print(flux_factor)
             flux_minus, lima_signi_minus = calc_flux_for_N_sigma(
                 5,
                 nexcess + backg_syst * off_count + (nexcess + 2 * off_count) ** 0.5,
@@ -2528,8 +2538,8 @@ class DL2DataProcessor:
             #     I_g_on_counts_tot[i] + np.sqrt(I_g_on_counts_tot[i]),
             #     alpha=0.3,
             # )
-            print(I_g_off_counts_tot[i])
-            print(I_g_on_counts_tot[i])
+            # print(I_g_off_counts_tot[i])
+            # print(I_g_on_counts_tot[i])
 
         axs[0].set_ylabel("Excess Counts")
         axs[0].legend()
@@ -2782,15 +2792,27 @@ class DL2DataProcessor:
         cuts_index: int = 0,
         overwrite: bool = False,
         dl3_file_pattern: str = "LST-1.Run*.dl3.fits",
+        CTLearn: bool = True,
+        config = None,
+        irf_file = None,
         ):
+
+        import concurrent.futures
 
         os.makedirs(output_dl3_directory, exist_ok=True)
 
+        # Build all commands upfront
+        dl3_args = []
         for dl2_file in self.DL2_files:
             zenith, azimuth = get_avg_pointing(dl2_file, self.pointing_table, alt_key=self.pointing_alt_key, az_key=self.pointing_az_key)
-            irf_file = self.CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, cuts=self.cuts[cuts_index])['gammapy_irf_file']
-            irf_dir = os.path.dirname(irf_file)
-            irf_filename = os.path.basename(irf_file)
+            if irf_file is None:
+                irf_file = self.CTLearnTriModelCollection.project_directories.get_closest_irf_files(zenith.value, azimuth.value, CTLearn, cuts=self.cuts[cuts_index])['irf_file']
+                irf_dir = os.path.dirname(irf_file)
+                irf_filename = os.path.basename(irf_file)
+            else:
+                irf_dir = os.path.dirname(irf_file)
+                irf_filename = os.path.basename(irf_file)
+
             cmd = f"manager_create_dl3_file \
 -d {dl2_file} \
 -o {output_dl3_directory} \
@@ -2801,10 +2823,26 @@ class DL2DataProcessor:
 --source-dec {source_dec.to(u.deg).value}deg \
 {'--overwrite ' if overwrite else ''} \
 --log-level DEBUG"
+            if config is not None:
+                cmd += f" --config {config}"
+            dl3_args.append((dl2_file, cmd))
+
+        def _run_dl3_cmd(args):
+            dl2_file, cmd = args
             print(cmd)
             success = os.system(cmd)
             if success != 0:
                 print(f"Error creating DL3 file for {dl2_file}.")
+            return dl2_file, success
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            futures = {executor.submit(_run_dl3_cmd, args): args[0] for args in dl3_args}
+            for future in tqdm(
+                concurrent.futures.as_completed(futures),
+                total=len(futures),
+                desc="Creating DL3 files",
+            ):
+                future.result()  # re-raise any exception from the worker
 
         cmd = f"manager_create_dl3_index_files \
 -d {output_dl3_directory}/ \

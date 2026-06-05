@@ -73,7 +73,8 @@ def process_dl2_file():
         if processor.CTLearn:
             dl2 = load_DL2_data(DL2_file, processor)
         else:
-            dl2 = load_DL2_data_RF(DL2_file, processor)
+            # dl2 = load_DL2_data_RF(DL2_file, processor)
+            dl2 = load_DL2_data(DL2_file, processor)
         if processor.gammaness_key in dl2.colnames:
             dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
         with open(dl2_output_file, "wb") as f:
@@ -102,7 +103,8 @@ def process_dl2_file():
         if processor.CTLearn:
             dl2 = load_DL2_data(DL2_file, processor)
         else:
-            dl2 = load_DL2_data_RF(DL2_file, processor)
+            # dl2 = load_DL2_data_RF(DL2_file, processor)
+            dl2 = load_DL2_data(DL2_file, processor)
         if processor.gammaness_key in dl2.colnames:
             dl2 = dl2[dl2[processor.gammaness_key] > 0]  # Remove unpredicted events
         with open(dl2_output_file, "wb") as f:
@@ -122,7 +124,8 @@ def process_dl2_file():
         if processor.CTLearn:
             times = dl2[processor.time_key]
         else:
-            times = Time(np.array(dl2[processor.time_key]), format="unix", scale="tai")
+            # times = Time(np.array(dl2[processor.time_key]), format="unix", scale="tai")
+            times = dl2[processor.time_key]
         # times = Time(np.array(dl2["time"]), format='mjd', scale='tai')
 
         frame = AltAz(

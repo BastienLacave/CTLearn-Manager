@@ -447,24 +447,6 @@ class TriModelCollection:
             min_distances.append(np.min(angular_distances).value)
 
         
-
-        # avg_model_azs = []
-        # avg_model_zes = []
-        # for tri_model in self.tri_models:
-        #     avg_model_azs.append(
-        #         np.mean(tri_model.direction_model.validity.azimuth_range)
-        #         .to(u.deg)
-        #         .value
-        #     )
-        #     avg_model_zes.append(
-        #         np.mean(tri_model.direction_model.validity.zenith_range).to(u.deg).value
-        #     )
-        # avg_model_azs = np.array(avg_model_azs) * u.deg
-        # avg_model_zes = np.array(avg_model_zes) * u.deg
-        # # angular_distance_matrix = angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
-        # closest_model_index = np.argmin(
-        #     angular_distance(avg_data_ze, avg_data_az, avg_model_zes, avg_model_azs)
-        # )
         closest_model_index = np.argmin(min_distances)
         closest_model = self.tri_models[closest_model_index]
 
@@ -519,8 +501,9 @@ class TriModelCollection:
     def plot_energy_resolution_DL2(
         self,
         cuts: Cuts = DefaultCuts.GH_0_9.value,
-        zenith: float = None,
-        azimuth: float = None,
+        # zenith: float = None,
+        # azimuth: float = None,
+        coords : tuple = None,
         ylim=None,
         particle_type: ParticleType = ParticleType.GAMMA_POINT,
         figsize=None,
@@ -584,7 +567,7 @@ class TriModelCollection:
         if (
             plot_RF
             and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED
-            and zenith is not None
+            and coords is not None
         ):
             import importlib
             import importlib.resources as pkg_resources
@@ -594,7 +577,7 @@ class TriModelCollection:
             module_name = "ctlearn_manager.resources.irfs.LST1"
             RF_bechmpark = importlib.import_module(module_name)
             available_zeniths = [10.00, 23.63, 32.06, 43.20]
-            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - coords[0].value))
 
             with pkg_resources.path(
                 RF_bechmpark,
@@ -606,10 +589,11 @@ class TriModelCollection:
                 RF_e = hudl["ENERGY_BIAS_RESOLUTION"].data["true_energy_center"]
                 RF_e_res = hudl["ENERGY_BIAS_RESOLUTION"].data["resolution"]
                 l = f"RF {closest_zenith:.1f}°"
-                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                if f"{coords[0].value:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
                 ax.plot(RF_e, RF_e_res, label=l, color=get_color('on_background'), zorder=0)
-        if zenith is not None and azimuth is not None:
+        if coords is not None:
+            zenith, azimuth = coords
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
             text_color = get_color("ctlearn_accent_2")
@@ -703,8 +687,9 @@ class TriModelCollection:
         ):
             l = tri_model.energy_model.model_nickname if label is None else label
             tri_model.plot_energy_resolution_DL2(
-                zeniths=zeniths,
-                azimuths=azimuths,
+                # zeniths=zeniths,
+                # azimuths=azimuths,
+                coords=coords,
                 cuts=[cuts],
                 ylim=ylim,
                 particle_type=particle_type,
@@ -728,8 +713,9 @@ class TriModelCollection:
     def plot_angular_resolution_DL2(
         self,
         cuts: Cuts = DefaultCuts.GH_0_9.value,
-        zenith: float = None,
-        azimuth: float = None,
+        # zenith: float = None,
+        # azimuth: float = None,
+        coords : tuple = None,
         ylim=None,
         particle_type: ParticleType = ParticleType.GAMMA_POINT,
         figsize=None,
@@ -764,7 +750,7 @@ class TriModelCollection:
         if (
             plot_RF
             and cuts.cut_type == CutType.EFFICIENCY_OPTIMIZED
-            and zenith is not None
+            and coords is not None
         ):
             import importlib
             import importlib.resources as pkg_resources
@@ -774,7 +760,7 @@ class TriModelCollection:
             module_name = "ctlearn_manager.resources.irfs.LST1"
             RF_bechmpark = importlib.import_module(module_name)
             available_zeniths = [10.00, 23.63, 32.06, 43.20]
-            closest_zenith = min(available_zeniths, key=lambda x: abs(x - zenith.value))
+            closest_zenith = min(available_zeniths, key=lambda x: abs(x - coords[0]))
             with pkg_resources.path(
                 RF_bechmpark,
                 f"irfs_zen_{closest_zenith:.2f}_gh-eff_{cuts.efficiency_gammaness}.fits.gz",
@@ -784,11 +770,12 @@ class TriModelCollection:
                 RF_e = hudl["ANGULAR_RESOLUTION"].data["true_energy_center"]
                 RF_ang_res = hudl["ANGULAR_RESOLUTION"].data["angular_resolution"]
                 l = f"RF {closest_zenith:.1f}°"
-                if f"{zenith.value:.2f}" == f"{closest_zenith:.2f}":
+                if f"{coords[0]:.2f}" == f"{closest_zenith:.2f}":
                     l = "RF"
                 ax.plot(RF_e, RF_ang_res, label=l, color=get_color('on_background'), zorder=0)
             # ax.plot(hudl['ENERGY_BIAS_RESOLUTION'].data['true_energy_center'],hudl['ENERGY_BIAS_RESOLUTION'].data['resolution'], label='RF', color='k', zorder=0)
-        if zenith is not None and azimuth is not None:
+        if coords is not None:
+            zenith, azimuth = coords
             zeniths = np.array([zenith.value]) * zenith.unit
             azimuths = np.array([azimuth.value]) * azimuth.unit
             text_color = get_color("ctlearn_accent_2")
@@ -877,8 +864,9 @@ class TriModelCollection:
         ):
             l = tri_model.direction_model.model_nickname if label is None else label
             tri_model.plot_angular_resolution_DL2(
-                zeniths=zeniths,
-                azimuths=azimuths,
+                # zeniths=zeniths,
+                # azimuths=azimuths,
+                coords=coords,
                 cuts=[cuts],
                 ylim=ylim,
                 particle_type=particle_type,

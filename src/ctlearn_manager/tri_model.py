@@ -1417,10 +1417,12 @@ class CTLearnTriModelManager:
         zenith: float,
         azimuth: float,
         config: str,
+        cuts: Cuts,
         pointlike=True,
         electrons=False,
         protons=True,
         overwrite=False,
+        script_file=None,
     ):
         """
         Produce Instrument Response Functions (IRFs) for given observational parameters.
@@ -1499,7 +1501,18 @@ class CTLearnTriModelManager:
             proton_file = proton_files[0]
 
         
-        irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
+        # irf_type, gammaness_efficiency, theta_efficiency = get_irf_type_from_config(config)
+        
+        gammaness_efficiency, theta_efficiency = cuts.efficiency_gammaness, cuts.efficiency_theta
+
+        match cuts.cut_type:
+            case CutType.GLOBAL:
+                raise ValueError(f"Unknown optimization algorithm: global cut")
+            case CutType.EFFICIENCY_OPTIMIZED:
+                irf_type = IRFType.EFFICIENCY_OPTIMIZED
+            case CutType.SENSITIVITY_OPTIMIZED:
+                irf_type = IRFType.SENSITIVITY_OPTIMIZED
+
 
         match irf_type:
             case IRFType.EFFICIENCY_OPTIMIZED:
@@ -1518,6 +1531,8 @@ class CTLearnTriModelManager:
                     efficiency_gammaness=None,
                     efficiency_theta=None,
                 )
+            case _:
+                raise ValueError(f"Unknown IRF type: {irf_type}")
         
 
         output_directory = self.project_directories.get_irf_directory(zenith, azimuth, cuts)
@@ -1525,64 +1540,70 @@ class CTLearnTriModelManager:
 
         output_cuts_file = output_directory + f"/cuts_{zenith.value}_{azimuth.value}.fits"
         output_irf_file = output_directory + f"/irf_{zenith.value}_{azimuth.value}.fits"
-        compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
+        # compatible_output_irf_file = output_directory + f"/gammapy_irf_{zenith.value}_{azimuth.value}.fits"
         output_benchmark_file = output_directory + f"/benchmark_{zenith.value}_{azimuth.value}.fits"
 
         cmd = f"scp {config} {output_directory}"
         result = os.system(cmd)
         assert result == 0, f"Failed to copy config file to output directory : {result}"
 
-        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        config_ext = Path(config).suffix
+        cmd = f"mv {output_directory}/{Path(config).name} {output_directory}/config_{zenith.value}_{azimuth.value}{config_ext}"
         result = os.system(cmd)
-        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}.yaml : {result}"
+        assert result == 0, f"Failed to rename config file to config_{zenith.value}_{azimuth.value}{config_ext} : {result}"
 
-        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}.yaml"
+        config = f"{output_directory}/config_{zenith.value}_{azimuth.value}{config_ext}"
+
 
         electron_string = f"--electron-file {electron_file}" if electrons else ""
         proton_string = f"--proton-file {proton_file}" if protons else ""
         do_background_string = "--do-background" if protons else "--no-do-background"
-        cmd = f"ctapipe-optimize-event-selection \
--c {config} \
---gamma-file {gamma_file} \
-{proton_string} \
-{electron_string} \
---output {output_cuts_file} \
---overwrite True \
---Tool.log_level DEBUG"
-        print(cmd)
-        result_cuts = os.system(cmd)
-        if result_cuts != 0:
-            raise RuntimeError(
-                f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
-            )
-        cmd = f"ctapipe-compute-irf \
--c {config} --IrfTool.cuts_file {output_cuts_file} \
---gamma-file {gamma_file} \
-{proton_string} \
-{electron_string} \
-{do_background_string} \
---output {output_irf_file} \
---benchmark-output {output_benchmark_file} \
---no-spatial-selection-applied --overwrite"
-        print(cmd)
-        result_irfs = os.system(cmd)
-        if result_irfs != 0:
-            raise RuntimeError(
-                f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
-            )
+#         cmd = f"ctapipe-optimize-event-selection \
+# -c {config} \
+# --gamma-file {gamma_file} \
+# {proton_string} \
+# {electron_string} \
+# --output {output_cuts_file} \
+# --overwrite True \
+# --Tool.log_level DEBUG"
+#         print(cmd)
+#         result_cuts = os.system(cmd)
+#         if result_cuts != 0:
+#             raise RuntimeError(
+#                 f"Error: Failed to produce cuts file for zenith {zenith} and azimuth {azimuth}"
+#             )
+#         cmd = f"ctapipe-compute-irf \
+# -c {config} --IrfTool.cuts_file {output_cuts_file} \
+# --gamma-file {gamma_file} \
+# {proton_string} \
+# {electron_string} \
+# {do_background_string} \
+# --output {output_irf_file} \
+# --benchmark-output {output_benchmark_file} \
+# --no-spatial-selection-applied --overwrite"
+#         print(cmd)
+#         result_irfs = os.system(cmd)
+#         if result_irfs != 0:
+#             raise RuntimeError(
+#                 f"Error: Failed to produce IRF file for zenith {zenith} and azimuth {azimuth}"
+#             )
         
-        convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
+        # convert_irf_format(output_irf_file, output_cuts_file, compatible_output_irf_file)
         if not self.stereo:
 
-            cmd = f"manager_create_irf_files \
+            cmd = f"{'manager_create_irf_files' if script_file is None else 'python ' + script_file} \
 -g {gamma_file} \
 {proton_string} \
--o {compatible_output_irf_file} \
+-o {output_irf_file} \
+--point-like \
 --energy-dependent-gh \
 --energy-dependent-theta \
---gh-efficiency 0.7 \
---theta-containment 0.7 \
+--gh-efficiency {cuts.efficiency_gammaness} \
+--theta-containment {cuts.efficiency_theta} \
+--config {config} \
 --overwrite "
+
+# --gh-efficiency 0.7 --theta-containment 0.7 --energy-dependent-gh --energy-dependent-theta -c /home/rcervino/node16_251/IRFs/irf_config_morebins.json  --log-level 20 --overwrite
             print(cmd)
             result_irfs = os.system(cmd)
             if result_irfs != 0:
@@ -2373,11 +2394,12 @@ class CTLearnTriModelManager:
         plt.tight_layout()
         plt.show()
 
-    @u.quantity_input(zeniths=u.deg, azimuths=u.deg)
+    # @u.quantity_input(zeniths=u.deg, azimuths=u.deg)
     def plot_angular_resolution_DL2(
         self,
-        zeniths: list[float] = None,
-        azimuths: list[float] = None,
+        coords: list[tuple[float, float]] = None,
+        # zeniths: list[float] = None,
+        # azimuths: list[float] = None,
         cuts: list[Cuts] = [DefaultCuts.NO_CUTS.value],
         ylim=None,
         particle_type: ParticleType = ParticleType.GAMMA_POINT,
@@ -2390,7 +2412,7 @@ class CTLearnTriModelManager:
     ):
         """
         Plot the angular resolution as a function of true energy for DL2 data.
-
+        
         Parameters
         ----------
         zeniths : list[float], optional
@@ -2409,13 +2431,13 @@ class CTLearnTriModelManager:
             Matplotlib Axes object to plot on. If None, create a new figure and axes.
         label : str, optional
             Label for the plot legend. If None, generate a default label.
-
+        
         Raises
         ------
         AssertionError
             If `zeniths` and `azimuths` are provided but have different lengths.
             If both `zeniths/azimuths` and `cuts` have lengths greater than 1.
-
+        
         Notes
         -----
         - The function calculates the angular resolution for the given zenith and azimuth
@@ -2426,7 +2448,6 @@ class CTLearnTriModelManager:
         """
         import astropy.units as u
         import matplotlib.pyplot as plt
-
         
         export_curves = ExportCurves(export_to_h5)
         if import_from_h5 is not None:
@@ -2434,19 +2455,16 @@ class CTLearnTriModelManager:
             for curve_type in import_curves.curve_types:
                 if curve_type not in [CurveType.ANGULAR_RESOLUTION.value]:
                     raise ValueError(f"Imported curves are not of type angular-resolution : {curve_type}")
-
-        if zeniths is None:
+        if coords is None:
             coords = self.get_available_MC_directions(verbose=False)
-        else:
-            assert len(zeniths) == len(azimuths), (
-                "zeniths and azimuths must have the same length"
-            )
-            coords = list(zip(zeniths, azimuths))
-
+        # else:
+        #     assert len(zeniths) == len(azimuths), (
+        #         "zeniths and azimuths must have the same length"
+        #     )
+        #     coords = list(zip(zeniths, azimuths))
         assert len(coords) == 1 or len(cuts) == 1, (
             "Either zeniths/azimuths or 'cuts' must have a length of 1"
         )
-
         avg_model_az = np.mean(self.direction_model.validity.azimuth_range).to(u.deg)
         avg_model_ze = np.mean(self.direction_model.validity.zenith_range).to(u.deg)
         testing_azs = np.empty(len(coords)) * u.deg
@@ -2459,15 +2477,12 @@ class CTLearnTriModelManager:
         closest_coord_index = np.argmin(
             angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs)
         )
-
         # DL2_gamma_table = read_table_hdf5(self.direction_model.model_index_file, path=f'{self.direction_model.model_nickname}/DL2/MC/{particle_type.value}')
-
         if ax is None:
             if figsize is not None:
                 fig, ax = plt.subplots(figsize=figsize)
             else:
                 fig, ax = plt.subplots()
-
             if len(cuts) == 1 and (import_from_h5 is None):
                 stored_efficiency_theta = cuts[0].efficiency_theta
                 cuts[0].efficiency_theta = None
@@ -2475,7 +2490,6 @@ class CTLearnTriModelManager:
                 cuts[0].efficiency_theta = stored_efficiency_theta
             if len(coords) == 1:
                 plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
-
         for i, coord in enumerate(coords):
             for cut in cuts:
                 zenith, azimuth = coord
@@ -2570,6 +2584,179 @@ class CTLearnTriModelManager:
         if ax is None:
             plt.show()
 
+    # @u.quantity_input(zeniths=u.deg, azimuths=u.deg)
+    def plot_angular_resolution_DL2_new(
+        self,
+        coords: list[tuple[float, float]] = None,
+        # zeniths: list[float] = None,
+        # azimuths: list[float] = None,
+        cuts: list[Cuts] = [DefaultCuts.NO_CUTS.value],
+        ylim=None,
+        particle_type: ParticleType = ParticleType.GAMMA_POINT,
+        figsize=None,
+        show_relative: bool = False,
+        reference_label: str = None,
+        export_to_h5: str = None,
+        import_from_h5: str = None,
+        import_label: str = None,
+    ):
+        """
+        Plot the angular resolution as a function of true energy for DL2 data using PlotManager.
+        
+        This is a refactored version of plot_angular_resolution_DL2 that uses the PlotManager
+        class for cleaner code and additional features like relative improvement panels.
+        
+        Parameters
+        ----------
+        zeniths : list[float], optional
+            List of zenith angles in degrees. If None, use available Monte Carlo directions.
+        azimuths : list[float], optional
+            List of azimuth angles in degrees. Must have the same length as `zeniths`.
+        cuts : list[Cuts], optional
+            List of cuts to apply. Defaults to `[DefaultCuts.NO_CUTS.value]`.
+        ylim : tuple, optional
+            Tuple specifying the y-axis limits as (min, max). If None, use default limits.
+        particle_type : ParticleType, optional
+            Type of particle to analyze. Defaults to `ParticleType.GAMMA_POINT`.
+        figsize : tuple, optional
+            Figure size as (width, height). If None, use default size.
+        show_relative : bool, optional
+            If True, show a relative improvement panel. Defaults to False.
+        reference_label : str, optional
+            Label of the reference curve for relative improvement. Required if show_relative=True.
+        export_to_h5 : str, optional
+            Path to HDF5 file to export curve data.
+        import_from_h5 : str, optional
+            Path to HDF5 file to import curve data from.
+        import_label : str, optional
+            Label for imported curves.
+        
+        Raises
+        ------
+        AssertionError
+            If `zeniths` and `azimuths` are provided but have different lengths.
+            If both `zeniths/azimuths` and `cuts` have lengths greater than 1.
+        
+        Notes
+        -----
+        - Uses PlotManager for automatic labeling and optional relative improvement panels
+        - Automatically determines whether to show cuts/coordinates as annotations or labels
+        - Supports exporting and importing curve data for comparison
+        """
+        from .utils.plotting import PlotManager
+        
+        # Valcoordsidate and prepare coordinates
+        if coords is None:
+            coords = self.get_available_MC_directions(verbose=False)
+        # else:
+        #     assert len(zeniths) == len(azimuths), "zeniths and azimuths must have the same length"
+        #     coords = list(zip(zeniths, azimuths))
+        
+        assert len(coords) == 1 or len(cuts) == 1, "Either zeniths/azimuths or 'cuts' must have a length of 1"
+        
+        # Find closest coordinate to training data
+        avg_model_az = np.mean(self.direction_model.validity.azimuth_range).to(u.deg)
+        avg_model_ze = np.mean(self.direction_model.validity.zenith_range).to(u.deg)
+        testing_azs = np.array([coord[1].to(u.deg).value for coord in coords]) * u.deg
+        testing_zes = np.array([coord[0].to(u.deg).value for coord in coords]) * u.deg
+        closest_coord_index = np.argmin(
+            angular_distance(avg_model_ze, avg_model_az, testing_zes, testing_azs)
+        )
+        
+        # Create PlotManager
+        plot_manager = PlotManager(
+            show_relative=show_relative,
+            reference_label=reference_label,
+            figsize=figsize or (10, 6)
+        )
+        
+        # Add curves
+        for i, coord in enumerate(coords):
+            zenith, azimuth = coord
+            
+            for cut in cuts:
+                try:
+                    e_bins, ang_res_err = self.get_angular_resolution_DL2(
+                        zenith, azimuth, cut, particle_type
+                    )
+                except Exception as e:
+                    print(f"Skipping ({zenith.value:.1f}, {azimuth.value:.1f})° with {cut.get_label()}: {e}")
+                    continue
+                
+                # Extract data
+                e = (e_bins[:-1].value + e_bins[1:].value) / 2
+                ang_res = np.array([e_r[0].value for e_r in ang_res_err])
+                
+                # Build label
+                if len(cuts) == 1:
+                    if i == closest_coord_index:
+                        base_label = (
+                            f"Closest to training\n{particle_type.value}"
+                            if len(coords) > 1
+                            else f"{particle_type.value}"
+                        )
+                    else:
+                        base_label = f"{particle_type.value}"
+                else:
+                    # Remove theta efficiency from label for cleaner display
+                    stored_efficiency_theta = cut.efficiency_theta
+                    cut.efficiency_theta = None
+                    base_label = cut.get_label()
+                    cut.efficiency_theta = stored_efficiency_theta
+                
+                # Determine marker style
+                marker = 'o' if (len(cuts) == 1 and i == closest_coord_index) or len(cuts) > 1 else 'v'
+                alpha = 1.0 if (len(cuts) == 1 and i == closest_coord_index) or len(cuts) > 1 else 0.5
+                
+                # Add curve to PlotManager
+                plot_manager.add_curve(
+                    x=e,
+                    y=ang_res,
+                    label=base_label,
+                    cuts=cut if len(coords) == 1 else None,
+                    coordinates=(zenith, azimuth) if len(cuts) == 1 else None,
+                    marker=marker,
+                    ls='--',
+                    markersize=8,
+                    alpha=alpha
+                )
+                
+                # Export curve data if requested
+                if export_to_h5 is not None:
+                    export_curves = ExportCurves(export_to_h5)
+                    export_curves.add_curve(e, ang_res, CurveType.ANGULAR_RESOLUTION, cuts=cut)
+                    export_curves.export()
+        
+        # Import curves if requested
+        if import_from_h5 is not None:
+            import_curves = ExportCurves(import_from_h5, export_mode=False, import_label=import_label)
+            for curve_type in import_curves.curve_types:
+                if curve_type not in [CurveType.ANGULAR_RESOLUTION.value]:
+                    raise ValueError(f"Imported curves are not of type angular-resolution: {curve_type}")
+            
+            # Add imported curves to PlotManager
+            for i, (x, y, label) in enumerate(zip(import_curves.x_values, import_curves.y_values, import_curves.labels)):
+                plot_manager.add_curve(
+                    x=x,
+                    y=y,
+                    label=label,
+                    marker='s',
+                    ls='-',
+                    alpha=0.7
+                )
+        
+        # Generate the plot
+        plot_manager.plot(
+            xlabel="True Energy [TeV]",
+            ylabel="Angular resolution [deg]",
+            title="Angular Resolution" if len(coords) > 1 or len(cuts) > 1 else None,
+            xscale="log",
+            ylim=ylim,
+            show_legend=True
+        )
+        
+        return plot_manager
+    
     @u.quantity_input(zenith=u.deg, azimuth=u.deg)
     def get_DL2_tables(
         self,
@@ -2615,6 +2802,11 @@ class CTLearnTriModelManager:
         import astropy.units as u
         from astropy.io.misc.hdf5 import read_table_hdf5
         from astropy.table import join, vstack
+
+        if isinstance(particle_type, list):
+            raise TypeError(
+                f"particle_type must be a single ParticleType instance, not a list. Got: {particle_type}"
+            )
 
         testing_DL2_gamma_files = self.project_directories.get_dl2_mc_files(
             zenith,
@@ -2726,11 +2918,11 @@ class CTLearnTriModelManager:
         )
         return e, ang_res
 
-    @u.quantity_input(zeniths=u.deg, azimuths=u.deg)
+    # @u.quantity_input(zeniths=u.deg, azimuths=u.deg)
     def plot_energy_resolution_DL2(
         self,
-        zeniths: list[float] = None,
-        azimuths: list[float] = None,
+        coords: list[tuple[float, float]] = None,
+        # azimuths: list[float] = None,
         cuts: list[Cuts] = [DefaultCuts.NO_CUTS.value],
         ylim=None,
         particle_type: ParticleType = ParticleType.GAMMA_POINT,
@@ -2788,14 +2980,15 @@ class CTLearnTriModelManager:
             for curve_type in import_curves.curve_types:
                 if curve_type not in [CurveType.ENERGY_RESOLUTION.value]:
                     raise ValueError(f"Imported curves are not of type energy-resolution : {curve_type}")
+                
 
-        if zeniths is None:
+        if coords is None:
             coords = self.get_available_MC_directions(verbose=False)
-        else:
-            assert len(zeniths) == len(azimuths), (
-                "zeniths and azimuths must have the same length"
-            )
-            coords = list(zip(zeniths, azimuths))
+        # else:
+            # assert len(zeniths) == len(azimuths), (
+            #     "zeniths and azimuths must have the same length"
+            # )
+            # coords = list(zip(zeniths, azimuths))
         assert len(coords) == 1 or len(cuts) == 1, (
             "Either zeniths/azimuths or 'cuts' must have a length of 1"
         )
@@ -2823,16 +3016,18 @@ class CTLearnTriModelManager:
                 plot_pointing_on_ax(ax, coords[0][0], coords[0][1])
 
         for i, coord in enumerate(coords):
+            zenith, azimuth = coord
             for cut in cuts:
-                try:
-                    e_bins, e_res_err = self.get_energy_resolution_DL2(
-                        zenith=coord[0],
-                        azimuth=coord[1],
-                        cuts=cut,
-                        particle_type=particle_type,
+                # try:
+                e_bins, e_res_err = self.get_energy_resolution_DL2(
+                    zenith=coord[0],
+                    azimuth=coord[1],
+                    cuts=cut,
+                    particle_type=particle_type,
                     )
-                except:
-                    continue
+                # except:
+                #     print(f"Skipping ({coord[0].value:.1f}, {coord[1].value:.1f})° with cut {cut.get_label()} due to error in energy resolution calculation")
+                #     continue
                 e = (e_bins[:-1].value + e_bins[1:].value) / 2
                 e_res = [e_r[0] for e_r in e_res_err]
                 e_res_minus = [e_r[0] - e_r[1] for e_r in e_res_err]
@@ -3120,7 +3315,7 @@ class CTLearnTriModelManager:
             zenith, azimuth, cuts
         )
 
-        irf_files = self.project_directories.get_irf_files(zenith, azimuth, cuts)
+        irf_files = self.project_directories.get_irf_files(zenith, azimuth, cuts, ctlearn=True)
         return irf_files
     
     def compare_irfs_to_RF(self, zenith: float, azimuth=None):
